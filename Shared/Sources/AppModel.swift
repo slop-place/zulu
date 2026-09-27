@@ -71,6 +71,8 @@ final class AppModel {
     private var sync: SyncEngine?
     private var shapeSync: PersonalShapeSync?
     fileprivate var observers: [AnyDatabaseCancellable] = []
+    /// Messages read here that the server has not acknowledged yet.
+    @ObservationIgnored fileprivate var unsentReads: Set<Int> = []
 
     // MARK: lifecycle
 
@@ -108,7 +110,10 @@ final class AppModel {
             phase = .signedIn
 
             await sync.onStatusChange { [weak self] status in
-                Task { @MainActor in self?.status = status }
+                Task { @MainActor in
+                    self?.status = status
+                    if status == .live { await self?.resendUnsentReads() }
+                }
             }
             await sync.onMessageArrival { [weak self] message, localID in
                 Task { @MainActor in
@@ -225,6 +230,7 @@ final class AppModel {
         sidebarObserversStarted = false
         dms = []
         users = [:]
+        unsentReads = []
         destination = nil
         UserDefaults.standard.removeObject(forKey: Self.lastDestinationKey)
         // The store is wiped on sign-out, and what was typed there goes with it.
@@ -427,12 +433,27 @@ extension AppModel {
     /// Clears the messages locally and tells the server, so the same messages read here
     /// stop being unread everywhere else too.
     func markRead(_ ids: [Int]) async {
-        guard !ids.isEmpty else { return }
-        try? store?.clearUnread(ids: ids)
-        try? store?.setRead(ids: ids, read: true)
-        // A failure here is not worth surfacing: the next register snapshot re-reads the
-        // server's own view and the counts correct themselves.
-        try? await client?.markRead(messageIDs: ids)
+        unsentReads.formUnion(ids)
+        guard !unsentReads.isEmpty else { return }
+        let batch = Array(unsentReads)
+        try? store?.clearUnread(ids: batch)
+        try? store?.setRead(ids: batch, read: true)
+        do {
+            try await client?.markRead(messageIDs: batch)
+            unsentReads.subtract(batch)
+        } catch let error as ZulipError where error.code != nil {
+            // The server refused them, so sending them again would not change its answer.
+            unsentReads.subtract(batch)
+        } catch {
+            // Kept for the next mark or reconnect. Dropping them left this device showing
+            // read while every other device still showed unread.
+        }
+    }
+
+    /// A register snapshot taken before the server heard about these puts them back as
+    /// unread, so they are cleared again as well as resent.
+    func resendUnsentReads() async {
+        await markRead([])
     }
 
     /// Sending every id at once is what a long-unread topic actually needs, and what the

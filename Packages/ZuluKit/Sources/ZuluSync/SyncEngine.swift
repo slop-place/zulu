@@ -186,7 +186,10 @@ public actor SyncEngine {
         case .deleteMessage(let ids):
             try store.deleteMessages(ids: ids)
 
-        case .flags(let operation, let flag, let messageIDs) where flag == "read":
+        case .flags(let operation, let flag, _, let all) where flag == "read" && all && operation == "add":
+            try store.markEverythingRead()
+
+        case .flags(let operation, let flag, let messageIDs, _) where flag == "read":
             try store.setRead(ids: messageIDs, read: operation == "add")
             if operation == "add" { try store.clearUnread(ids: messageIDs) }
 

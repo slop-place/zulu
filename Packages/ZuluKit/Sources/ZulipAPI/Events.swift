@@ -26,7 +26,8 @@ public enum ZulipEvent: Sendable {
     case message(ZulipMessage, localID: String?)
     case updateMessage(id: Int, renderedContent: String?, editedAt: Int?)
     case deleteMessage(ids: [Int])
-    case flags(operation: String, flag: String, messageIDs: [Int])
+    /// `all` means every message the user has, and comes with no ids.
+    case flags(operation: String, flag: String, messageIDs: [Int], all: Bool)
     case reaction(added: Bool, messageID: Int, reaction: Reaction)
     case submessage(Submessage)
     case subscriptionsChanged
@@ -64,6 +65,9 @@ struct EventEnvelope: Decodable {
     let message: ZulipMessage?
     let message_id: Int?
     let message_ids: [Int]?
+    /// `update_message_flags` names its ids `messages`, not `message_ids`.
+    let messages: [Int]?
+    let all: Bool?
     let rendered_content: String?
     let edit_timestamp: Int?
     let operation: String?
@@ -97,8 +101,10 @@ struct EventEnvelope: Decodable {
         case "delete_message":
             return .deleteMessage(ids: message_ids ?? [message_id].compactMap { $0 })
         case "update_message_flags":
-            if let flag, let ids = message_ids {
-                return .flags(operation: operation ?? op ?? "add", flag: flag, messageIDs: ids)
+            if let flag, let ids = messages {
+                return .flags(
+                    operation: operation ?? op ?? "add", flag: flag, messageIDs: ids, all: all ?? false
+                )
             }
         case "reaction":
             if let messageID = message_id, let name = emoji_name, let code = emoji_code,

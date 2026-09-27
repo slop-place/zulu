@@ -347,6 +347,13 @@ extension ZuluStore {
         }
     }
 
+    public func markEverythingRead() throws {
+        try writer.write { db in
+            try UnreadRecord.deleteAll(db)
+            try MessageRecord.updateAll(db, Column("isRead").set(to: true))
+        }
+    }
+
     /// Everything still unread in one conversation, however far back it goes. Reaching the
     /// live edge of a conversation means you are done with it, not that you are done with
     /// the dozen messages that happened to be drawn.

@@ -11,6 +11,7 @@ struct ConversationView: View {
 
     let source: Source
     @Environment(AppModel.self) private var model
+    @Environment(\.scenePhase) private var scenePhase
 
     @State private var loader: MessageHistoryLoader?
     @State private var readTracker: ReadTracker?
@@ -63,6 +64,20 @@ struct ConversationView: View {
         .onDisappear {
             loader?.stop()
             Task { await readTracker?.flushNow() }
+        }
+        // Leaving the app never fires `onDisappear`, and a suspended app sends nothing.
+        .onChange(of: scenePhase) {
+            if scenePhase == .background { flushBeforeSuspending() }
+        }
+    }
+
+    private func flushBeforeSuspending() {
+        let application = UIApplication.shared
+        let flushing = Task { await readTracker?.flushNow() }
+        let assertion = application.beginBackgroundTask { flushing.cancel() }
+        Task {
+            await flushing.value
+            application.endBackgroundTask(assertion)
         }
     }
 
