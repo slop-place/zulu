@@ -651,7 +651,7 @@ struct ShellView: View {
         switch model.destination {
         case .channel(let id):
             if let channel = model.channel(id) {
-                ChannelView(channel: channel)
+                ChannelView(channel: channel).id(id)
             } else {
                 EmptyStateView(text: "That channel is no longer available.")
             }

@@ -112,13 +112,13 @@ final class PushNotifications: NSObject, UIApplicationDelegate, UNUserNotificati
               realm.host() == account.realmURL.host()
         else { return nil }
 
+        // Always the topic, never a chat channel's page: that page lists topics from the
+        // store, which may not have synced the pushed message yet and would show empty.
         if let channelID = target.channelID {
-            let channel = model.channel(channelID)
-            if channel?.rendersAsForum == false { return .channel(channelID) }
             return .topic(
                 channelID: channelID,
                 name: target.topic ?? "",
-                channelName: channel?.name ?? target.channelName ?? ""
+                channelName: model.channel(channelID)?.name ?? target.channelName ?? ""
             )
         }
         guard !target.recipientIDs.isEmpty else { return nil }
