@@ -51,7 +51,7 @@ struct MacRootView: View {
         case .signedOut:
             MacSignInView()
         case .signedIn:
-            MacShellView()
+            MacShellView().attachmentPreviews()
         }
     }
 }
@@ -93,8 +93,6 @@ final class MacUIState {
     var newTopicChannel: ChannelSummaryBox?
     var mutedTopicsChannel: ChannelSummaryBox?
     var editingGroup: GroupBox?
-    /// The image expanded over the window, if any.
-    var viewingImage: ImageViewerItem?
 
     /// Counters rather than booleans: a request is an event, and firing the same one
     /// twice in a row still has to fire twice.

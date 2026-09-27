@@ -40,13 +40,6 @@ struct MacShellView: View {
         } detail: {
             MacDetailView()
         }
-        .overlay {
-            if let item = ui.viewingImage {
-                MacImageViewer(item: item) { ui.viewingImage = nil }
-                    .transition(.opacity.combined(with: .scale(scale: 0.98)))
-            }
-        }
-        .animation(.easeOut(duration: 0.15), value: ui.viewingImage)
         .task(id: ui.section) { await observe() }
         // The remembered destination comes back before the groups do, so the section
         // follows it once the groups are known — and only once, or switching sections

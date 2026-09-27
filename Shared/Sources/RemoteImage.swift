@@ -12,12 +12,7 @@ struct RemoteImage: View {
     var aspectRatio: Double?
 
     @Environment(AppModel.self) private var model
-    #if os(macOS)
-    @Environment(MacUIState.self) private var ui
-    #else
-    @State private var viewing: ImageViewerItem?
-    @Namespace private var viewerTransition
-    #endif
+    @Environment(AttachmentPreviewer.self) private var previewer
     @State private var image: Image?
     @State private var failed = false
 
@@ -52,27 +47,17 @@ struct RemoteImage: View {
         }
         .frame(maxWidth: 320, alignment: .leading)
         #if os(macOS)
-        // A click expands the image in the window, at the size it was uploaded. The
-        // pointer says so on the way in.
+        // A click opens the image at the size it was uploaded. The pointer says so on
+        // the way in.
         .onHover { inside in
             guard image != nil else { return }
             inside ? NSCursor.pointingHand.push() : NSCursor.pop()
         }
-        .onTapGesture {
-            guard image != nil else { return }
-            ui.viewingImage = viewerItem
-        }
-        #else
-        .matchedTransitionSource(id: path, in: viewerTransition)
-        .onTapGesture {
-            guard image != nil else { return }
-            viewing = viewerItem
-        }
-        .fullScreenCover(item: $viewing) { item in
-            ImageViewer(item: item)
-                .navigationTransition(.zoom(sourceID: path, in: viewerTransition))
-        }
         #endif
+        .onTapGesture {
+            guard image != nil else { return }
+            previewer.preview(previewPaths, imagesOnly: true, model: model)
+        }
         .task(id: path) {
             guard image == nil else { return }
             if let data = await model.imageData(at: path), let decoded = Platform.image(from: data) {
@@ -86,8 +71,9 @@ struct RemoteImage: View {
 }
 
 extension RemoteImage {
-    private var viewerItem: ImageViewerItem {
-        ImageViewerItem(preview: path, fullSize: fullSize, alt: alt, aspectRatio: aspectRatio)
+    /// The original where the message linked to one, then the preview already on screen.
+    private var previewPaths: [String] {
+        [fullSize, path].compactMap { $0 }.filter { !$0.isEmpty }
     }
 
     /// The full-size upload, resolved against the realm since the server hands out a

@@ -36,7 +36,7 @@ struct RootView: View {
         case .signedOut:
             SignInView()
         case .signedIn:
-            ShellView()
+            ShellView().attachmentPreviews()
         }
     }
 }
