@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.9.1](https://github.com/slop-place/zulu/compare/zulu-v1.9.0...zulu-v1.9.1) (2026-09-28)
+
+
+### Bug Fixes
+
+* follow the newest message reliably through keyboard and layout changes ([a6681b0](https://github.com/slop-place/zulu/commit/a6681b03ac19f4d70115fb8bd59124cefe88fd9c))
+* keep the suggestion list above the composer on iOS ([ed6b4e6](https://github.com/slop-place/zulu/commit/ed6b4e6f241af3629606c77fd646c62929ef3f8b))
+
 ## [1.9.0](https://github.com/slop-place/zulu/compare/zulu-v1.8.0...zulu-v1.9.0) (2026-09-28)
 
 
