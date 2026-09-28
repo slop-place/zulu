@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.9.0](https://github.com/slop-place/zulu/compare/zulu-v1.8.0...zulu-v1.9.0) (2026-09-28)
+
+
+### Features
+
+* animate custom emoji in emoji suggestions ([e52f446](https://github.com/slop-place/zulu/commit/e52f446c2b6208323d5b758ed33b55cd66b28057))
+
 ## [1.8.0](https://github.com/slop-place/zulu/compare/zulu-v1.7.0...zulu-v1.8.0) (2026-09-28)
 
 
