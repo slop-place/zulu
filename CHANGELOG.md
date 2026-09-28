@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.7.0](https://github.com/slop-place/zulu/compare/zulu-v1.6.0...zulu-v1.7.0) (2026-09-28)
+
+
+### Features
+
+* open attachments and images in quick look ([e9e3376](https://github.com/slop-place/zulu/commit/e9e3376c830699a6d46a1b9d708d7cfe3e96f97f))
+* show date separators between days in conversations ([f83171d](https://github.com/slop-place/zulu/commit/f83171dd3d4c0fea98a2bf77a843294b38140511))
+
+
+### Bug Fixes
+
+* keep read state in sync across devices ([ae57867](https://github.com/slop-place/zulu/commit/ae5786794b4bc1b6bfa89cddcb1bf61730530d7f))
+* **notifyd:** decide pushes by the levels the apps show ([c8a113d](https://github.com/slop-place/zulu/commit/c8a113da63323f277cc719a50b8ad0e016c3b7ca))
+* open topic from push notification ([89608cd](https://github.com/slop-place/zulu/commit/89608cd9c1965ccfa36b4421b92aca0e4fa1dbb3))
+* treat followed topics as all messages on every client ([0c614c2](https://github.com/slop-place/zulu/commit/0c614c28bc0f67b05849c1a579ce825cb078a459))
+
 ## [1.6.0](https://github.com/slop-place/zulu/compare/zulu-v1.5.2...zulu-v1.6.0) (2026-09-26)
 
 
