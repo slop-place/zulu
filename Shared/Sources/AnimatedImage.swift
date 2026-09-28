@@ -10,14 +10,26 @@ import SwiftUI
 /// mechanism rather than a second one.
 struct EmojiFrames: Equatable {
     let frames: [Image]
-    let duration: Double
+    /// When each frame stops showing, measured from the start of the loop. Frames in one
+    /// file can each have their own delay, so they cannot be spread evenly over the loop.
+    let frameEnds: [Double]
 
     var isAnimated: Bool { frames.count > 1 }
+    var duration: Double { frameEnds.last ?? 0 }
+
+    init(frames: [Image], delays: [Double]) {
+        self.frames = frames
+        var elapsed: Double = 0
+        frameEnds = delays.map { delay in
+            elapsed += delay
+            return elapsed
+        }
+    }
 
     func frame(at time: TimeInterval) -> Image {
         guard isAnimated, duration > 0 else { return frames[0] }
-        let progress = time.truncatingRemainder(dividingBy: duration) / duration
-        let index = min(Int(progress * Double(frames.count)), frames.count - 1)
+        let position = time.truncatingRemainder(dividingBy: duration)
+        let index = frameEnds.firstIndex { $0 > position } ?? frames.count - 1
         return frames[index]
     }
 
@@ -31,34 +43,50 @@ struct EmojiFrames: Equatable {
         guard count > 0 else { return nil }
 
         var images: [Image] = []
-        var duration: Double = 0
+        var delays: [Double] = []
         images.reserveCapacity(count)
+        delays.reserveCapacity(count)
 
         for index in 0..<count {
             guard let cgImage = CGImageSourceCreateImageAtIndex(source, index, nil) else { continue }
             images.append(
                 Image(decorative: cgImage, scale: CGFloat(cgImage.height) / height)
             )
-            duration += delay(source: source, index: index)
+            delays.append(delay(source: source, index: index))
         }
 
         guard !images.isEmpty else { return nil }
-        // A GIF claiming zero total duration would animate infinitely fast.
-        return EmojiFrames(frames: images, duration: duration > 0 ? duration : 1)
+        return EmojiFrames(frames: images, delays: delays)
     }
 
-    /// GIF delays come from one of two dictionaries, and browsers clamp implausibly small
-    /// values rather than honouring them.
+    /// What browsers show a frame for when the file gives no delay, or one too small to
+    /// be meant literally.
+    private static let fallbackDelay = 0.1
+    private static let minimumDelay = 0.011
+
+    /// Where each format keeps its frame delays. Each has a clamped and an unclamped
+    /// value, and the unclamped one is the file's own.
+    private static var delayKeys: [(dictionary: CFString, unclamped: CFString, clamped: CFString)] {
+        [
+            (kCGImagePropertyGIFDictionary, kCGImagePropertyGIFUnclampedDelayTime, kCGImagePropertyGIFDelayTime),
+            (kCGImagePropertyWebPDictionary, kCGImagePropertyWebPUnclampedDelayTime, kCGImagePropertyWebPDelayTime),
+            (kCGImagePropertyPNGDictionary, kCGImagePropertyAPNGUnclampedDelayTime, kCGImagePropertyAPNGDelayTime),
+            (kCGImagePropertyHEICSDictionary, kCGImagePropertyHEICSUnclampedDelayTime, kCGImagePropertyHEICSDelayTime),
+        ]
+    }
+
     private static func delay(source: CGImageSource, index: Int) -> Double {
         guard let properties = CGImageSourceCopyPropertiesAtIndex(source, index, nil)
-            as? [CFString: Any],
-            let gif = properties[kCGImagePropertyGIFDictionary] as? [CFString: Any]
-        else { return 0.1 }
+            as? [CFString: Any]
+        else { return fallbackDelay }
 
-        let unclamped = gif[kCGImagePropertyGIFUnclampedDelayTime] as? Double
-        let clamped = gif[kCGImagePropertyGIFDelayTime] as? Double
-        let delay = unclamped ?? clamped ?? 0.1
-        return delay < 0.011 ? 0.1 : delay
+        for keys in delayKeys {
+            guard let format = properties[keys.dictionary] as? [CFString: Any] else { continue }
+            let delay = (format[keys.unclamped] as? Double) ?? (format[keys.clamped] as? Double)
+            guard let delay else { continue }
+            return delay < minimumDelay ? fallbackDelay : delay
+        }
+        return fallbackDelay
     }
 }
 
