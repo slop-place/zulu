@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.9.2](https://github.com/slop-place/zulu/compare/zulu-v1.9.1...zulu-v1.9.2) (2026-09-28)
+
+
+### Bug Fixes
+
+* stop the app locking up when a conversation opens ([f7d2082](https://github.com/slop-place/zulu/commit/f7d208211ddd7d10bdcf20667b27689023a2758e))
+
 ## [1.9.1](https://github.com/slop-place/zulu/compare/zulu-v1.9.0...zulu-v1.9.1) (2026-09-28)
 
 
