@@ -77,14 +77,14 @@ struct EmojiGlyph: View {
     var size: CGFloat = 30
 
     @Environment(AppModel.self) private var model
-    @State private var image: Image?
+    @State private var frames: EmojiFrames?
 
     var body: some View {
         Group {
             if let glyph = emoji.glyph {
                 Text(glyph).font(.system(size: size))
-            } else if let image {
-                image.resizable().scaledToFit()
+            } else if let frames {
+                AnimatedEmojiView(frames: frames)
             } else {
                 // Until the image lands, the name is still the truth about the emoji —
                 // the same fallback the server's own markdown makes.
@@ -99,10 +99,8 @@ struct EmojiGlyph: View {
     }
 
     private func load() async {
-        // The still frame is preferred where there is one: a grid of animated emoji all
-        // playing at once is unreadable.
-        guard let path = emoji.stillURL ?? emoji.imageURL else { return }
+        guard let path = emoji.imageURL ?? emoji.stillURL else { return }
         guard let data = await model.imageData(at: path) else { return }
-        image = Platform.image(from: data)
+        frames = EmojiFrames.decode(data, height: size)
     }
 }
