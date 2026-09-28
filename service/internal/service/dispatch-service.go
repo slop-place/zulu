@@ -119,14 +119,15 @@ func (s *DispatchService) Dispatch(
 	return result, nil
 }
 
-// reapDeadToken removes a token APNs has retired — but only if the app has not
-// re-registered the same token since APNs made that call, which Apple documents
-// as possible.
+// reapDeadToken removes a token APNs has retired, or one the key cannot reach. A
+// retired token is kept if the app re-registered it after APNs made that call,
+// which Apple documents as possible.
 func (s *DispatchService) reapDeadToken(ctx context.Context, device domain.Device, receipt apns.Receipt) bool {
-	if !receipt.TokenIsDead() {
+	switch {
+	case receipt.EnvironmentIsRefused():
+	case !receipt.TokenIsDead():
 		return false
-	}
-	if !receipt.Timestamp.IsZero() && device.RegisteredAt.After(receipt.Timestamp) {
+	case !receipt.Timestamp.IsZero() && device.RegisteredAt.After(receipt.Timestamp):
 		return false
 	}
 	if err := s.devices.Delete(ctx, device.ID); err != nil {

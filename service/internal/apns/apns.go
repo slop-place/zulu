@@ -90,6 +90,9 @@ const (
 	ReasonUnregistered   = "Unregistered"
 	ReasonBadDeviceToken = "BadDeviceToken"
 	ReasonExpiredToken   = "ExpiredToken"
+	// ReasonBadEnvironmentKeyInToken means the signing key is limited to the other
+	// APNs environment, so no push to this token can ever succeed with it.
+	ReasonBadEnvironmentKeyInToken = "BadEnvironmentKeyInToken"
 )
 
 // TokenIsDead reports whether APNs said this token will never work again.
@@ -98,6 +101,14 @@ const (
 // after a configuration mistake.
 func (r Receipt) TokenIsDead() bool {
 	return r.StatusCode == 410 && (r.Reason == ReasonUnregistered || r.Reason == ReasonExpiredToken)
+}
+
+// EnvironmentIsRefused reports a device the key cannot reach, typically a debug
+// build's sandbox token left behind after installing a release build. The app
+// registers again on every launch, so removing it is safe even after a key
+// mistake.
+func (r Receipt) EnvironmentIsRefused() bool {
+	return r.StatusCode == 403 && r.Reason == ReasonBadEnvironmentKeyInToken
 }
 
 type Sender interface {

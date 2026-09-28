@@ -78,6 +78,10 @@ type RegisterInput struct {
 	Platform    string
 	Environment string
 	AppVersion  string
+	// PreviousDeviceSecret is the secret this install got last time, if any. Its
+	// row is replaced, so a new token or environment does not leave the old one
+	// behind receiving pushes.
+	PreviousDeviceSecret string
 }
 
 type RegisterOutput struct {
@@ -138,6 +142,7 @@ func (s *DeviceService) Register(ctx context.Context, input RegisterInput) (Regi
 	if err != nil {
 		return RegisterOutput{}, err
 	}
+	s.replacePreviousDevice(ctx, input.PreviousDeviceSecret, device.ID)
 
 	s.log.Info("device registered",
 		"user_id", user.ID,
@@ -153,6 +158,23 @@ func (s *DeviceService) Register(ctx context.Context, input RegisterInput) (Regi
 		UserID:       user.ID,
 		ZulipUserID:  user.ZulipUserID,
 	}, nil
+}
+
+// replacePreviousDevice is best effort: registration has already succeeded, and
+// a leftover row is also removed once APNs rejects it.
+func (s *DeviceService) replacePreviousDevice(ctx context.Context, previousSecret, currentID string) {
+	if previousSecret == "" {
+		return
+	}
+	previous, err := s.Authenticate(ctx, previousSecret)
+	if err != nil || previous.Device.ID == currentID {
+		return
+	}
+	if err := s.Deregister(ctx, previous.User.ID, previous.Device.ID); err != nil {
+		s.log.Warn("replace previous device", "device_id", previous.Device.ID, "error", err)
+		return
+	}
+	s.log.Info("replaced previous device", "device_id", previous.Device.ID, "environment", previous.Device.Environment)
 }
 
 // Caller is an authenticated device and the account it belongs to.

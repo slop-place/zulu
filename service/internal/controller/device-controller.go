@@ -36,6 +36,8 @@ func (c *DeviceController) Register(ctx fuego.ContextWithBody[RegisterDeviceRequ
 		Platform:    body.Platform,
 		Environment: body.Environment,
 		AppVersion:  body.AppVersion,
+		// Optional here, unlike every other call: a first registration has no secret yet.
+		PreviousDeviceSecret: strings.TrimPrefix(ctx.Header("Authorization"), bearerPrefix),
 	})
 	if err != nil {
 		return RegisterDeviceResponse{}, httpError(err)

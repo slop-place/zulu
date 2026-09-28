@@ -171,6 +171,11 @@ func TestDispatchReapsDeadTokens(t *testing.T) {
 			receipt: apns.Receipt{StatusCode: 400, Reason: apns.ReasonBadDeviceToken},
 			removed: 0,
 		},
+		{
+			name:    "a token in an environment the key cannot reach is removed",
+			receipt: apns.Receipt{StatusCode: 403, Reason: apns.ReasonBadEnvironmentKeyInToken},
+			removed: 1,
+		},
 	}
 
 	for _, test := range tests {

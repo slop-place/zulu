@@ -214,6 +214,29 @@ func TestDeregisterLastDeviceDropsTheStoredKey(t *testing.T) {
 	assert.ErrorIs(t, err, service.ErrNotFound, "the account and its API key are gone")
 }
 
+// A release build installed over a debug build has a new token in a new
+// environment. The debug build's row must not linger and keep failing.
+func TestRegisteringAgainReplacesTheInstallsOldDevice(t *testing.T) {
+	ctx := context.Background()
+	fixture := newDeviceFixture(t, fakeZulip(t, `{"user_id": 12, "email": "user@example.com"}`, 200))
+	debugInput := fixture.input()
+	debugInput.Environment = domain.EnvironmentSandbox
+	debug, err := fixture.devices.Register(ctx, debugInput)
+	require.NoError(t, err)
+
+	releaseInput := fixture.input()
+	releaseInput.DeviceToken = "ff00"
+	releaseInput.PreviousDeviceSecret = debug.DeviceSecret
+	release, err := fixture.devices.Register(ctx, releaseInput)
+	require.NoError(t, err)
+
+	remaining, err := fixture.devices.List(ctx, release.UserID)
+	require.NoError(t, err)
+	require.Len(t, remaining, 1)
+	assert.Equal(t, release.DeviceID, remaining[0].ID)
+	assert.Equal(t, domain.EnvironmentProduction, remaining[0].Environment)
+}
+
 func TestDeregisterRefusesAnotherAccountsDevice(t *testing.T) {
 	ctx := context.Background()
 	fixture := newDeviceFixture(t, fakeZulip(t, `{"user_id": 12, "email": "user@example.com"}`, 200))
