@@ -10,6 +10,7 @@ let package = Package(
         .library(name: "ZuluEmoji", targets: ["ZuluEmoji"]),
         .library(name: "ZuluMarkup", targets: ["ZuluMarkup"]),
         .library(name: "ZuluPolls", targets: ["ZuluPolls"]),
+        .library(name: "ZuluScroll", targets: ["ZuluScroll"]),
         .library(name: "ZuluStore", targets: ["ZuluStore"]),
         .library(name: "ZuluSync", targets: ["ZuluSync"]),
     ],
@@ -22,6 +23,7 @@ let package = Package(
         .target(name: "ZuluCompose", dependencies: ["ZuluEmoji"]),
         .target(name: "ZuluMarkup"),
         .target(name: "ZuluPolls"),
+        .target(name: "ZuluScroll"),
         .target(name: "ZuluStore", dependencies: [
             "ZulipAPI",
             "ZuluEmoji",
@@ -36,6 +38,7 @@ let package = Package(
         .testTarget(name: "ZuluStoreTests", dependencies: ["ZuluStore", "ZulipAPI", "ZuluEmoji"]),
         .testTarget(name: "ZuluMarkupTests", dependencies: ["ZuluMarkup"]),
         .testTarget(name: "ZuluPollsTests", dependencies: ["ZuluPolls"]),
+        .testTarget(name: "ZuluScrollTests", dependencies: ["ZuluScroll"]),
         .testTarget(name: "ZuluSyncTests", dependencies: ["ZuluSync", "ZuluStore"]),
     ]
 )

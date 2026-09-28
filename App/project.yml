@@ -28,6 +28,8 @@ targets:
         product: ZuluCompose
       - package: ZuluKit
         product: ZuluPolls
+      - package: ZuluKit
+        product: ZuluScroll
     info:
       path: Zulu-Info.plist
       properties:
@@ -100,6 +102,8 @@ targets:
         product: ZuluCompose
       - package: ZuluKit
         product: ZuluPolls
+      - package: ZuluKit
+        product: ZuluScroll
     info:
       path: ZuluMac-Info.plist
       properties:

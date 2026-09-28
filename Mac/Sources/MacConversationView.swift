@@ -1,5 +1,6 @@
 import SwiftUI
 import UniformTypeIdentifiers
+import ZuluScroll
 import ZuluStore
 
 /// One conversation on the Mac: the same message history the phone shows, with a
@@ -237,12 +238,18 @@ private struct MacConversationHistory: View {
     let title: String
 
     @Environment(AppModel.self) private var model
+    @State private var scroll: ConversationScrollManager
 
-    @State private var scroll = ScrollPosition(idType: Int.self)
-    @State private var atBottom = true
-    @State private var following = false
+    init(source: ConversationSource, loader: MessageHistoryLoader, readTracker: ReadTracker?, title: String) {
+        self.source = source
+        self.loader = loader
+        self.readTracker = readTracker
+        self.title = title
+        _scroll = State(initialValue: ConversationScrollManager(opensAt: loader.firstUnreadID))
+    }
 
     var body: some View {
+        @Bindable var scroll = scroll
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 0) {
                 if loader.isLoadingOlder {
@@ -282,34 +289,32 @@ private struct MacConversationHistory: View {
             .padding(.vertical, 12)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        // Holds the bottom row, as the phone does, so a taller composer or an image
-        // loading above leaves the newest messages where they were.
-        .scrollPosition($scroll, anchor: .bottom)
+        // Anchoring by item identity is what keeps the view still while older messages are
+        // prepended. Everything about following the newest message lives in the manager.
+        .scrollPosition($scroll.position, anchor: .bottom)
         .defaultScrollAnchor(.bottom)
-        .onAppear {
-            if let firstUnread = loader.firstUnreadID { scroll.scrollTo(id: firstUnread, anchor: .top) }
-        }
         .onScrollPhaseChange { _, phase in
-            if phase == .interacting { following = false }
+            scroll.scrollPhaseChanged(to: phase)
             loader.noteScrollPhase(phase)
         }
         .onScrollTargetVisibilityChange(idType: Int.self, threshold: 0.1) { visible in
             loader.noteVisible(visible)
         }
+        .onScrollGeometryChange(for: ConversationLayout.self) { geometry in
+            ConversationLayout(geometry)
+        } action: { _, layout in
+            scroll.layoutChanged(to: layout)
+        }
         .onScrollGeometryChange(for: Bool.self) { geometry in
-            ConversationScroll.isNearBottom(geometry)
+            ConversationLayout(geometry).isNearBottom
         } action: { _, isNearBottom in
-            atBottom = isNearBottom
-            if isNearBottom { following = false }
-            if isNearBottom {
-                Task { await model.markConversationRead(source) }
-            }
+            if isNearBottom { Task { await model.markConversationRead(source) } }
         }
         .overlay(alignment: .bottomTrailing) {
             Group {
-                if !atBottom, !following {
+                if scroll.showsJumpToNewest {
                     Button {
-                        withAnimation(.snappy) { scroll.scrollTo(edge: .bottom) }
+                        scroll.jumpToNewest()
                     } label: {
                         Image(systemName: "arrow.down")
                             .font(.body.weight(.semibold))
@@ -325,26 +330,12 @@ private struct MacConversationHistory: View {
                     .help("Jump to newest")
                 }
             }
-            .animation(.snappy(duration: 0.2), value: atBottom || following)
-        }
-        .onChange(of: loader.messages.last?.id) { _, newest in
-            guard atBottom || following, newest != nil else { return }
-            followNewest()
-        }
-        .onChange(of: loader.newestReactions) {
-            guard atBottom || following else { return }
-            followNewest()
+            .animation(.snappy(duration: 0.2), value: scroll.showsJumpToNewest)
         }
         // Sending always shows what was sent, even from partway up the history.
         .onChange(of: model.outbox.count(in: source)) { old, new in
             guard new > old else { return }
-            followNewest()
+            scroll.didSend()
         }
-    }
-
-    /// Without animation, so the jump lands in the same frame as the message.
-    private func followNewest() {
-        following = true
-        scroll.scrollTo(edge: .bottom)
     }
 }

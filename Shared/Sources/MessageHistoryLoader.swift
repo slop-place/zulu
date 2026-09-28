@@ -23,12 +23,6 @@ final class MessageHistoryLoader {
     private(set) var isReady = false
     private(set) var reactions: [Int: [ReactionGroup]] = [:]
 
-    /// The newest message grows when it gains its first reaction, which the list has to
-    /// follow the same way it follows a new message.
-    var newestReactions: [ReactionGroup] {
-        messages.last.flatMap { reactions[$0.id] } ?? []
-    }
-
     private let source: ConversationSource
     private let model: AppModel
     private var scrollPhase: ScrollPhase = .idle
@@ -167,19 +161,5 @@ extension MessageHistoryLoader {
                 // Ends with the conversation; nothing to recover.
             }
         }
-    }
-}
-
-enum ConversationScroll {
-    /// Close enough to the newest message to count as reading it, and to keep following
-    /// new ones as they arrive.
-    static let nearBottomDistance: CGFloat = 120
-
-    /// Measured to the end of the content inset, which is where the list stops when
-    /// scrolled all the way down: the composer sits over the bottom of the content.
-    static func isNearBottom(_ geometry: ScrollGeometry) -> Bool {
-        let end = geometry.contentSize.height + geometry.contentInsets.bottom
-        let fromBottom = end - geometry.visibleRect.maxY
-        return fromBottom < nearBottomDistance
     }
 }
