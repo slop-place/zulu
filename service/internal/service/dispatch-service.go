@@ -227,7 +227,7 @@ func truncateBody(body string) string {
 }
 
 // DecisionInput adapts a Zulip message event to the resolver's input.
-func DecisionInput(user domain.User, event zulip.MessageEvent, state *notify.State, idle bool) notify.Input {
+func DecisionInput(user domain.User, event zulip.MessageEvent, state *notify.State) notify.Input {
 	return notify.Input{
 		UserID: user.ZulipUserID,
 		Message: notify.Message{
@@ -238,7 +238,6 @@ func DecisionInput(user domain.User, event zulip.MessageEvent, state *notify.Sta
 			Topic:    event.Message.Subject,
 		},
 		Flags: event.Flags,
-		Idle:  idle,
 		State: state,
 	}
 }

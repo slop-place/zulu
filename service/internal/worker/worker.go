@@ -15,16 +15,6 @@ import (
 	"github.com/bwees/zulu/service/internal/zulip"
 )
 
-// idleAssumption is what the resolver is told about the user's presence.
-//
-// Zulip decides "idle" from whether the user has a live event queue and from
-// presence timestamps. Neither is usable here: this service's own queue makes
-// every user look present, and presence describes the user's other clients, not
-// the phone being pushed to. Treating the user as idle means the global
-// enable_online_push_notifications setting never suppresses anything — the same
-// answer Zulip would give a user who is genuinely away from their desk.
-const idleAssumption = true
-
 var (
 	// errNoDevices ends a worker: without a device token there is nothing to
 	// notify, and holding the queue would only keep Zulip's own notifications
@@ -277,7 +267,7 @@ func (w *Worker) handleMessage(ctx context.Context, event zulip.Event, state *no
 		return service.DispatchResult{}, err
 	}
 
-	decision := notify.Decide(service.DecisionInput(w.user, message, state, idleAssumption))
+	decision := notify.Decide(service.DecisionInput(w.user, message, state))
 	if !decision.Notify {
 		w.log.Debug("message not notifiable",
 			"message_id", message.Message.ID, "reason", decision.Reason)

@@ -95,29 +95,23 @@ travels again after registration.
 
 ## How the decision works
 
-`notify.Decide` is a reimplementation of `zerver/lib/notification_data.py`,
-derived in `.scratch/zulu-client/research/03-zulip-notification-settings.md` §13.
-The order is: vetoes (own message, muted sender, already read), the online gate,
-then an ordered trigger switch — DM, personal mention, wildcard-in-followed-topic,
-wildcard, followed topic, channel push setting.
+`notify.Decide` follows the Zulu apps, not Zulip's own server. Each channel and
+topic has one of the three levels the apps show, All Messages, Mentions Only or
+Muted, read from Zulip's settings:
 
-Three rules are easy to get wrong and each has tests:
+- Topic: followed is All, unmuted is Mentions, muted is Muted, anything else
+  uses the channel's level.
+- Channel: muted is Muted, `push_notifications: true` is All, anything else is
+  Mentions. Zulip's global channel push setting is ignored, because the apps
+  cannot show it.
 
-- **A personal mention ignores every mute.** It never passes through the
-  channel/topic resolver, so `@**you**` in a muted topic still notifies while
-  `@**all**` in the same topic does not.
-- **Following a topic is additive, not a stronger unmute.** It bypasses channel
-  mute *and* the per-channel push override, and answers only to the global
-  followed-topic setting.
-- **`null` is not `false`.** The per-channel toggles are tri-state; `null` means
-  "inherit the global setting". The register call sets
-  `client_capabilities.notification_settings_null` so the server sends real nulls.
+After the vetoes (own message, muted sender, already read), a mention by name
+always notifies, a wildcard notifies unless the level is Muted, and anything
+else notifies only at All. `enable_offline_push_notifications` switches direct
+messages and mentions off together.
 
-The service's own `idle` input is always true. Zulip derives idleness from
-whether the user has a live event queue, which this service's own queue defeats,
-and from presence, which describes the user's other clients rather than the phone
-being pushed to. Treating the user as idle means the global
-`enable_online_push_notifications` setting never suppresses anything.
+The cases live in `spec/notification-rules.json`, which the Swift tests read
+too. Change a rule there first.
 
 ## Restart behaviour
 
