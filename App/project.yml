@@ -70,7 +70,7 @@ targets:
         SWIFT_APPROACHABLE_CONCURRENCY: YES
         TARGETED_DEVICE_FAMILY: "1,2"
         # release-please bumps this in its release PR.
-        MARKETING_VERSION: "1.6.0" # x-release-please-version
+        MARKETING_VERSION: "1.7.0" # x-release-please-version
         # Placeholder only. The release workflow overrides this on the xcodebuild
         # command line with the commit count, so the checked-in value never reaches
         # App Store Connect.
@@ -126,7 +126,7 @@ targets:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         SWIFT_VERSION: "6.0"
         SWIFT_APPROACHABLE_CONCURRENCY: YES
-        MARKETING_VERSION: "1.6.0" # x-release-please-version
+        MARKETING_VERSION: "1.7.0" # x-release-please-version
         CURRENT_PROJECT_VERSION: "1"
         # The iCloud entitlement needs a provisioning profile, which the team provides.
         # A secret already written to the sandbox container is still read back from it.
