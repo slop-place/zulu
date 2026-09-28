@@ -19,13 +19,17 @@ extension ConversationLayout {
 @Observable
 final class ConversationScrollManager {
     var position = ScrollPosition(idType: Int.self)
-    private var follow: ConversationFollow
+    /// Only changes when the button should appear or go.
+    private(set) var showsJumpToNewest = false
+
+    /// Unobserved on purpose. It takes in the scroll geometry on every frame, and a view
+    /// reading it would re-render the whole list each time, which changes the geometry,
+    /// which re-renders the list: the app locked up the moment a conversation opened.
+    @ObservationIgnored private var follow: ConversationFollow
 
     init(opensAt firstUnread: Int?) {
         follow = ConversationFollow(opensAt: firstUnread)
     }
-
-    var showsJumpToNewest: Bool { follow.showsJumpToNewest }
 
     func scrollPhaseChanged(to phase: ScrollPhase) {
         switch phase {
@@ -53,6 +57,7 @@ final class ConversationScrollManager {
     }
 
     private func apply(_ scroll: ConversationFollow.Scroll?) {
+        if showsJumpToNewest != follow.showsJumpToNewest { showsJumpToNewest = follow.showsJumpToNewest }
         switch scroll {
         case .toBottom:
             // A fresh position rather than `scrollTo(edge:)`: one left holding a message

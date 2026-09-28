@@ -32,14 +32,14 @@ public struct ConversationLayout: Equatable, Sendable {
 
 /// Whether a conversation follows its newest message, and when it has to be scrolled.
 ///
-/// Pinned, the list sits on the newest message and stays there through anything that
-/// changes the layout: the keyboard, the composer growing, a suggestion box, an image or
-/// a reaction landing. Reading, it holds whatever the reader scrolled to, and nothing
+/// Pinned, the list is held by its bottom edge, so it stays on the newest message through
+/// anything that changes the layout: the keyboard, the composer growing, a suggestion
+/// box, an image or a reaction landing. Reading, it is held by a message, and nothing
 /// moves it except the reader.
 ///
-/// Only the reader's own scrolling moves the list between the two. Geometry passing
-/// through "not at the bottom" while the keyboard animates is not a decision to stop
-/// following.
+/// Only discrete events scroll the list: opening at an unread message, the reader
+/// letting go near the bottom, sending, and the jump button. Geometry passing through
+/// "not at the bottom" while the keyboard animates is not a decision to stop following.
 public struct ConversationFollow: Equatable, Sendable {
     public enum Mode: Equatable, Sendable {
         /// Waiting for the list to be laid out before moving to this unread message.
@@ -101,13 +101,11 @@ public struct ConversationFollow: Equatable, Sendable {
             if new.isSettledAtBottom { return pin() }
             mode = .reading
             return nil
-        case .pinned:
-            // The scroll view's bottom anchor already holds the bottom through size
-            // changes; this only catches the list left short of it. Past the end resolves
-            // itself as the scroll view clamps, and scrolling there too overshoots by the
-            // keyboard's height while its inset is still animating.
-            return new.distanceFromBottom > ConversationLayout.settledTolerance ? .toBottom : nil
-        case .reading:
+        case .pinned, .reading:
+            // Never a scroll in answer to a layout. The scroll view's bottom anchor holds
+            // a pinned list on the bottom through every size change by itself, and a
+            // scroll here changes the layout it answers: the lazy list re-estimates its
+            // rows, reports again, and the app locked up scrolling forever.
             return nil
         }
     }

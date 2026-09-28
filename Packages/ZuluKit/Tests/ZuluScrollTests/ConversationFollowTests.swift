@@ -17,35 +17,27 @@ struct PinnedTests {
         #expect(follow.isPinned)
     }
 
-    /// The keyboard leaves the newest message under it until the list catches up.
-    @Test func theKeyboardAppearingPutsTheListBackOnTheNewestMessage() {
+    /// A scroll in answer to a layout changes the layout it answers. With a lazy list
+    /// re-estimating its rows each time, that loop never ended and the app locked up.
+    @Test func noLayoutEverScrollsAFollowingList() {
         var follow = ConversationFollow(opensAt: nil)
         _ = follow.layoutChanged(to: layout(distance: 0))
-        #expect(follow.layoutChanged(to: layout(distance: keyboardHeight, container: 356)) == .toBottom)
-        #expect(follow.isPinned)
+        for step in 0..<50 {
+            let churn = layout(distance: CGFloat(step * 7 % 300), content: 2400 + CGFloat(step * 13))
+            #expect(follow.layoutChanged(to: churn) == nil)
+        }
+        #expect(follow.layoutChanged(to: layout(distance: keyboardHeight, container: 356)) == nil)
+        #expect(follow.layoutChanged(to: layout(distance: -401)) == nil)
     }
 
-    /// The bug this type exists for: a frame of "not at the bottom" mid-animation used
-    /// to switch following off, and the next message landed below the fold.
+    /// The other bug this type exists for: a frame of "not at the bottom" mid-animation
+    /// used to switch following off, and the next message landed below the fold.
     @Test func passingThroughNotAtTheBottomDoesNotStopFollowing() {
         var follow = ConversationFollow(opensAt: nil)
         _ = follow.layoutChanged(to: layout(distance: 0))
         _ = follow.layoutChanged(to: layout(distance: keyboardHeight * 2))
         #expect(follow.isPinned)
-        #expect(follow.layoutChanged(to: layout(distance: 80, content: 2480)) == .toBottom)
-    }
-
-    /// Scrolling to the edge while the inset is animating overshoots by the keyboard's
-    /// height; the scroll view clamps a list past its end by itself.
-    @Test func aListPastItsEndIsLeftToClamp() {
-        var follow = ConversationFollow(opensAt: nil)
-        _ = follow.layoutChanged(to: layout(distance: 0))
-        #expect(follow.layoutChanged(to: layout(distance: -401)) == nil)
-    }
-
-    @Test func aFractionShortOfTheBottomIsTheBottom() {
-        var follow = ConversationFollow(opensAt: nil)
-        #expect(follow.layoutChanged(to: layout(distance: 0.5)) == nil)
+        #expect(!follow.showsJumpToNewest)
     }
 
     @Test func anUnlaidOutListIsIgnored() {
