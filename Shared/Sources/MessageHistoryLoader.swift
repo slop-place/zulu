@@ -23,6 +23,12 @@ final class MessageHistoryLoader {
     private(set) var isReady = false
     private(set) var reactions: [Int: [ReactionGroup]] = [:]
 
+    /// The newest message grows when it gains its first reaction, which the list has to
+    /// follow the same way it follows a new message.
+    var newestReactions: [ReactionGroup] {
+        messages.last.flatMap { reactions[$0.id] } ?? []
+    }
+
     private let source: ConversationSource
     private let model: AppModel
     private var scrollPhase: ScrollPhase = .idle

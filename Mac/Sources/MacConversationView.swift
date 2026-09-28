@@ -331,6 +331,10 @@ private struct MacConversationHistory: View {
             guard atBottom || following, newest != nil else { return }
             followNewest()
         }
+        .onChange(of: loader.newestReactions) {
+            guard atBottom || following else { return }
+            followNewest()
+        }
         // Sending always shows what was sent, even from partway up the history.
         .onChange(of: model.outbox.count(in: source)) { old, new in
             guard new > old else { return }
