@@ -22,7 +22,7 @@ struct NotificationLevelMenu: View {
 extension NotificationLevelMenu {
     static func channel(_ id: Int, model: AppModel) -> Self {
         Self(
-            selection: model.notificationOverride(forChannel: id),
+            selection: model.notificationSelection(forChannel: id),
             defaultLabel: "Default (\(model.inheritedNotificationLevel(forChannel: id).label))"
         ) { level in
             Task { await model.setNotificationOverride(level, forChannel: id) }

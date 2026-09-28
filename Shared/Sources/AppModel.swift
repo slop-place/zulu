@@ -812,6 +812,15 @@ extension AppModel {
         group(containingChannel: id).flatMap(notificationLevel(forGroup:)) ?? .zulipDefault
     }
 
+    /// What the channel menu ticks. Zulip's setting is what every client notifies by, so a
+    /// change made on the web shows here instead of the level chosen before it.
+    func notificationSelection(forChannel id: Int) -> NotificationLevel? {
+        let actual = notificationLevel(forChannel: id)
+        let followsDefault = notificationOverride(forChannel: id) == nil
+            && actual == inheritedNotificationLevel(forChannel: id)
+        return followsDefault ? nil : actual
+    }
+
     /// `nil` hands the channel back to its group.
     func setNotificationOverride(_ level: NotificationLevel?, forChannel id: Int) async {
         try? store?.setNotificationOverride(level, forChannel: id)
@@ -871,13 +880,11 @@ extension AppModel {
     func setNotificationLevel(_ level: NotificationLevel?, forTopic topic: String, inChannel channelID: Int) async {
         guard let store else { return }
         let previousPolicy = (try? store.topicPolicy(forTopic: topic, inChannel: channelID)) ?? .inherit
-        let previouslyChosen = (try? store.isChosenFollow(topic: topic, inChannel: channelID)) ?? false
         try? store.setTopicLevel(level, topic: topic, inChannel: channelID)
         do {
             try await client?.setTopicVisibility(level?.topicPolicy ?? .inherit, topic: topic, inChannel: channelID)
         } catch {
             try? store.setTopicPolicy(previousPolicy, topic: topic, inChannel: channelID)
-            try? store.setChosenFollow(previouslyChosen, topic: topic, inChannel: channelID)
         }
     }
 

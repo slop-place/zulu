@@ -25,19 +25,16 @@ final class MacNotifier: NSObject, UNUserNotificationCenterDelegate {
     }
 
     private func arrived(_ message: ZulipMessage) {
-        guard let model, let selfID = model.selfUserID, message.sender_id != selfID else { return }
+        guard let model, let selfID = model.selfUserID else { return }
         let defaults = UserDefaults.standard
-        let rule = BannerRule(
+        let rule = NotificationRule(
             directMessages: defaults.object(forKey: Self.dmsKey) as? Bool ?? true,
             mentions: defaults.object(forKey: Self.mentionsKey) as? Bool ?? true
         )
 
         let isDirect = !message.isChannelMessage
         let level = message.stream_id.map { model.effectiveNotificationLevel(forTopic: message.subject, inChannel: $0) }
-        guard rule.allows(
-            isDirect: isDirect, isMentioned: message.isMentioned,
-            isPersonallyMentioned: message.isPersonallyMentioned, level: level
-        ) else { return }
+        guard rule.allows(flags: message.flags ?? [], isOwn: message.sender_id == selfID, level: level) else { return }
 
         let destination: AppModel.Destination
         let subtitle: String

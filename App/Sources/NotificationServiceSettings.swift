@@ -88,7 +88,9 @@ final class NotificationServiceSettings {
         }
         registration = .registering
         do {
-            let credentials = try await client.register(account: account, deviceToken: deviceToken)
+            let credentials = try await client.register(
+                account: account, deviceToken: deviceToken, replacing: storedCredentials()
+            )
             try store(credentials, for: serviceURL)
             registration = .registered
         } catch {

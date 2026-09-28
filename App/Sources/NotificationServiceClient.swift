@@ -53,7 +53,9 @@ struct NotificationServiceClient {
         var errorDescription: String? { "notification service answered \(status): \(body)" }
     }
 
-    func register(account: ZulipAccount, deviceToken: String) async throws -> Credentials {
+    /// `replacing` is what this install registered with last time. The service drops that
+    /// registration, or a debug build's token would go on failing after a release install.
+    func register(account: ZulipAccount, deviceToken: String, replacing previous: Credentials?) async throws -> Credentials {
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
         let registration = Registration(
             realmUrl: account.realmURL.absoluteString,
@@ -68,6 +70,9 @@ struct NotificationServiceClient {
         var request = URLRequest(url: baseURL.appending(path: "v1/devices"))
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        if let previous {
+            request.setValue("Bearer \(previous.deviceSecret)", forHTTPHeaderField: "Authorization")
+        }
         request.httpBody = try JSONEncoder().encode(registration)
         return try await send(request)
     }

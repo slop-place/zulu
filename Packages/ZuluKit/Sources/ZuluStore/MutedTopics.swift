@@ -58,18 +58,11 @@ extension ZuluStore {
                     try MutedTopicRecord(channelID: userTopic.stream_id, topic: userTopic.topic_name).save(db)
                 }
             }
-            try Self.forgetChoicesWithoutAFollow(db)
         }
     }
 
-    /// Zulip's word on one topic. Leaving `followed` forgets a choice for this topic
-    /// only: a choice for another topic may still be waiting for its own follow.
     public func apply(_ userTopic: UserTopic) throws {
-        let policy = userTopic.policy ?? .inherit
-        try setTopicPolicy(policy, topic: userTopic.topic_name, inChannel: userTopic.stream_id)
-        if policy != .followed {
-            try setChosenFollow(false, topic: userTopic.topic_name, inChannel: userTopic.stream_id)
-        }
+        try setTopicPolicy(userTopic.policy ?? .inherit, topic: userTopic.topic_name, inChannel: userTopic.stream_id)
     }
 
     public func setMuted(_ muted: Bool, topic: String, inChannel channelID: Int) throws {

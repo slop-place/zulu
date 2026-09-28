@@ -38,33 +38,19 @@ public struct PersonalShape: Codable, Equatable, Sendable {
         public var alias: String?
     }
 
-    /// A topic set to All Messages here, as opposed to one Zulip followed by itself.
-    public struct FollowedTopic: Codable, Equatable, Sendable {
-        public var channelID: Int
-        public var topic: String
-
-        public init(channelID: Int, topic: String) {
-            self.channelID = channelID
-            self.topic = topic
-        }
-    }
-
     public var groups: [Group] = []
     public var members: [Member] = []
     public var channels: [ChannelPreference] = []
     public var promotions: [Promotion] = []
-    public var followedTopics: [FollowedTopic] = []
 
     public init(
         groups: [Group] = [], members: [Member] = [],
-        channels: [ChannelPreference] = [], promotions: [Promotion] = [],
-        followedTopics: [FollowedTopic] = []
+        channels: [ChannelPreference] = [], promotions: [Promotion] = []
     ) {
         self.groups = groups
         self.members = members
         self.channels = channels
         self.promotions = promotions
-        self.followedTopics = followedTopics
     }
 
     /// Every part is optional, so a document written before a part existed still reads.
@@ -74,11 +60,10 @@ public struct PersonalShape: Codable, Equatable, Sendable {
         members = try container.decodeIfPresent([Member].self, forKey: .members) ?? []
         channels = try container.decodeIfPresent([ChannelPreference].self, forKey: .channels) ?? []
         promotions = try container.decodeIfPresent([Promotion].self, forKey: .promotions) ?? []
-        followedTopics = try container.decodeIfPresent([FollowedTopic].self, forKey: .followedTopics) ?? []
     }
 
     public var isEmpty: Bool {
-        groups.isEmpty && members.isEmpty && channels.isEmpty && promotions.isEmpty && followedTopics.isEmpty
+        groups.isEmpty && members.isEmpty && channels.isEmpty && promotions.isEmpty
     }
 
     /// One order for every copy, so two documents holding the same arrangement compare equal
@@ -88,8 +73,7 @@ public struct PersonalShape: Codable, Equatable, Sendable {
             groups: groups.sorted { $0.id < $1.id },
             members: members.sorted { ($0.channelID, $0.groupID) < ($1.channelID, $1.groupID) },
             channels: channels.sorted { $0.channelID < $1.channelID },
-            promotions: promotions.sorted { ($0.channelID, $0.topic) < ($1.channelID, $1.topic) },
-            followedTopics: followedTopics.sorted { ($0.channelID, $0.topic) < ($1.channelID, $1.topic) }
+            promotions: promotions.sorted { ($0.channelID, $0.topic) < ($1.channelID, $1.topic) }
         )
     }
 }
@@ -120,7 +104,6 @@ public struct LocalPersonalShape: Equatable, Sendable {
                     promotion.groupID = promotion.groupID.flatMap { groupIDs.contains($0) ? $0 : nil }
                     return promotion
                 }
-            document.followedTopics += remote.followedTopics.filter { !knownChannelIDs.contains($0.channelID) }
         }
         return document.normalized()
     }
@@ -167,15 +150,11 @@ extension ZuluStore {
                 position: $0["position"], alias: $0["alias"]
             )
         }
-        let followedTopics = try Row.fetchAll(db, sql: "SELECT channelID, topic FROM chosenFollow").map {
-            PersonalShape.FollowedTopic(channelID: $0["channelID"], topic: $0["topic"])
-        }
         let known = try Set(Int.fetchAll(db, sql: "SELECT id FROM channel"))
 
         return LocalPersonalShape(
             shape: PersonalShape(
-                groups: groups, members: members, channels: channels, promotions: promotions,
-                followedTopics: followedTopics
+                groups: groups, members: members, channels: channels, promotions: promotions
             ).normalized(),
             knownChannelIDs: known
         )
@@ -239,16 +218,6 @@ extension ZuluStore {
                         promotion.groupID.flatMap { groupIDs.contains($0) ? $0 : nil },
                         promotion.position, promotion.alias,
                     ]
-                )
-            }
-
-            // Kept even before Zulip reports the follow: the two arrive separately, and a
-            // choice only counts once its follow is there too.
-            try db.execute(sql: "DELETE FROM chosenFollow")
-            for followed in shape.followedTopics where known.contains(followed.channelID) {
-                try db.execute(
-                    sql: "INSERT OR IGNORE INTO chosenFollow (channelID, topic) VALUES (?, ?)",
-                    arguments: [followed.channelID, followed.topic]
                 )
             }
         }

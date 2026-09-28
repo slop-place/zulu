@@ -36,6 +36,34 @@ public struct DisplayRecipient: Decodable, Sendable, Equatable {
     public let full_name: String
 }
 
+public enum MessageFlag {
+    public static let read = "read"
+}
+
+/// How a message addresses you, from the flags the server sets. The text is never
+/// re-read: a wildcard inside a code block, or a silent mention, sets no flag.
+public enum Mention: Sendable, Equatable {
+    case none
+    /// `@all`, `@topic` and the like.
+    case wildcard
+    /// You, or a group you are in. Only this gets through a mute.
+    case personal
+
+    private static let personalFlag = "mentioned"
+    /// `wildcard_mentioned` is what servers before feature level 224 send for both.
+    private static let wildcardFlags: Set = ["stream_wildcard_mentioned", "topic_wildcard_mentioned", "wildcard_mentioned"]
+
+    public init(flags: [String]) {
+        if flags.contains(Self.personalFlag) {
+            self = .personal
+        } else if flags.contains(where: Self.wildcardFlags.contains) {
+            self = .wildcard
+        } else {
+            self = .none
+        }
+    }
+}
+
 public struct ZulipMessage: Decodable, Sendable, Equatable, Identifiable {
     public let id: Int
     public let sender_id: Int
@@ -65,13 +93,9 @@ public struct ZulipMessage: Decodable, Sendable, Equatable, Identifiable {
     /// The server leaves the raw `/poll` text in `content` and renders it as an ordinary
     /// paragraph, so a message carrying a widget has to be drawn from the log instead.
     public var hasWidget: Bool { submessages?.contains { $0.msg_type == "widget" } ?? false }
-    public var isRead: Bool { flags?.contains("read") ?? false }
-    public var isMentioned: Bool {
-        guard let flags else { return false }
-        return flags.contains("mentioned") || flags.contains("wildcard_mentioned")
-    }
-    /// Only a mention by name gets through a muted topic; `@all` does not.
-    public var isPersonallyMentioned: Bool { flags?.contains("mentioned") ?? false }
+    public var isRead: Bool { flags?.contains(MessageFlag.read) ?? false }
+    public var mention: Mention { Mention(flags: flags ?? []) }
+    public var isMentioned: Bool { mention != .none }
 
     public var date: Date { Date(timeIntervalSince1970: TimeInterval(timestamp)) }
 
