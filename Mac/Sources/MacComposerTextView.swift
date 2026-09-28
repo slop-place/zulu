@@ -191,7 +191,11 @@ final class ComposerTextView: NSTextView {
     /// Mac chat client does, and it is the one behaviour a person notices immediately if
     /// it is wrong.
     override func keyDown(with event: NSEvent) {
-        let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        // Arrow keys always arrive flagged as function and keypad keys, which are not
+        // modifiers anyone pressed.
+        let flags = event.modifierFlags
+            .intersection(.deviceIndependentFlagsMask)
+            .subtracting([.function, .numericPad])
         switch event.keyCode {
         case KeyCode.return, KeyCode.keypadEnter:
             if flags.contains(.shift) || flags.contains(.option) {
