@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.8.0](https://github.com/slop-place/zulu/compare/zulu-v1.7.0...zulu-v1.8.0) (2026-09-28)
+
+
+### Features
+
+* animate custom emoji in the emoji pickers ([4ad272a](https://github.com/slop-place/zulu/commit/4ad272a0ec014a2316162c64d330120aa81b238b))
+* reactor list sheet on long press and compact reaction hover bubble ([70396c2](https://github.com/slop-place/zulu/commit/70396c21b472298ddee5a8fdb9a82351f6a1cf37))
+
+
+### Bug Fixes
+
+* handle arrow keys in the mac composer for edit last message and suggestion navigation ([780d004](https://github.com/slop-place/zulu/commit/780d004f2e8064eb00a430027c86e221401fb6fb))
+* keep the newest message in view when it gains reactions ([abeb9eb](https://github.com/slop-place/zulu/commit/abeb9eb6a99aad2ea484c3435e1a13849505afd5))
+* play animated emoji at their own frame delays ([10d4a9a](https://github.com/slop-place/zulu/commit/10d4a9a1ab8b6b04645e5282fdbdbaa9ae7b04c7))
+
 ## [1.7.0](https://github.com/slop-place/zulu/compare/zulu-v1.6.0...zulu-v1.7.0) (2026-09-28)
 
 
