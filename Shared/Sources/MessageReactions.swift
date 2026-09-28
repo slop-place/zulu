@@ -12,8 +12,9 @@ struct MessageReactionsRow: View {
     let groups: [ReactionGroup]
 
     @Environment(AppModel.self) private var model
+    #if os(iOS)
     @State private var showingReactors: ReactionGroup?
-    #if os(macOS)
+    #else
     @State private var hoveredGroup: String?
     @State private var hoverTask: Task<Void, Never>?
     @State private var bubbleHeight: CGFloat = 30
@@ -30,49 +31,51 @@ struct MessageReactionsRow: View {
         }
     }
 
-    /// "You, Ada and Grace", the way a person would say it, with you first because the
-    /// question a chip answers is usually "did I already?".
-    private func reactorNames(of group: ReactionGroup) -> String {
-        let selfID = model.selfUserID
-        let others = group.userIDs.filter { $0 != selfID }.map(model.name(forUser:)).sorted()
-        let names = (group.includesSelf ? ["You"] : []) + others
-        switch names.count {
-        case 0: return ""
-        case 1: return names[0]
-        default: return names.dropLast().joined(separator: ", ") + " and " + names.last!
-        }
+    private func toggle(_ group: ReactionGroup) {
+        Task { await model.toggleReaction(
+            emojiName: group.emojiName, emojiCode: group.emojiCode,
+            reactionType: group.reactionType, onMessage: messageID
+        ) }
     }
-    private func chip(_ group: ReactionGroup) -> some View {
-        Button {
-            Task { await model.toggleReaction(
-                emojiName: group.emojiName, emojiCode: group.emojiCode,
-                reactionType: group.reactionType, onMessage: messageID
-            ) }
-        } label: {
-            HStack(spacing: 4) {
-                EmojiDisplayView(display: Self.display(of: group), size: 14)
-                Text("\(group.count)")
-                    .font(.caption2.weight(.semibold))
-                    .monospacedDigit()
-            }
-            .padding(.horizontal, 7)
-            .padding(.vertical, 3)
-            .background(
-                group.includesSelf ? AnyShapeStyle(Color.accentColor.opacity(0.22))
-                                   : AnyShapeStyle(.quaternary),
-                in: Capsule()
-            )
-            .overlay {
-                if group.includesSelf {
-                    Capsule().strokeBorder(Color.accentColor.opacity(0.55), lineWidth: 1)
-                }
-            }
-            .contentShape(.capsule)
+
+    /// The people behind a reaction, with you first because the question a chip answers
+    /// is usually "did I already?", then everyone else by name.
+    private func reactors(of group: ReactionGroup) -> [Int] {
+        let selfID = model.selfUserID
+        let others = group.userIDs.filter { $0 != selfID }.sorted {
+            model.name(forUser: $0).localizedStandardCompare(model.name(forUser: $1)) == .orderedAscending
         }
+        return (group.includesSelf ? selfID.map { [$0] } ?? [] : []) + others
+    }
+
+    private func chipLabel(_ group: ReactionGroup) -> some View {
+        HStack(spacing: 4) {
+            EmojiDisplayView(display: Self.display(of: group), size: 14)
+            Text("\(group.count)")
+                .font(.caption2.weight(.semibold))
+                .monospacedDigit()
+        }
+        .padding(.horizontal, 7)
+        .padding(.vertical, 3)
+        .background(
+            group.includesSelf ? AnyShapeStyle(Color.accentColor.opacity(0.22))
+                               : AnyShapeStyle(.quaternary),
+            in: Capsule()
+        )
+        .overlay {
+            if group.includesSelf {
+                Capsule().strokeBorder(Color.accentColor.opacity(0.55), lineWidth: 1)
+            }
+        }
+        .contentShape(.capsule)
+    }
+
+    private func chip(_ group: ReactionGroup) -> some View {
+        #if os(macOS)
+        Button { toggle(group) } label: { chipLabel(group) }
         // Plain and small: a glass capsule per reaction turned a row of chips into
         // a row of buttons competing with the message above them.
         .buttonStyle(.plain)
-        #if os(macOS)
         // Hovering answers "who?" with a bubble above the chip. Drawn in the view
         // rather than as a popover, so the pointer resting on a reaction never takes
         // keyboard focus away from the composer.
@@ -80,7 +83,13 @@ struct MessageReactionsRow: View {
         // the left of the column, and a centred bubble ran off the edge and was clipped.
         .overlay(alignment: .topLeading) {
             if hoveredGroup == group.id {
-                ReactorBubble(names: reactorNames(of: group), emojiName: group.emojiName)
+                ReactorBubble(
+                    display: Self.display(of: group),
+                    names: reactors(of: group).map {
+                        $0 == model.selfUserID ? "You" : model.name(forUser: $0)
+                    },
+                    emojiName: group.emojiName
+                )
                     // Lifted by its own height, measured, so it clears the chip whether
                     // it is one line or two. An alignment guide was not honoured here.
                     .onGeometryChange(for: CGFloat.self, of: { $0.size.height }) { bubbleHeight = $0 }
@@ -100,54 +109,113 @@ struct MessageReactionsRow: View {
                 withAnimation(.easeOut(duration: 0.12)) { hoveredGroup = nil }
             }
         }
-        #else
-        .help(reactorNames(of: group))
-        #endif
-        .onLongPressGesture { showingReactors = group }
-        .popover(item: $showingReactors) { group in
-            ReactorList(names: group.userIDs.map(model.name(forUser:)).sorted())
-                .presentationCompactAdaptation(.popover)
-        }
         .accessibilityLabel("\(group.emojiName), \(group.count)")
+        #else
+        // Gestures rather than a button: a button's tap swallows the long press.
+        chipLabel(group)
+            .onTapGesture { toggle(group) }
+            .onLongPressGesture(minimumDuration: Self.reactorsPressDuration) {
+                Platform.tap()
+                showingReactors = group
+            }
+            .sheet(item: $showingReactors) { group in
+                ReactorSheet(
+                    display: Self.display(of: group),
+                    emojiName: group.emojiName,
+                    userIDs: reactors(of: group)
+                )
+            }
+            .accessibilityLabel("\(group.emojiName), \(group.count)")
+            .accessibilityAddTraits(.isButton)
+            .accessibilityAction(named: "Show who reacted") { showingReactors = group }
+        #endif
     }
+
+    #if os(iOS)
+    private static let reactorsPressDuration = 0.35
+    #endif
 }
 
 #if os(macOS)
-/// The hover bubble over a reaction chip: who, in bold, and with what.
+/// The hover bubble over a reaction chip: the emoji, then who, in bold. A long list is
+/// cut short with a count, so a popular reaction does not cover the conversation.
 private struct ReactorBubble: View {
-    let names: String
+    let display: EmojiDisplay
+    let names: [String]
     let emojiName: String
 
+    private static let maxNames = 6
+    private static let maxWidth: CGFloat = 260
+
+    /// "You, Ada and Grace", or "You, Ada, Grace and 4 others".
+    static func summary(of names: [String]) -> String {
+        let shown = names.prefix(maxNames)
+        let hidden = names.count - shown.count
+        if hidden > 0 {
+            return shown.joined(separator: ", ") + " and \(hidden) \(hidden == 1 ? "other" : "others")"
+        }
+        guard let last = shown.last else { return "" }
+        return shown.count == 1 ? last : shown.dropLast().joined(separator: ", ") + " and " + last
+    }
+
     var body: some View {
-        (Text(names).fontWeight(.semibold) + Text(" reacted with :\(emojiName):"))
-            .font(.callout)
-            .multilineTextAlignment(.center)
-            .fixedSize(horizontal: false, vertical: true)
-            .frame(maxWidth: 320)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
-            .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(.quaternary))
-            .shadow(color: .black.opacity(0.18), radius: 8, y: 2)
-            .fixedSize()
-            .allowsHitTesting(false)
+        HStack(alignment: .top, spacing: 8) {
+            EmojiDisplayView(display: display, size: 22)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(Self.summary(of: names))
+                    .font(.callout.weight(.semibold))
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(":\(emojiName):")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+        }
+        .frame(maxWidth: Self.maxWidth, alignment: .leading)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(.thickMaterial, in: RoundedRectangle(cornerRadius: 8))
+        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(.quaternary))
+        .shadow(color: .black.opacity(0.18), radius: 8, y: 2)
+        .fixedSize()
+        .allowsHitTesting(false)
     }
 }
 #endif
 
-private struct ReactorList: View {
-    let names: [String]
+#if os(iOS)
+/// Everyone who reacted with one emoji, from a long press on its chip.
+private struct ReactorSheet: View {
+    let display: EmojiDisplay
+    let emojiName: String
+    let userIDs: [Int]
+
+    @Environment(AppModel.self) private var model
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            ForEach(names, id: \.self) { name in
-                Text(name).font(.callout)
+        NavigationStack {
+            List(userIDs, id: \.self) { id in
+                HStack(spacing: 12) {
+                    SenderAvatar(name: model.name(forUser: id), userID: id, size: 32)
+                    Text(id == model.selfUserID ? "You" : model.name(forUser: id))
+                }
             }
+            .listStyle(.plain)
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    HStack(spacing: 6) {
+                        EmojiDisplayView(display: display, size: 18)
+                        Text(":\(emojiName):").font(.headline)
+                    }
+                }
+            }
+            .inlineNavigationTitle()
         }
-        .padding(14)
-        .frame(maxWidth: 260, alignment: .leading)
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
     }
 }
+#endif
 
 
 /// Draws whichever of the three shapes an emoji resolved to. Realm custom emoji and
