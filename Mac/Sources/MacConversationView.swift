@@ -252,6 +252,9 @@ private struct MacConversationHistory: View {
                 }
                 ForEach(loader.grouped) { entry in
                     VStack(alignment: .leading, spacing: 0) {
+                        if entry.startsDay {
+                            DayDivider(date: entry.message.date).padding(.top, 12)
+                        }
                         if entry.message.id == loader.firstUnreadID {
                             UnreadDivider().padding(.top, 10)
                         }

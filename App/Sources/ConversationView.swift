@@ -136,6 +136,9 @@ private struct ConversationHistory: View {
                     // One child per message, always. Yielding nothing for some rows would
                     // change the stack's shape as the data moves.
                     VStack(alignment: .leading, spacing: 0) {
+                        if entry.startsDay {
+                            DayDivider(date: entry.message.date).padding(.top, 14)
+                        }
                         if entry.message.id == loader.firstUnreadID {
                             UnreadDivider().padding(.top, 10)
                         }

@@ -118,12 +118,14 @@ final class MessageHistoryLoader {
         var previous: MessageRecord?
         return messages.map { message in
             defer { previous = message }
-            guard let previous, message.id != firstUnreadID else {
-                return GroupedMessage(message: message, startsGroup: true)
+            guard let previous else {
+                return GroupedMessage(message: message, startsGroup: true, startsDay: true)
             }
+            let startsDay = !Calendar.current.isDate(previous.date, inSameDayAs: message.date)
             let sameSender = previous.senderID == message.senderID
             let closeInTime = message.timestamp - previous.timestamp < Self.groupingWindow
-            return GroupedMessage(message: message, startsGroup: !(sameSender && closeInTime))
+            let continues = sameSender && closeInTime && !startsDay && message.id != firstUnreadID
+            return GroupedMessage(message: message, startsGroup: !continues, startsDay: startsDay)
         }
     }
 
@@ -134,6 +136,7 @@ final class MessageHistoryLoader {
 struct GroupedMessage: Identifiable {
     let message: MessageRecord
     let startsGroup: Bool
+    let startsDay: Bool
 
     var id: Int { message.id }
 }

@@ -11,6 +11,28 @@ struct UnreadDivider: View {
     }
 }
 
+struct DayDivider: View {
+    let date: Date
+
+    private var label: String {
+        let calendar = Calendar.current
+        if calendar.isDateInToday(date) { return String(localized: "Today") }
+        if calendar.isDateInYesterday(date) { return String(localized: "Yesterday") }
+        let format: Date.FormatStyle = calendar.isDate(date, equalTo: .now, toGranularity: .year)
+            ? .dateTime.weekday(.wide).month(.wide).day()
+            : .dateTime.weekday(.wide).month(.wide).day().year()
+        return date.formatted(format)
+    }
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Rectangle().fill(.separator).frame(height: 1)
+            Text(label).font(.caption2.weight(.semibold)).foregroundStyle(.secondary).fixedSize()
+            Rectangle().fill(.separator).frame(height: 1)
+        }
+    }
+}
+
 struct MessageRow: View {
     let message: MessageRecord
     var startsGroup = true
