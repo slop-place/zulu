@@ -86,14 +86,21 @@ struct ComposerBar: View {
         .padding(.vertical, 8)
         // Floats above the bar rather than sitting in it: in the bar, every suggestion
         // list that opened or closed resized it and moved the conversation.
+        //
+        // Hung from a zero-height line along the bar's top edge. An alignment guide
+        // lifting the box by its own height is not honoured in an overlay, and the box
+        // then hung down over the bar and under the keyboard.
         .overlay(alignment: .top) {
-            if let autocomplete, autocomplete.isOpen {
-                AutocompleteBox(suggestions: autocomplete.suggestions) { suggestion in
-                    draft = autocomplete.apply(suggestion, to: draft)
+            Color.clear
+                .frame(height: 0)
+                .overlay(alignment: .bottom) {
+                    if let autocomplete, autocomplete.isOpen {
+                        AutocompleteBox(suggestions: autocomplete.suggestions) { suggestion in
+                            draft = autocomplete.apply(suggestion, to: draft)
+                        }
+                        .padding(.horizontal, 12)
+                    }
                 }
-                .padding(.horizontal, 12)
-                .alignmentGuide(.top) { $0[.bottom] }
-            }
         }
         .task(id: source) {
             typingSender?.stop()
