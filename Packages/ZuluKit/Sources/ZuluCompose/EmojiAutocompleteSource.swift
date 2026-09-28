@@ -37,9 +37,7 @@ public struct EmojiAutocompleteSource: AutocompleteSource {
             id: emoji.id,
             title: ":\(emoji.name):",
             subtitle: nil,
-            // The still frame where there is one: a row of animated emoji all playing
-            // at once is unreadable.
-            icon: emoji.glyph.map { .glyph($0) } ?? .image(emoji.stillURL ?? emoji.imageURL ?? ""),
+            icon: emoji.glyph.map { .glyph($0) } ?? .image(emoji.imageURL ?? emoji.stillURL ?? ""),
             insertion: ComposeMarkup.emoji(named: emoji.name),
             // Matching zulip-flutter: an emoji is usually followed by punctuation or
             // another emoji, and a forced space there is more often wrong than right.

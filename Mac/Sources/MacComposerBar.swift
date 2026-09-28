@@ -460,13 +460,15 @@ struct MacAutocompleteBox: View {
     let selectedIndex: Int
     let pick: (AutocompleteSuggestion) -> Void
 
+    private static let iconSize: CGFloat = 20
+
     var body: some View {
         VStack(spacing: 1) {
             ForEach(Array(suggestions.enumerated()), id: \.element.id) { index, suggestion in
                 Button { pick(suggestion) } label: {
                     HStack(spacing: 8) {
-                        SuggestionIcon(icon: suggestion.icon)
-                            .frame(width: 20, height: 20)
+                        SuggestionIcon(icon: suggestion.icon, size: Self.iconSize)
+                            .frame(width: Self.iconSize, height: Self.iconSize)
                         Text(suggestion.title)
                             .font(.callout)
                             .lineLimit(1)

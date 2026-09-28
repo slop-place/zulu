@@ -220,6 +220,7 @@ struct AutocompleteBox: View {
     let pick: (AutocompleteSuggestion) -> Void
 
     private static let rowHeight: CGFloat = 40
+    private static let iconSize: CGFloat = 24
     private static let maxVisibleRows = 6
 
     var body: some View {
@@ -240,8 +241,8 @@ struct AutocompleteBox: View {
 
     private func row(_ suggestion: AutocompleteSuggestion) -> some View {
         HStack(spacing: 10) {
-            SuggestionIcon(icon: suggestion.icon)
-                .frame(width: 24, height: 24)
+            SuggestionIcon(icon: suggestion.icon, size: Self.iconSize)
+                .frame(width: Self.iconSize, height: Self.iconSize)
             Text(suggestion.title)
                 .font(.callout)
                 .lineLimit(1)
@@ -263,9 +264,11 @@ struct AutocompleteBox: View {
 /// are images on the realm, so they load through the signed-in client like any other.
 struct SuggestionIcon: View {
     let icon: AutocompleteSuggestion.Icon
+    let size: CGFloat
 
     @Environment(AppModel.self) private var model
     @State private var image: Image?
+    @State private var frames: EmojiFrames?
 
     var body: some View {
         Group {
@@ -275,10 +278,10 @@ struct SuggestionIcon: View {
             case .symbol(let name):
                 Image(systemName: name).foregroundStyle(.secondary)
             case .image(let path):
-                if let image {
-                    image.resizable().scaledToFit()
+                if let frames {
+                    AnimatedEmojiView(frames: frames)
                 } else {
-                    Color.clear.task { await load(path) }
+                    Color.clear.task { await loadFrames(path) }
                 }
             case .avatar(let path):
                 if let image {
@@ -293,5 +296,10 @@ struct SuggestionIcon: View {
     private func load(_ path: String) async {
         guard !path.isEmpty, let data = await model.imageData(at: path) else { return }
         image = Platform.image(from: data)
+    }
+
+    private func loadFrames(_ path: String) async {
+        guard !path.isEmpty, let data = await model.imageData(at: path) else { return }
+        frames = EmojiFrames.decode(data, height: size)
     }
 }
