@@ -1,22 +1,36 @@
 import SwiftUI
 
-/// Turns off the status-bar tap that jumps a scroll view to the very top. In a
-/// conversation that means leaping to the oldest message, which is never what was meant.
+/// Finds the scroll view a conversation's rows sit in, sets it up, and hands it over.
 ///
-/// SwiftUI exposes no API for this, so the enclosing scroll view is found by walking up
-/// the view hierarchy. Scoped to one view rather than set globally on `UIScrollView`,
-/// which would also disable it in lists where it is useful.
-struct DisablesScrollToTop: UIViewRepresentable {
-    func makeUIView(context: Context) -> UIView { Probe() }
-    func updateUIView(_ uiView: UIView, context: Context) {}
+/// SwiftUI exposes no handle on it, so it is found by walking up the view hierarchy.
+/// Setting it up is idempotent, so every row can carry a probe.
+struct ConversationScrollProbe: UIViewRepresentable {
+    let found: (UIScrollView) -> Void
 
-    private final class Probe: UIView {
+    func makeUIView(context: Context) -> Probe { Probe(found: found) }
+    func updateUIView(_ probe: Probe, context: Context) { probe.found = found }
+
+    final class Probe: UIView {
+        var found: (UIScrollView) -> Void
+
+        init(found: @escaping (UIScrollView) -> Void) {
+            self.found = found
+            super.init(frame: .zero)
+        }
+
+        required init?(coder: NSCoder) { nil }
+
         override func didMoveToWindow() {
             super.didMoveToWindow()
+            guard window != nil else { return }
             var candidate: UIView? = superview
             while let view = candidate {
                 if let scrollView = view as? UIScrollView {
+                    // A status-bar tap would leap to the oldest message, which is never
+                    // what was meant.
                     scrollView.scrollsToTop = false
+                    scrollView.bottomEdgeEffect.style = .soft
+                    found(scrollView)
                     return
                 }
                 candidate = view.superview

@@ -14,6 +14,7 @@ struct MessageReactionsRow: View {
     @Environment(AppModel.self) private var model
     #if os(iOS)
     @State private var showingReactors: ReactionGroup?
+    @Environment(MessagePresenter.self) private var presenter: MessagePresenter?
     #else
     @State private var hoveredGroup: String?
     @State private var hoverTask: Task<Void, Never>?
@@ -116,7 +117,7 @@ struct MessageReactionsRow: View {
             .onTapGesture { toggle(group) }
             .onLongPressGesture(minimumDuration: Self.reactorsPressDuration) {
                 Platform.tap()
-                showingReactors = group
+                showReactors(of: group)
             }
             .sheet(item: $showingReactors) { group in
                 ReactorSheet(
@@ -127,12 +128,25 @@ struct MessageReactionsRow: View {
             }
             .accessibilityLabel("\(group.emojiName), \(group.count)")
             .accessibilityAddTraits(.isButton)
-            .accessibilityAction(named: "Show who reacted") { showingReactors = group }
+            .accessibilityAction(named: "Show who reacted") { showReactors(of: group) }
         #endif
     }
 
     #if os(iOS)
     private static let reactorsPressDuration = 0.35
+
+    private func showReactors(of group: ReactionGroup) {
+        guard let presenter else {
+            showingReactors = group
+            return
+        }
+        presenter.reactors = ReactorsRequest(
+            display: Self.display(of: group),
+            emojiName: group.emojiName,
+            userIDs: reactors(of: group),
+            id: group.id
+        )
+    }
     #endif
 }
 
@@ -185,7 +199,7 @@ private struct ReactorBubble: View {
 
 #if os(iOS)
 /// Everyone who reacted with one emoji, from a long press on its chip.
-private struct ReactorSheet: View {
+struct ReactorSheet: View {
     let display: EmojiDisplay
     let emojiName: String
     let userIDs: [Int]

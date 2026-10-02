@@ -61,7 +61,7 @@ struct ReadingTests {
         _ = follow.layoutChanged(to: layout(distance: 0))
         follow.userBeganScrolling()
         _ = follow.layoutChanged(to: layout(distance: 900))
-        #expect(follow.userFinishedScrolling() == nil)
+        follow.userFinishedScrolling()
         #expect(follow.mode == .reading)
         #expect(follow.showsJumpToNewest)
     }
@@ -72,11 +72,13 @@ struct ReadingTests {
         #expect(follow.layoutChanged(to: layout(distance: 1000 + keyboardHeight, container: 356)) == nil)
     }
 
-    @Test func aReaderWhoLetsGoNearTheBottomFollowsAgain() {
+    /// Coming to rest a few points short follows again without being pulled the rest of
+    /// the way: that pull cut a flick's deceleration off.
+    @Test func aReaderWhoLetsGoNearTheBottomFollowsAgainWhereTheyStopped() {
         var follow = reading()
         follow.userBeganScrolling()
-        _ = follow.layoutChanged(to: layout(distance: 60))
-        #expect(follow.userFinishedScrolling() == .toBottom)
+        #expect(follow.layoutChanged(to: layout(distance: 13)) == nil)
+        follow.userFinishedScrolling()
         #expect(follow.isPinned)
         #expect(!follow.showsJumpToNewest)
     }
@@ -90,7 +92,8 @@ struct ReadingTests {
     /// A programmatic scroll finishing is not the reader letting go.
     @Test func finishingWithoutHavingStartedChangesNothing() {
         var follow = reading()
-        #expect(follow.userFinishedScrolling() == nil)
+        _ = follow.layoutChanged(to: layout(distance: 0))
+        follow.userFinishedScrolling()
         #expect(follow.mode == .reading)
     }
 
@@ -99,7 +102,7 @@ struct ReadingTests {
         _ = follow.layoutChanged(to: layout(distance: 0))
         follow.userBeganScrolling()
         _ = follow.layoutChanged(to: layout(distance: 900))
-        _ = follow.userFinishedScrolling()
+        follow.userFinishedScrolling()
         return follow
     }
 }

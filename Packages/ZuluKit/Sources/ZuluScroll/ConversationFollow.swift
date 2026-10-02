@@ -76,14 +76,14 @@ public struct ConversationFollow: Equatable, Sendable {
         isUserScrolling = true
     }
 
-    /// Wherever the list came to rest decides the mode.
-    public mutating func userFinishedScrolling() -> Scroll? {
-        guard isUserScrolling else { return nil }
+    /// Wherever the list came to rest decides the mode. Letting go never scrolls: a flick
+    /// that coasts to a stop just short of the newest message stays where it stopped, and
+    /// snapping it the last few points cut the deceleration off.
+    public mutating func userFinishedScrolling() {
+        guard isUserScrolling else { return }
         isUserScrolling = false
-        guard let layout else { return nil }
-        if layout.isNearBottom { return pin() }
-        mode = .reading
-        return nil
+        guard let layout else { return }
+        mode = layout.isNearBottom ? .pinned : .reading
     }
 
     public mutating func layoutChanged(to new: ConversationLayout) -> Scroll? {

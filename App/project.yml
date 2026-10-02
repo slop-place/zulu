@@ -8,6 +8,9 @@ options:
 packages:
   ZuluKit:
     path: ../Packages/ZuluKit
+  MessagingUI:
+    url: https://github.com/FluidGroup/swiftui-messaging-ui
+    exactVersion: "2.0.0"
 targets:
   Zulu:
     type: application
@@ -30,6 +33,8 @@ targets:
         product: ZuluPolls
       - package: ZuluKit
         product: ZuluScroll
+      - package: MessagingUI
+        product: MessagingUI
     info:
       path: Zulu-Info.plist
       properties:
@@ -40,6 +45,8 @@ targets:
         # human answers the export questionnaire in App Store Connect. Zulu only
         # speaks HTTPS to a Zulip server, which is exempt.
         ITSAppUsesNonExemptEncryption: false
+        # An iPhone app's own animations are held to 60 Hz on ProMotion screens without it.
+        CADisableMinimumFrameDurationOnPhone: true
         UILaunchScreen: {}
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
@@ -80,6 +87,22 @@ targets:
         # A device build now carries a real application-identifier, which moves its
         # keychain access group. One already signed in reads back no API key and
         # lands on the login screen once. Simulator builds stay unsigned and unaffected.
+        DEVELOPMENT_TEAM: 65AMD2STXG
+        CODE_SIGN_STYLE: Automatic
+
+  # Drives the installed, signed-in app on a device, where the real keyboard is. Each
+  # test skips itself when no conversation is open.
+  ZuluUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [UITests]
+    dependencies:
+      - target: Zulu
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_VERSION: "6.0"
+        TEST_TARGET_NAME: Zulu
         DEVELOPMENT_TEAM: 65AMD2STXG
         CODE_SIGN_STYLE: Automatic
 

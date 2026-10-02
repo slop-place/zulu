@@ -12,11 +12,45 @@ extension View {
     }
 }
 
+#if os(iOS)
+/// Sheets a message asks for, shown by a view outside the list. A row hosted in a
+/// collection view cell cannot present anything itself.
+@MainActor
+@Observable
+final class MessagePresenter {
+    var actionsMessage: MessageRecord?
+    var reactors: ReactorsRequest?
+}
+
+struct ReactorsRequest: Identifiable {
+    let display: EmojiDisplay
+    let emojiName: String
+    let userIDs: [Int]
+    let id: String
+}
+
+extension View {
+    /// Shows the sheets that rows inside this view ask `presenter` for.
+    func presentsMessageSheets(_ presenter: MessagePresenter) -> some View {
+        @Bindable var presenter = presenter
+        return sheet(item: $presenter.actionsMessage) { message in
+            MessageActionsSheet(message: message)
+        }
+        .sheet(item: $presenter.reactors) { request in
+            ReactorSheet(display: request.display, emojiName: request.emojiName, userIDs: request.userIDs)
+        }
+    }
+}
+#endif
+
 private struct MessageActionsModifier: ViewModifier {
     let message: MessageRecord
     let reactions: [ReactionGroup]
 
     @State private var showingActions = false
+    #if os(iOS)
+    @Environment(MessagePresenter.self) private var presenter: MessagePresenter?
+    #endif
 
     func body(content: Content) -> some View {
         #if os(iOS)
@@ -28,7 +62,11 @@ private struct MessageActionsModifier: ViewModifier {
                 .simultaneousGesture(
                     LongPressGesture(minimumDuration: 0.35).onEnded { _ in
                         Platform.tap()
-                        showingActions = true
+                        if let presenter {
+                            presenter.actionsMessage = message
+                        } else {
+                            showingActions = true
+                        }
                     }
                 )
             MessageReactionsRow(messageID: message.id, groups: reactions)

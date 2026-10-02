@@ -14,7 +14,12 @@ import ZuluStore
 @MainActor
 @Observable
 final class MessageHistoryLoader {
-    private(set) var messages: [MessageRecord] = []
+    private(set) var messages: [MessageRecord] = [] {
+        didSet { grouped = Self.group(messages, firstUnreadID: firstUnreadID) }
+    }
+    /// Kept in step with `messages` rather than worked out on read: the list reads it on
+    /// every render, and working it out took a calendar lookup per message each time.
+    private(set) var grouped: [GroupedMessage] = []
     private(set) var isLoadingOlder = false
     private(set) var hasMoreOlder = true
     /// Snapshotted on first load, so the divider does not vanish the moment the messages
@@ -114,7 +119,7 @@ final class MessageHistoryLoader {
     /// Consecutive messages from one person collapse under a single header, the way every
     /// chat client does it. A long enough pause starts a new group even for the same sender,
     /// so a conversation picked up hours later does not read as one block.
-    var grouped: [GroupedMessage] {
+    private static func group(_ messages: [MessageRecord], firstUnreadID: Int?) -> [GroupedMessage] {
         var previous: MessageRecord?
         return messages.map { message in
             defer { previous = message }
@@ -133,7 +138,7 @@ final class MessageHistoryLoader {
     static let groupingWindow = 5 * 60
 }
 
-struct GroupedMessage: Identifiable {
+struct GroupedMessage: Identifiable, Equatable {
     let message: MessageRecord
     let startsGroup: Bool
     let startsDay: Bool

@@ -27,7 +27,7 @@ public struct OutboxLedger<Payload: Sendable>: Sendable {
         public var localID: String { id.uuidString }
     }
 
-    public struct Pending: Identifiable, Sendable {
+    public struct Pending: Identifiable, Equatable, Sendable {
         public let entry: Entry
         public let startsGroup: Bool
 
@@ -149,5 +149,12 @@ public struct OutboxLedger<Payload: Sendable>: Sendable {
     private mutating func update(_ id: UUID, _ change: (inout Entry) -> Void) {
         guard let index = entries.firstIndex(where: { $0.id == id }) else { return }
         change(&entries[index])
+    }
+}
+
+extension OutboxLedger.Entry: Equatable {
+    /// The payload never changes once an entry is made, so the id stands in for it.
+    public static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.id == rhs.id && lhs.state == rhs.state && lhs.sentID == rhs.sentID && lhs.tagged == rhs.tagged
     }
 }
