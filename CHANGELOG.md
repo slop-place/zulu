@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.9.3](https://github.com/slop-place/zulu/compare/zulu-v1.9.2...zulu-v1.9.3) (2026-10-02)
+
+
+### Bug Fixes
+
+* keep the iOS conversation steady through history loads and the keyboard ([95059cb](https://github.com/slop-place/zulu/commit/95059cb42ae9a95cc80884d9a03db7e91d33f8af))
+
 ## [1.9.2](https://github.com/slop-place/zulu/compare/zulu-v1.9.1...zulu-v1.9.2) (2026-09-28)
 
 
