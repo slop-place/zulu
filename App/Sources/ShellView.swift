@@ -7,6 +7,7 @@ import ZuluSync
 /// a rail, a channel list, and a message page that slides off them.
 struct ShellView: View {
     @Environment(AppModel.self) private var model
+    @Environment(NotificationServiceSettings.self) private var notifications
 
     private enum Section: Equatable, Hashable {
         case dms
@@ -33,6 +34,7 @@ struct ShellView: View {
     @State private var editingGroup: String?
     @State private var creatingGroup = false
     @State private var newGroupName = ""
+    @State private var confirmingSignOut = false
     @State private var open = true
     @State private var drag: CGFloat = 0
     @State private var drawerMounted = true
@@ -253,6 +255,10 @@ struct ShellView: View {
                     }
                     Button("Hidden channels", systemImage: "eye.slash") { showingHidden = true }
                     Button("Notifications", systemImage: "bell") { showingNotifications = true }
+                    Divider()
+                    Button("Sign out…", systemImage: "rectangle.portrait.and.arrow.right", role: .destructive) {
+                        confirmingSignOut = true
+                    }
                 } label: {
                     Image(systemName: "ellipsis")
                         .font(.footnote)
@@ -673,6 +679,21 @@ struct ShellView: View {
             }
         } message: {
             Text("Group channels however you like. Groups stay on your devices — Zulip has no idea they exist.")
+        }
+        .confirmationDialog(
+            "Sign out of \(model.account?.email ?? "this account")?",
+            isPresented: $confirmingSignOut,
+            titleVisibility: .visible
+        ) {
+            Button("Sign Out", role: .destructive) {
+                Task {
+                    // The push service holds the account's key and would keep pushing for it.
+                    await notifications.signOut()
+                    await model.signOut()
+                }
+            }
+        } message: {
+            Text("Your channel groups, renames and hidden channels on this device are removed with it.")
         }
         .onChange(of: model.pendingGroupToEdit) { _, id in
             guard let id else { return }

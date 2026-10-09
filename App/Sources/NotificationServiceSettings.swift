@@ -73,6 +73,14 @@ final class NotificationServiceSettings {
         if let account { await register(account: account) }
     }
 
+    /// The service stops watching the account and forgets this device. The URL stays, so
+    /// the next sign-in registers with the same service.
+    func signOut() async {
+        await leaveCurrentService()
+        status = .idle
+        test = .idle
+    }
+
     func receive(deviceToken token: Data) {
         deviceToken = token.map { String(format: "%02x", $0) }.joined()
     }
