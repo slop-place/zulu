@@ -111,6 +111,10 @@ struct ShellView: View {
                         }
                 )
         }
+        // Observed from here rather than from the list, which is unmounted with the
+        // drawer: a list observing only while open showed its last state for a moment
+        // every time the drawer came back.
+        .task(id: section) { await observeChannels() }
     }
 
     // MARK: drawer
@@ -312,7 +316,6 @@ struct ShellView: View {
             .refreshable { await model.refreshTopics() }
         }
         .background(DrawerPalette.list.ignoresSafeArea(edges: .vertical))
-        .task(id: section) { await observeChannels() }
     }
 
     private var sidebarEntries: [SidebarEntry] {

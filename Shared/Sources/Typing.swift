@@ -107,10 +107,14 @@ extension AppModel {
 
     func conversationKey(of message: ZulipMessage) -> String? {
         guard let selfID = account?.userID else { return nil }
+        return Self.conversationKey(of: message, selfUserID: selfID)
+    }
+
+    nonisolated static func conversationKey(of message: ZulipMessage, selfUserID: Int) -> String {
         let source: ConversationSource = if let channelID = message.stream_id, message.isChannelMessage {
             .topic(channelID: channelID, name: message.subject, channelName: "")
         } else {
-            .dm(key: MessageRecord.dmKey(for: message.dmParticipants.map(\.id), selfUserID: selfID))
+            .dm(key: MessageRecord.dmKey(for: message.dmParticipants.map(\.id), selfUserID: selfUserID))
         }
         return ConversationKey.of(source)
     }

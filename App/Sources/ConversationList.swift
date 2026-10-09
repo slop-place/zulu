@@ -83,8 +83,14 @@ struct ConversationList: View {
         // Scrolling back down after reading history, and catching up on messages that
         // arrived while the conversation was open, both land here.
         .onChange(of: manager.isAtNewest) { _, isAtNewest in
-            if isAtNewest { Task { await model.markConversationRead(source) } }
+            if isAtNewest {
+                model.liveEdgeReached(in: source)
+                Task { await model.markConversationRead(source) }
+            } else {
+                model.liveEdgeLeft(in: source)
+            }
         }
+        .onDisappear { model.liveEdgeLeft(in: source) }
         // Sending always shows what was sent, even from partway up the history.
         .onChange(of: model.outbox.count(in: source)) { old, new in
             guard new > old else { return }

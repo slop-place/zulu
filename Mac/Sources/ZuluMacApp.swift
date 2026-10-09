@@ -1,3 +1,5 @@
+import AppKit
+import Combine
 import SwiftUI
 import ZuluStore
 
@@ -18,6 +20,9 @@ struct ZuluMacApp: App {
                 .task {
                     notifier.attach(model: model, ui: ui)
                     await model.bootstrap()
+                }
+                .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didWakeNotification)) { _ in
+                    Task { await model.wakeSync() }
                 }
                 .frame(minWidth: 880, minHeight: 540)
         }

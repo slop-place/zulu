@@ -313,8 +313,14 @@ private struct MacConversationHistory: View {
         .onScrollGeometryChange(for: Bool.self) { geometry in
             ConversationLayout(geometry).isNearBottom
         } action: { _, isNearBottom in
-            if isNearBottom { Task { await model.markConversationRead(source) } }
+            if isNearBottom {
+                model.liveEdgeReached(in: source)
+                Task { await model.markConversationRead(source) }
+            } else {
+                model.liveEdgeLeft(in: source)
+            }
         }
+        .onDisappear { model.liveEdgeLeft(in: source) }
         .overlay(alignment: .bottomTrailing) {
             Group {
                 if scroll.showsJumpToNewest {

@@ -1,5 +1,31 @@
 import Foundation
 import Observation
+import Synchronization
+
+/// Which conversation has its newest message on screen. Readable from any thread, because
+/// the sync engine asks on its own actor before it writes a message down as unread.
+final class LiveEdge: Sendable {
+    private let conversation = Mutex<String?>(nil)
+
+    func reached(_ source: ConversationSource) {
+        conversation.withLock { $0 = ConversationKey.of(source) }
+    }
+
+    /// Leaving one conversation never forgets another: the next one can be reached
+    /// before the last one reports it was left.
+    func left(_ source: ConversationSource) {
+        let key = ConversationKey.of(source)
+        conversation.withLock { if $0 == key { $0 = nil } }
+    }
+
+    func clear() {
+        conversation.withLock { $0 = nil }
+    }
+
+    func holds(_ conversation: String) -> Bool {
+        self.conversation.withLock { $0 == conversation }
+    }
+}
 
 /// Collects messages the reader has actually seen and reports them in batches.
 ///

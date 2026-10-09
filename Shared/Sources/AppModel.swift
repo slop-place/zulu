@@ -73,6 +73,7 @@ final class AppModel {
     fileprivate var observers: [AnyDatabaseCancellable] = []
     /// Messages read here that the server has not acknowledged yet.
     @ObservationIgnored fileprivate var unsentReads: Set<Int> = []
+    private let liveEdge = LiveEdge()
 
     // MARK: lifecycle
 
@@ -115,7 +116,10 @@ final class AppModel {
                     if status == .live { await self?.resendUnsentReads() }
                 }
             }
-            await sync.onMessageArrival { [weak self] message, localID in
+            await sync.onArrival(isRead: { [liveEdge, selfID = account.userID] message in
+                liveEdge.holds(Self.conversationKey(of: message, selfUserID: selfID))
+            })
+            await sync.onMessageArrival { [weak self] message, localID, readOnArrival in
                 Task { @MainActor in
                     self?.clearTyping(after: message)
                     if message.sender_id == account.userID,
@@ -123,6 +127,7 @@ final class AppModel {
                         self?.outbox.echoed(messageID: message.id, localID: localID, in: conversation)
                     }
                     self?.messageArrivalHandler?(message)
+                    if readOnArrival { await self?.markRead([message.id]) }
                 }
             }
             await sync.onTyping { [weak self] event in
@@ -231,6 +236,7 @@ final class AppModel {
         dms = []
         users = [:]
         unsentReads = []
+        liveEdge.clear()
         destination = nil
         UserDefaults.standard.removeObject(forKey: Self.lastDestinationKey)
         // The store is wiped on sign-out, and what was typed there goes with it.
@@ -280,6 +286,10 @@ final class AppModel {
     }
 
     func refreshTopics() async { await sync?.refreshTopics() }
+
+    /// Back from a suspension or a sleep, the queue is polled again at once rather than
+    /// when the poll left behind gives up.
+    func wakeSync() async { await sync?.wake() }
 
     // MARK: sending
 
@@ -454,6 +464,16 @@ extension AppModel {
     /// unread, so they are cleared again as well as resent.
     func resendUnsentReads() async {
         await markRead([])
+    }
+
+    /// The reader can see this conversation's newest message, so one landing there is
+    /// read as it lands instead of lighting the sidebar up for a moment.
+    func liveEdgeReached(in source: ConversationSource) {
+        liveEdge.reached(source)
+    }
+
+    func liveEdgeLeft(in source: ConversationSource) {
+        liveEdge.left(source)
     }
 
     /// Sending every id at once is what a long-unread topic actually needs, and what the

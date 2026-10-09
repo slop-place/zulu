@@ -38,19 +38,33 @@ public actor SyncEngine {
         handler(status)
     }
 
-    private var arrivalHandler: (@Sendable (ZulipMessage, _ localID: String?) -> Void)?
-
-    /// Called for each message the event queue delivers, once it is in the store.
-    ///
-    /// Only the live queue passes through here. The register snapshot and history
-    /// backfills are the past, and a notification is about now.
     /// The queue a send should name so its echo comes back tagged. `nil` while
     /// registering, when a send simply goes untagged.
     public var currentQueueID: String? { queueID }
 
-    public func onMessageArrival(_ handler: @escaping @Sendable (ZulipMessage, _ localID: String?) -> Void) {
+    private var arrivalHandler: (@Sendable (ZulipMessage, _ localID: String?, _ readOnArrival: Bool) -> Void)?
+    private var isReadOnArrival: (@Sendable (ZulipMessage) -> Bool)?
+
+    /// Called for each message the event queue delivers, once it is in the store.
+    ///
+    /// Only the live queue passes through here. The register snapshot and history
+    /// backfills are the past, and a notification is about now. `readOnArrival` means
+    /// the message was never written as unread, so the server still has to be told.
+    public func onMessageArrival(
+        _ handler: @escaping @Sendable (ZulipMessage, _ localID: String?, _ readOnArrival: Bool) -> Void
+    ) {
         arrivalHandler = handler
     }
+
+    /// Asked about each message before it is written. One the reader is looking at as it
+    /// lands is never unread, so nothing lights up for it only to go dark a moment later.
+    public func onArrival(isRead check: @escaping @Sendable (ZulipMessage) -> Bool) {
+        isReadOnArrival = check
+    }
+
+    /// Set while the loop is in a poll or a wait, both of which can be started over. A
+    /// registration cannot be, so it is never cut short.
+    private var isInterruptible = false
 
     private var typingHandler: (@Sendable (TypingEvent) -> Void)?
 
@@ -76,13 +90,27 @@ public actor SyncEngine {
         setStatus(.idle)
     }
 
+    /// Polls again right now. A poll left behind while the app was suspended can sit on a
+    /// dead connection until it times out, and every poll that failed on the way doubled
+    /// the wait before the next.
+    public func wake() {
+        guard isInterruptible, let interrupted = task else { return }
+        interrupted.cancel()
+        task = nil
+        isInterruptible = false
+        backoffStep = 0
+        start()
+    }
+
     private func run() async {
         while !Task.isCancelled {
             do {
                 if queueID == nil { try await registerQueue() }
                 guard let queueID else { continue }
 
-                let batch = try await client.events(queueID: queueID, lastEventID: lastEventID)
+                let batch = try await interruptibly {
+                    try await client.events(queueID: queueID, lastEventID: lastEventID)
+                }
                 let failure = await apply(batch.events)
                 lastEventID = max(lastEventID, batch.lastEventID)
                 try store.saveSyncState(queueID: queueID, lastEventID: lastEventID)
@@ -100,8 +128,10 @@ public actor SyncEngine {
             } catch is CancellationError {
                 return
             } catch {
+                // Cut short on purpose, by `wake` or `stop`; nothing failed.
+                if Task.isCancelled { return }
                 setStatus(.failed(error.localizedDescription))
-                await backoff()
+                await interruptibly { await backoff() }
             }
         }
     }
@@ -110,6 +140,14 @@ public actor SyncEngine {
         backoffStep = min(backoffStep + 1, 6)
         let seconds = min(pow(2.0, Double(backoffStep)), 60)
         try? await Task.sleep(for: .seconds(seconds))
+    }
+
+    /// A task cut short by `wake` resumes after its replacement has started, so it leaves
+    /// the flag to the replacement.
+    private func interruptibly<Value>(_ body: () async throws -> Value) async rethrows -> Value {
+        isInterruptible = true
+        defer { if !Task.isCancelled { isInterruptible = false } }
+        return try await body()
     }
 
     private func registerQueue() async throws {
@@ -179,9 +217,13 @@ public actor SyncEngine {
     private func apply(_ event: ZulipEvent) async throws {
         switch event {
         case .message(let message, let localID):
+            let readOnArrival = ZuluStore.startsUnread(message, selfUserID: selfUserID)
+                && (isReadOnArrival?(message) ?? false)
             try store.save(messages: [message], selfUserID: selfUserID)
-            try store.noteArrival(of: message, selfUserID: selfUserID)
-            arrivalHandler?(message, localID)
+            if !readOnArrival {
+                try store.noteArrival(of: message, selfUserID: selfUserID)
+            }
+            arrivalHandler?(message, localID, readOnArrival)
 
         case .deleteMessage(let ids):
             try store.deleteMessages(ids: ids)

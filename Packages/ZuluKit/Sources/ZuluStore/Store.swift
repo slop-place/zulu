@@ -322,8 +322,12 @@ extension ZuluStore {
 
     /// A message that arrives while the queue is live starts unread unless the server says
     /// otherwise, or unless it is the viewer's own.
+    public static func startsUnread(_ message: ZulipMessage, selfUserID: Int) -> Bool {
+        !message.isRead && message.sender_id != selfUserID
+    }
+
     public func noteArrival(of message: ZulipMessage, selfUserID: Int) throws {
-        guard !message.isRead, message.sender_id != selfUserID else { return }
+        guard Self.startsUnread(message, selfUserID: selfUserID) else { return }
         try writer.write { db in
             try UnreadRecord(
                 messageID: message.id,

@@ -20,7 +20,11 @@ struct ZuluApp: App {
                 }
                 .onChange(of: model.destination) { Task { await push.clearDelivered() } }
                 .onChange(of: scenePhase) {
-                    if scenePhase == .active { Task { await push.clearDelivered() } }
+                    guard scenePhase == .active else { return }
+                    Task {
+                        await push.clearDelivered()
+                        await model.wakeSync()
+                    }
                 }
         }
     }
