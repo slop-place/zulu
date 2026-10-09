@@ -48,6 +48,9 @@ struct RemoteImage: View {
             }
         }
         .frame(maxWidth: 320, alignment: .leading)
+        #if os(iOS)
+        .keepsReaderInPlace()
+        #endif
         #if os(macOS)
         // A click opens the image at the size it was uploaded. The pointer says so on
         // the way in.
