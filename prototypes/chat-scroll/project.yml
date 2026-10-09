@@ -1,0 +1,47 @@
+name: ChatScroll
+options:
+  bundleIdPrefix: com.bwees
+  deploymentTarget:
+    iOS: "27.0"
+  createIntermediateGroups: true
+packages:
+  ZuluKit:
+    path: ../../Packages/ZuluKit
+targets:
+  ChatScroll:
+    type: application
+    platform: iOS
+    sources: [Sources]
+    dependencies:
+      - package: ZuluKit
+        product: ZuluScroll
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.bwees.zulu.chatscroll
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
+        SWIFT_VERSION: "6.0"
+        SWIFT_APPROACHABLE_CONCURRENCY: YES
+        SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
+        GENERATE_INFOPLIST_FILE: YES
+        TARGETED_DEVICE_FAMILY: "1"
+  ChatScrollUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [UITests]
+    dependencies:
+      - target: ChatScroll
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_VERSION: "6.0"
+        TEST_TARGET_NAME: ChatScroll
+schemes:
+  ChatScroll:
+    build:
+      targets:
+        ChatScroll: all
+        ChatScrollUITests: [test]
+    test:
+      targets: [ChatScrollUITests]
