@@ -235,24 +235,7 @@ extension ZuluStore {
     {
         ValueObservation.tracking { db in
             try ChannelSummary.fetchAll(db, sql: """
-                SELECT c.id, COALESCE(c.alias, c.name) AS name, c.isRestricted, c.isMuted,
-                       c.pinned, COALESCE(c.modeOverride, c.detectedForum) AS isForum,
-                       (SELECT COUNT(*) FROM topic t WHERE t.channelID = c.id) AS topicCount,
-                       (SELECT COUNT(*) FROM unread u
-                         WHERE u.channelID = c.id AND \(TopicMuting.unreadIsVisible)
-                           AND \(TopicMuting.unreadIsNotPromoted)) AS unreadCount,
-                       (SELECT COUNT(*) FROM unread u
-                         WHERE u.channelID = c.id AND \(TopicMuting.unreadIsVisible)
-                           AND \(TopicMuting.unreadIsNotPromoted)
-                           AND \(GeneralChat.unreadIsGeneralChat)) AS generalChatUnreadCount,
-                       (SELECT COUNT(*) FROM unread u
-                         WHERE u.channelID = c.id AND u.isMention = 1
-                           AND \(TopicMuting.unreadIsNotPromoted)) AS mentionCount,
-                       (SELECT COUNT(*) FROM unread u
-                         WHERE u.channelID = c.id AND u.isMention = 1
-                           AND \(TopicMuting.unreadIsNotPromoted)
-                           AND \(GeneralChat.unreadIsGeneralChat)) AS generalChatMentionCount,
-                       c.position
+                SELECT \(Self.sidebarRowColumns)
                   FROM channel c
                  WHERE c.hidden = 1
                  ORDER BY name COLLATE NOCASE

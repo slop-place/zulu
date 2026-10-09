@@ -15,7 +15,10 @@ struct MacShellView: View {
 
     @State private var channels: [ChannelSummary] = []
     @State private var promoted: [PromotedTopicSummary] = []
+    /// Hidden channels with a mention waiting, surfaced so the rail's count can be answered.
+    @State private var mentionedHidden: [ChannelSummary] = []
     @State private var promotedTask: Task<Void, Never>?
+    @State private var mentionedHiddenTask: Task<Void, Never>?
     @State private var expanded: Set<Int> = []
     @State private var columns: NavigationSplitViewVisibility = .all
 
@@ -58,8 +61,8 @@ struct MacShellView: View {
             ui.editingGroup = MacUIState.GroupBox(id: id)
             model.pendingGroupToEdit = nil
         }
-        .onChange(of: dockBadge, initial: true) { _, count in
-            NSApp.dockTile.badgeLabel = count > 0 ? String(count) : nil
+        .onChange(of: dockBadge, initial: true) { _, badge in
+            NSApp.dockTile.badgeLabel = badge.label
         }
     }
 
@@ -139,11 +142,15 @@ struct MacShellView: View {
             }
     }
 
-    /// Mentions and direct messages only: a number for every unread message in every
-    /// channel turns the dock into a nag.
-    private var dockBadge: Int {
-        model.dms.reduce(0) { $0 + $1.unreadCount }
-            + model.allChannels.reduce(0) { $0 + $1.mentionCount }
+    private var dockBadge: DockBadge {
+        DockBadge(
+            addressed: model.dms.reduce(0) { $0 + $1.unreadCount }
+                + model.groups.reduce(0) { $0 + $1.mentionCount }
+                + model.unfiledMentionCount,
+            hasUnread: model.dms.contains { $0.unreadCount > 0 }
+                || model.groups.contains { $0.unreadCount > 0 }
+                || model.unfiledHasUnread
+        )
     }
 
     // MARK: sidebar
@@ -185,6 +192,12 @@ struct MacShellView: View {
             // says what it is at the top of the list, the way Mail's sidebar does.
             Section(listTitle) {
                 sectionRows
+            }
+            // A hidden channel someone mentioned you in, listed until the mention is read.
+            if ui.section != .dms, !mentionedHidden.isEmpty {
+                Section("Hidden") {
+                    ForEach(mentionedHidden) { channel in channelRow(channel) }
+                }
             }
         }
         .listStyle(.sidebar)
@@ -313,7 +326,11 @@ struct MacShellView: View {
             aliasDraft = model.alias(forChannel: channel.id) ?? ""
             renamingChannel = channel
         }
-        Button("Hide Channel") { model.setHidden(true, forChannel: channel.id) }
+        if mentionedHidden.contains(where: { $0.id == channel.id }) {
+            Button("Unhide Channel") { model.setHidden(false, forChannel: channel.id) }
+        } else {
+            Button("Hide Channel") { model.setHidden(true, forChannel: channel.id) }
+        }
         Button("Muted Topics…") { ui.mutedTopicsChannel = ChannelSummaryBox(channel: channel) }
         NotificationLevelMenu.channel(channel.id, model: model)
         Divider()
@@ -430,6 +447,14 @@ struct MacShellView: View {
             promotedTask = Task {
                 do {
                     for try await rows in observation.removeDuplicates().values(in: writer) { promoted = rows }
+                } catch {}
+            }
+        }
+        mentionedHiddenTask?.cancel()
+        if let observation = model.mentionedHiddenChannelObservation(inGroup: groupID) {
+            mentionedHiddenTask = Task {
+                do {
+                    for try await rows in observation.removeDuplicates().values(in: writer) { mentionedHidden = rows }
                 } catch {}
             }
         }

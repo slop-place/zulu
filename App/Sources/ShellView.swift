@@ -18,9 +18,12 @@ struct ShellView: View {
     @State private var section: Section = .unfiled
     @State private var visibleChannels: [ChannelSummary] = []
     @State private var visiblePromoted: [PromotedTopicSummary] = []
+    /// Hidden channels with a mention waiting, surfaced so the rail's count can be answered.
+    @State private var mentionedHidden: [ChannelSummary] = []
     @State private var renamingChannel: ChannelSummary?
     @State private var aliasDraft = ""
     @State private var promotedTask: Task<Void, Never>?
+    @State private var mentionedHiddenTask: Task<Void, Never>?
     @State private var showingHidden = false
     @State private var showingNotifications = false
     @State private var mutedTopicsChannel: ChannelSummary?
@@ -292,6 +295,9 @@ struct ShellView: View {
                                 .padding(.horizontal, 8)
                                 .padding(.vertical, 12)
                         }
+                        if !mentionedHidden.isEmpty {
+                            hiddenSection
+                        }
                     }
                 }
                 .padding(.horizontal, 8)
@@ -305,6 +311,28 @@ struct ShellView: View {
 
     private var sidebarEntries: [SidebarEntry] {
         SidebarEntry.merged(channels: visibleChannels, promoted: visiblePromoted)
+    }
+
+    /// A hidden channel someone mentioned you in, listed until the mention is read. The
+    /// heading says why a channel that was hidden is back.
+    private var hiddenSection: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("Hidden")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 8)
+                .padding(.top, 10)
+                .padding(.bottom, 4)
+            ForEach(mentionedHidden) { channel in
+                VStack(alignment: .leading, spacing: 0) {
+                    channelRow(channel)
+                    if channel.rendersAsForum {
+                        topicBranch(under: channel)
+                    }
+                }
+                .padding(.bottom, 6)
+            }
+        }
     }
 
     private var emptyListMessage: String {
@@ -323,6 +351,14 @@ struct ShellView: View {
             promotedTask = Task {
                 do {
                     for try await rows in promoted.removeDuplicates().values(in: writer) { visiblePromoted = rows }
+                } catch {}
+            }
+        }
+        if let hidden = model.mentionedHiddenChannelObservation(inGroup: groupID) {
+            mentionedHiddenTask?.cancel()
+            mentionedHiddenTask = Task {
+                do {
+                    for try await rows in hidden.removeDuplicates().values(in: writer) { mentionedHidden = rows }
                 } catch {}
             }
         }
@@ -370,8 +406,14 @@ struct ShellView: View {
         }
         .buttonStyle(.plain)
         .contextMenu {
-            Button("Hide channel", systemImage: "eye.slash") {
-                model.setHidden(true, forChannel: channel.id)
+            if mentionedHidden.contains(where: { $0.id == channel.id }) {
+                Button("Unhide channel", systemImage: "eye") {
+                    model.setHidden(false, forChannel: channel.id)
+                }
+            } else {
+                Button("Hide channel", systemImage: "eye.slash") {
+                    model.setHidden(true, forChannel: channel.id)
+                }
             }
             Button("Rename for me…", systemImage: "pencil") {
                 aliasDraft = model.alias(forChannel: channel.id) ?? ""

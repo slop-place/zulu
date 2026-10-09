@@ -528,6 +528,12 @@ extension AppModel {
         store?.observeChannels(inGroup: id)
     }
 
+    func mentionedHiddenChannelObservation(inGroup id: String?)
+        -> ValueObservation<ValueReducers.Fetch<[ChannelSummary]>>?
+    {
+        store?.observeMentionedHiddenChannels(inGroup: id)
+    }
+
     func createGroup(named name: String) {
         guard let group = try? store?.createGroup(name: name) else { return }
         pendingGroupToEdit = group.id

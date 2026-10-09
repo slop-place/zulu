@@ -102,31 +102,10 @@ extension ZuluStore {
     public func observeChannels(inGroup groupID: String?)
         -> ValueObservation<ValueReducers.Fetch<[ChannelSummary]>>
     {
-        let membership = groupID == nil
-            ? "c.id NOT IN (SELECT channelID FROM channelGroupMember)"
-            : "c.id IN (SELECT channelID FROM channelGroupMember WHERE groupID = ?)"
-        let arguments: StatementArguments = groupID.map { [$0] } ?? []
-
+        let (membership, arguments) = Self.membership(inGroup: groupID)
         return ValueObservation.tracking { db in
             try ChannelSummary.fetchAll(db, sql: """
-                SELECT c.id, COALESCE(c.alias, c.name) AS name, c.isRestricted, c.isMuted, c.pinned,
-                       COALESCE(c.modeOverride, c.detectedForum) AS isForum,
-                       (SELECT COUNT(*) FROM topic t WHERE t.channelID = c.id) AS topicCount,
-                       (SELECT COUNT(*) FROM unread u
-                         WHERE u.channelID = c.id AND \(TopicMuting.unreadIsVisible)
-                           AND \(TopicMuting.unreadIsNotPromoted)) AS unreadCount,
-                       (SELECT COUNT(*) FROM unread u
-                         WHERE u.channelID = c.id AND \(TopicMuting.unreadIsVisible)
-                           AND \(TopicMuting.unreadIsNotPromoted)
-                           AND \(GeneralChat.unreadIsGeneralChat)) AS generalChatUnreadCount,
-                       (SELECT COUNT(*) FROM unread u
-                         WHERE u.channelID = c.id AND u.isMention = 1
-                           AND \(TopicMuting.unreadIsNotPromoted)) AS mentionCount,
-                       (SELECT COUNT(*) FROM unread u
-                         WHERE u.channelID = c.id AND u.isMention = 1
-                           AND \(TopicMuting.unreadIsNotPromoted)
-                           AND \(GeneralChat.unreadIsGeneralChat)) AS generalChatMentionCount,
-                       c.position
+                SELECT \(Self.sidebarRowColumns)
                   FROM channel c
                  WHERE \(membership)
                    AND \(ChannelVisibility.clause)
@@ -134,6 +113,57 @@ extension ZuluStore {
                 """, arguments: arguments)
         }
     }
+
+    /// Hidden channels in a group that have a mention waiting. A hidden channel keeps
+    /// counting its mentions on the rail, so the row that answers that count has to be
+    /// somewhere to open; it leaves again once the mention is read.
+    public func observeMentionedHiddenChannels(inGroup groupID: String?)
+        -> ValueObservation<ValueReducers.Fetch<[ChannelSummary]>>
+    {
+        let (membership, arguments) = Self.membership(inGroup: groupID)
+        return ValueObservation.tracking { db in
+            try ChannelSummary.fetchAll(db, sql: """
+                SELECT * FROM (
+                    SELECT \(Self.sidebarRowColumns)
+                      FROM channel c
+                     WHERE \(membership)
+                       AND c.hidden = 1
+                )
+                 WHERE mentionCount > 0
+                 ORDER BY name COLLATE NOCASE
+                """, arguments: arguments)
+        }
+    }
+
+    private static func membership(inGroup groupID: String?) -> (String, StatementArguments) {
+        let membership = groupID == nil
+            ? "c.id NOT IN (SELECT channelID FROM channelGroupMember)"
+            : "c.id IN (SELECT channelID FROM channelGroupMember WHERE groupID = ?)"
+        return (membership, groupID.map { [$0] } ?? [])
+    }
+
+    /// A sidebar row's columns, aliased as `c`. Unreads in promoted topics belong to the
+    /// promoted row and are left out here.
+    static let sidebarRowColumns = """
+        c.id, COALESCE(c.alias, c.name) AS name, c.isRestricted, c.isMuted, c.pinned,
+        COALESCE(c.modeOverride, c.detectedForum) AS isForum,
+        (SELECT COUNT(*) FROM topic t WHERE t.channelID = c.id) AS topicCount,
+        (SELECT COUNT(*) FROM unread u
+          WHERE u.channelID = c.id AND \(TopicMuting.unreadIsVisible)
+            AND \(TopicMuting.unreadIsNotPromoted)) AS unreadCount,
+        (SELECT COUNT(*) FROM unread u
+          WHERE u.channelID = c.id AND \(TopicMuting.unreadIsVisible)
+            AND \(TopicMuting.unreadIsNotPromoted)
+            AND \(GeneralChat.unreadIsGeneralChat)) AS generalChatUnreadCount,
+        (SELECT COUNT(*) FROM unread u
+          WHERE u.channelID = c.id AND u.isMention = 1
+            AND \(TopicMuting.unreadIsNotPromoted)) AS mentionCount,
+        (SELECT COUNT(*) FROM unread u
+          WHERE u.channelID = c.id AND u.isMention = 1
+            AND \(TopicMuting.unreadIsNotPromoted)
+            AND \(GeneralChat.unreadIsGeneralChat)) AS generalChatMentionCount,
+        c.position
+        """
 
     public func groups() throws -> [ChannelGroupRecord] {
         try writer.read { db in

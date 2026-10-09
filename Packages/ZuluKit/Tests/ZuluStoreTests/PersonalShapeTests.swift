@@ -223,6 +223,54 @@ struct HidingAndAbsorptionTests {
         #expect(try await visibleChannels(store).count == 1)
     }
 
+    private func mentionedHidden(_ store: ZuluStore, inGroup group: String? = nil) async throws -> [ChannelSummary] {
+        try await firstValue(store.observeMentionedHiddenChannels(inGroup: group).values(in: store.writer)) ?? []
+    }
+
+    private func addUnread(_ messageID: Int, isMention: Bool, to store: ZuluStore) throws {
+        try store.writer.write { db in
+            try db.execute(
+                sql: "INSERT INTO unread (messageID, channelID, topic, isMention) VALUES (?, 7, 'one', ?)",
+                arguments: [messageID, isMention]
+            )
+        }
+    }
+
+    /// The rail counts a hidden channel's mentions, so the channel surfaces to be opened.
+    @Test func aHiddenChannelWithAMentionSurfaces() async throws {
+        let store = try makeStore(topics: ["one"])
+        try store.setHidden(true, forChannel: 7)
+        try addUnread(1, isMention: true, to: store)
+
+        #expect(try await visibleChannels(store).isEmpty)
+        #expect(try await mentionedHidden(store).map(\.id) == [7])
+    }
+
+    @Test func aHiddenChannelWithOnlyPlainUnreadsStaysHidden() async throws {
+        let store = try makeStore(topics: ["one"])
+        try store.setHidden(true, forChannel: 7)
+        try addUnread(1, isMention: false, to: store)
+        #expect(try await mentionedHidden(store).isEmpty)
+    }
+
+    @Test func aVisibleChannelWithAMentionIsNotListedAsHidden() async throws {
+        let store = try makeStore(topics: ["one"])
+        try addUnread(1, isMention: true, to: store)
+        #expect(try await mentionedHidden(store).isEmpty)
+    }
+
+    /// It surfaces in the group it is filed in, not in the unfiled pile.
+    @Test func aMentionedHiddenChannelSurfacesInItsOwnGroup() async throws {
+        let store = try makeStore(topics: ["one"])
+        let group = try store.createGroup(name: "Work")
+        try store.setChannels([7], inGroup: group.id)
+        try store.setHidden(true, forChannel: 7)
+        try addUnread(1, isMention: true, to: store)
+
+        #expect(try await mentionedHidden(store).isEmpty)
+        #expect(try await mentionedHidden(store, inGroup: group.id).map(\.id) == [7])
+    }
+
     /// The alias is what makes a promoted `general chat` mean anything at the top level.
     @Test func aPromotedTopicShowsItsOwnAlias() async throws {
         let store = try makeStore(topics: ["general chat"])
