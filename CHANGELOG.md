@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.10.0](https://github.com/slop-place/zulu/compare/zulu-v1.9.3...zulu-v1.10.0) (2026-10-09)
+
+
+### Features
+
+* sign out of the iOS app ([ca27119](https://github.com/slop-place/zulu/commit/ca2711981ddd21c946b2407fa13ef994d556c607))
+* surface hidden channels with a mention waiting and dot the dock for unreads ([3ab4064](https://github.com/slop-place/zulu/commit/3ab40643c3f569154bcb6b1dc9ac209e9306715c))
+
+
+### Bug Fixes
+
+* hold the Mac conversation still while reading as messages arrive ([5353488](https://github.com/slop-place/zulu/commit/5353488e706bad9a146bf82b72cb5f1e03671b63))
+* keep the conversation still when an image above the screen loads ([7469938](https://github.com/slop-place/zulu/commit/74699380ffde0dd5370418421e960ddbb8ad0ffc))
+* play animated images in messages ([9408c1d](https://github.com/slop-place/zulu/commit/9408c1d6239d61a6da190f141094475d0d93b5eb))
+* stop unread indicators flickering and poll again as soon as the app is back ([5716dc0](https://github.com/slop-place/zulu/commit/5716dc0f579985aba6b351506c7c0a01ed7ed40d))
+
 ## [1.9.3](https://github.com/slop-place/zulu/compare/zulu-v1.9.2...zulu-v1.9.3) (2026-10-02)
 
 
