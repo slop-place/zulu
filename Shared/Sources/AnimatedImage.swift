@@ -1,5 +1,31 @@
 import ImageIO
 import SwiftUI
+import Synchronization
+
+/// A picture with more than one frame, played the way a browser plays it: at the file's
+/// own delays, one frame decoded at a time, so a long GIF never sits in memory whole.
+enum AnimatedPicture {
+    static func isAnimated(_ data: Data) -> Bool {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil) else { return false }
+        return CGImageSourceGetCount(source) > 1
+    }
+
+    /// Frames, for as long as the reader keeps reading them.
+    static func frames(of data: Data) -> AsyncStream<CGImage> {
+        AsyncStream { continuation in
+            let stopped = Mutex(false)
+            continuation.onTermination = { _ in stopped.withLock { $0 = true } }
+            let status = CGAnimateImageDataWithBlock(data as CFData, nil) { _, frame, stop in
+                if stopped.withLock({ $0 }) {
+                    stop.pointee = true
+                } else {
+                    continuation.yield(frame)
+                }
+            }
+            if status != noErr { continuation.finish() }
+        }
+    }
+}
 
 /// Realm custom emoji are frequently animated GIFs or WebPs, decoded here into the frames
 /// a caller can play.

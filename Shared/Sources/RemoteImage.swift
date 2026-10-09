@@ -14,6 +14,8 @@ struct RemoteImage: View {
     @Environment(AppModel.self) private var model
     @Environment(AttachmentPreviewer.self) private var previewer
     @State private var image: Image?
+    /// The frame showing now, while a picture with more than one is playing.
+    @State private var frame: Image?
     @State private var failed = false
 
     init(path: String, fullSize: String? = nil, alt: String? = nil, aspectRatio: Double? = nil) {
@@ -27,7 +29,7 @@ struct RemoteImage: View {
     var body: some View {
         Group {
             if let image {
-                image
+                (frame ?? image)
                     .resizable()
                     .scaledToFit()
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -59,13 +61,25 @@ struct RemoteImage: View {
             previewer.preview(previewPaths, imagesOnly: true, model: model)
         }
         .task(id: path) {
-            guard image == nil else { return }
-            if let data = await model.imageData(at: path), let decoded = Platform.image(from: data) {
+            frame = nil
+            if image == nil {
+                guard let data = await model.imageData(at: path), let decoded = Platform.image(from: data) else {
+                    // Scrolled away mid-fetch is not a failure; the next appearance fetches again.
+                    if !Task.isCancelled { failed = true }
+                    return
+                }
                 DecodedImages.store(decoded, at: path)
                 image = decoded
-            } else {
-                failed = true
             }
+            await play()
+        }
+    }
+
+    /// Runs for as long as the picture is on screen, and only if it moves.
+    private func play() async {
+        guard let data = await model.imageData(at: path), AnimatedPicture.isAnimated(data) else { return }
+        for await next in AnimatedPicture.frames(of: data) {
+            frame = Image(decorative: next, scale: 1)
         }
     }
 }
