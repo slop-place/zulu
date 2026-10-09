@@ -33,22 +33,34 @@ final class ConversationScrollManager {
     /// Only changes when the button should appear or go.
     private(set) var showsJumpToNewest = false
 
+    /// Whether a growing list keeps its bottom edge in view. Off while the reader holds
+    /// or reads the history, so a new message does not move what they are looking at.
+    private(set) var followsNewest: Bool
+
     /// Unobserved on purpose. It takes in the scroll geometry on every frame, and a view
     /// reading it would re-render the whole list each time, which changes the geometry,
     /// which re-renders the list: the app locked up the moment a conversation opened.
     @ObservationIgnored private var follow: ConversationFollow
 
     init(opensAt firstUnread: Int?) {
-        follow = ConversationFollow(opensAt: firstUnread)
+        let follow = ConversationFollow(opensAt: firstUnread)
+        self.follow = follow
+        followsNewest = follow.isPinned
     }
 
     func scrollPhaseChanged(to phase: ScrollPhase) {
         switch phase {
         case .tracking, .interacting:
             follow.userBeganScrolling()
+            setFollowsNewest(false)
         case .idle, .animating:
-            follow.userFinishedScrolling()
-            publish()
+            // The scroll view is left holding whichever message it stopped on, and holds
+            // it in place as new ones arrive. Back on the bottom edge, it follows them.
+            if follow.userFinishedScrolling(), follow.isPinned {
+                withAnimation(.snappy) { apply(follow.pin()) }
+            } else {
+                publish()
+            }
         case .decelerating:
             break
         @unknown default:
@@ -70,6 +82,11 @@ final class ConversationScrollManager {
 
     private func publish() {
         if showsJumpToNewest != follow.showsJumpToNewest { showsJumpToNewest = follow.showsJumpToNewest }
+        setFollowsNewest(follow.isPinned)
+    }
+
+    private func setFollowsNewest(_ follows: Bool) {
+        if followsNewest != follows { followsNewest = follows }
     }
 
     private func apply(_ scroll: ConversationFollow.Scroll?) {

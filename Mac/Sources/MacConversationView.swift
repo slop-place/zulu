@@ -250,6 +250,9 @@ private struct MacConversationHistory: View {
 
     var body: some View {
         @Bindable var scroll = scroll
+        // The binding alone never reads the position while the list renders, so the
+        // manager's scrolls, like the one after sending, would not reach the scroll view.
+        let _ = scroll.position
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 0) {
                 if loader.isLoadingOlder {
@@ -292,7 +295,9 @@ private struct MacConversationHistory: View {
         // Anchoring by item identity is what keeps the view still while older messages are
         // prepended. Everything about following the newest message lives in the manager.
         .scrollPosition($scroll.position, anchor: .bottom)
-        .defaultScrollAnchor(.bottom)
+        .defaultScrollAnchor(.bottom, for: .initialOffset)
+        .defaultScrollAnchor(.bottom, for: .alignment)
+        .defaultScrollAnchor(scroll.followsNewest ? .bottom : nil, for: .sizeChanges)
         .onScrollPhaseChange { _, phase in
             scroll.scrollPhaseChanged(to: phase)
             loader.noteScrollPhase(phase)

@@ -93,8 +93,16 @@ struct ReadingTests {
     @Test func finishingWithoutHavingStartedChangesNothing() {
         var follow = reading()
         _ = follow.layoutChanged(to: layout(distance: 0))
-        follow.userFinishedScrolling()
+        let ended = follow.userFinishedScrolling()
+        #expect(!ended)
         #expect(follow.mode == .reading)
+    }
+
+    @Test func aScrollByTheReaderReportsThatItEnded() {
+        var follow = reading()
+        follow.userBeganScrolling()
+        let ended = follow.userFinishedScrolling()
+        #expect(ended)
     }
 
     private func reading() -> ConversationFollow {
