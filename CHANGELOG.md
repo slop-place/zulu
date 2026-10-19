@@ -1,5 +1,24 @@
 # Changelog
 
+## [1.11.0](https://github.com/slop-place/zulu/compare/zulu-v1.10.0...zulu-v1.11.0) (2026-10-19)
+
+
+### Features
+
+* add a Recent view to the Mac sidebar ([68ea073](https://github.com/slop-place/zulu/commit/68ea07304db5e462485774f6b71ece39999c2217))
+* mark everything as read on the Mac, from the rail, the sidebar menu or ⇧⌘⎋ ([68ea073](https://github.com/slop-place/zulu/commit/68ea07304db5e462485774f6b71ece39999c2217))
+* move the Mac message actions into the message header instead of a hover bar ([68ea073](https://github.com/slop-place/zulu/commit/68ea07304db5e462485774f6b71ece39999c2217))
+* mute a topic and set its notifications from the Mac toolbar and menu bar (⇧⌘M) ([68ea073](https://github.com/slop-place/zulu/commit/68ea07304db5e462485774f6b71ece39999c2217))
+* put your own recent reactions first in the quick-reaction row ([68ea073](https://github.com/slop-place/zulu/commit/68ea07304db5e462485774f6b71ece39999c2217))
+* use a black window in dark mode, with brighter secondary text ([68ea073](https://github.com/slop-place/zulu/commit/68ea07304db5e462485774f6b71ece39999c2217))
+
+
+### Bug Fixes
+
+* decode animated images and emoji off the main thread ([68ea073](https://github.com/slop-place/zulu/commit/68ea07304db5e462485774f6b71ece39999c2217))
+* select text across paragraphs in a message ([68ea073](https://github.com/slop-place/zulu/commit/68ea07304db5e462485774f6b71ece39999c2217))
+* stop fast wheel scrolling snapping the Mac conversation back to the newest message ([68ea073](https://github.com/slop-place/zulu/commit/68ea07304db5e462485774f6b71ece39999c2217))
+
 ## [1.10.0](https://github.com/slop-place/zulu/compare/zulu-v1.9.3...zulu-v1.10.0) (2026-10-09)
 
 
