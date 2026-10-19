@@ -37,7 +37,7 @@ struct ShellView: View {
     @State private var confirmingSignOut = false
     @State private var open = true
     @State private var drag: CGFloat = 0
-    @State private var drawerMounted = true
+    @State private var drawerVisible = true
     @State private var path: [ConversationView.Source] = []
 
     private let railW: CGFloat = 80
@@ -50,14 +50,14 @@ struct ShellView: View {
 
     private func setOpen(_ value: Bool) {
         if value {
-            drawerMounted = true
+            drawerVisible = true
             dismissKeyboard()
         }
         withAnimation(Self.slide, completionCriteria: .removed) {
             open = value
             drag = 0
         } completion: {
-            if !open { drawerMounted = false }
+            if !open { drawerVisible = false }
         }
     }
 
@@ -72,7 +72,11 @@ struct ShellView: View {
     var body: some View {
         ZStack(alignment: .leading) {
             Color(.systemBackground).ignoresSafeArea()
-            if drawerMounted { drawer }
+            // Kept mounted so the swipe that reveals it doesn't stall on rebuilding the list.
+            drawer
+                .opacity(drawerVisible ? 1 : 0)
+                .allowsHitTesting(drawerVisible)
+                .accessibilityHidden(!drawerVisible)
             content
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background {
@@ -99,8 +103,8 @@ struct ShellView: View {
                             // Left-to-right belongs to the drawer; right-to-left is left
                             // alone so row swipe actions keep it.
                             guard open || value.translation.width > 0 else { return }
-                            if value.translation.width > 0, !drawerMounted {
-                                drawerMounted = true
+                            if value.translation.width > 0, !drawerVisible {
+                                drawerVisible = true
                                 dismissKeyboard()
                             }
                             drag = value.translation.width
@@ -111,9 +115,8 @@ struct ShellView: View {
                         }
                 )
         }
-        // Observed from here rather than from the list, which is unmounted with the
-        // drawer: a list observing only while open showed its last state for a moment
-        // every time the drawer came back.
+        // Observed from here rather than from the list: a list observing only while
+        // open showed its last state for a moment every time the drawer came back.
         .task(id: section) { await observeChannels() }
     }
 
@@ -412,6 +415,7 @@ struct ShellView: View {
                 model.destination == destination ? Color(.tertiarySystemFill) : .clear,
                 in: RoundedRectangle(cornerRadius: 7)
             )
+            .contentShape(.rect)
         }
         .buttonStyle(.plain)
         .contextMenu {
