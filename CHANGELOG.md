@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.12.0](https://github.com/slop-place/zulu/compare/zulu-v1.11.0...zulu-v1.12.0) (2026-10-19)
+
+
+### Features
+
+* add a Mac setting to show message actions on hover ([c58bb95](https://github.com/slop-place/zulu/commit/c58bb9528abc54f9b2267cc776a340c679512a5e))
+* add a Mac sidebar divider, unread DM bubbles, and settings to hide Recent and pinned DMs ([6b09983](https://github.com/slop-place/zulu/commit/6b09983f545a0598a8f60cdb8d929c8a7e2f27f8))
+* render uploaded files as attachment rows ([4e37bad](https://github.com/slop-place/zulu/commit/4e37baddeb27a660c54a877994f2e8f601f8b408))
+
+
+### Bug Fixes
+
+* center the iOS composer placeholder with the bar buttons ([0e8f32d](https://github.com/slop-place/zulu/commit/0e8f32df2251c2070e66437264d9c4e7b381790a))
+* draw text-default emoji like the heart in color ([1ca6702](https://github.com/slop-place/zulu/commit/1ca67023e18ef04ae3e55fb6a5b0aabd4736009b))
+* iOS photo uploads, camera crash, and emoji button alignment ([7e21f91](https://github.com/slop-place/zulu/commit/7e21f91dbadf1fb77269aebc20fee7c36b2e727d))
+* keep the iOS channel drawer mounted and make forum rows fully tappable ([5b643eb](https://github.com/slop-place/zulu/commit/5b643eb48aa3d9f6c6bd70d64df10a7a5825a673))
+* make every composer suggestion tappable on iOS ([ff9bfef](https://github.com/slop-place/zulu/commit/ff9bfefe570123d05b3162d954513e7bd7a36252))
+
 ## [1.11.0](https://github.com/slop-place/zulu/compare/zulu-v1.10.0...zulu-v1.11.0) (2026-10-19)
 
 
