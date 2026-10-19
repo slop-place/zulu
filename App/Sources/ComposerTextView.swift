@@ -16,7 +16,7 @@ struct ComposerTextView: UIViewRepresentable {
     var onImage: (Data, UTType) -> Void
 
     static let maxLines = 5
-    static let insets = UIEdgeInsets(top: 9, left: 9, bottom: 9, right: 0)
+    static let insets = UIEdgeInsets(top: 10, left: 9, bottom: 10, right: 0)
 
     func makeUIView(context: Context) -> PastingTextView {
         let view = PastingTextView()
