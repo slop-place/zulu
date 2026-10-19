@@ -48,6 +48,8 @@ targets:
         # An iPhone app's own animations are held to 60 Hz on ProMotion screens without it.
         CADisableMinimumFrameDurationOnPhone: true
         UILaunchScreen: {}
+        # The system kills the app the moment the camera opens without this.
+        NSCameraUsageDescription: Zulu uses the camera to take photos you attach to messages.
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
           - UIInterfaceOrientationLandscapeLeft

@@ -29,6 +29,9 @@ struct ComposerBar: View {
 
     /// Every icon control in the bar is the same circle, so the row reads as one piece.
     private static let controlSize: CGFloat = 26
+    /// What a glass button pads around its label. The emoji button sits that far in from
+    /// the field's corner, so it centres on the same line as the buttons either side.
+    private static let glassControlInset: CGFloat = 7
     /// Half the field's one-line height.
     private static let fieldCornerRadius: CGFloat = 20
 
@@ -131,7 +134,7 @@ struct ComposerBar: View {
             isPresented: binding(for: .photos), selection: $pickedPhotos,
             maxSelectionCount: 5, matching: .any(of: [.images, .videos])
         )
-        .task(id: pickedPhotos.count) { await uploadPickedPhotos() }
+        .onChange(of: pickedPhotos) { takePickedPhotos() }
         .fileImporter(
             isPresented: binding(for: .files), allowedContentTypes: [.item],
             allowsMultipleSelection: true
@@ -237,8 +240,7 @@ struct ComposerBar: View {
                     .contentShape(.circle)
             }
             .buttonStyle(.plain)
-            .padding(.trailing, 7)
-            .padding(.bottom, 5)
+            .padding([.trailing, .bottom], Self.glassControlInset)
         }
         // A capsule while one line tall; rounded corners that stay put once it grows.
         .glassEffect(.regular, in: .rect(cornerRadius: Self.fieldCornerRadius))
@@ -337,10 +339,16 @@ struct ComposerBar: View {
         )
     }
 
-    private func uploadPickedPhotos() async {
+    /// Clearing the selection would cancel a task keyed on it, so the uploads run in a
+    /// task of their own.
+    private func takePickedPhotos() {
         guard !pickedPhotos.isEmpty else { return }
         let items = pickedPhotos
         pickedPhotos = []
+        Task { await upload(photos: items) }
+    }
+
+    private func upload(photos items: [PhotosPickerItem]) async {
         for item in items {
             guard let data = try? await item.loadTransferable(type: Data.self) else { continue }
             let type = item.supportedContentTypes.first ?? .data
