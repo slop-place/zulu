@@ -496,6 +496,8 @@ struct MacSettingsView: View {
     @AppStorage(MacNotifier.dmsKey) private var notifyDirectMessages = true
     @AppStorage(MacNotifier.mentionsKey) private var notifyMentions = true
     @AppStorage(MacMessageActionStyle.storageKey) private var messageActionStyle = MacMessageActionStyle.standard
+    @AppStorage(MacSidebarSettings.showsRecentKey) private var showsRecent = true
+    @AppStorage(MacSidebarSettings.pinsUnreadDMsKey) private var pinsUnreadDMs = true
 
     var body: some View {
         Form {
@@ -515,6 +517,14 @@ struct MacSettingsView: View {
                         Text(style.title).tag(style)
                     }
                 }
+            }
+            Section {
+                Toggle("Show Recent", isOn: $showsRecent)
+                Toggle("Pin unread direct messages above channels", isOn: $pinsUnreadDMs)
+            } header: {
+                Text("Sidebar")
+            } footer: {
+                Text("With pinning off, direct messages are listed only under Direct Messages.")
             }
             Section {
                 Toggle("Direct messages", isOn: $notifyDirectMessages)

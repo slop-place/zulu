@@ -31,6 +31,9 @@ struct MacShellView: View {
     @State private var newGroupName = ""
     @State private var sectionFollowedDestination = false
 
+    @AppStorage(MacSidebarSettings.showsRecentKey) private var showsRecent = true
+    @AppStorage(MacSidebarSettings.pinsUnreadDMsKey) private var pinsUnreadDMs = true
+
     var body: some View {
         alerts(sheets(split))
     }
@@ -66,6 +69,9 @@ struct MacShellView: View {
         }
         .onChange(of: dockBadge, initial: true) { _, badge in
             NSApp.dockTile.badgeLabel = badge.label
+        }
+        .onChange(of: showsRecent, initial: true) {
+            if !showsRecent, ui.section == .recent { ui.section = .unfiled }
         }
     }
 
@@ -180,6 +186,10 @@ struct MacShellView: View {
         // Under the title bar too: the column's own vibrancy would otherwise show
         // through as grey.
         .background(Platform.canvas.ignoresSafeArea())
+        // The canvas behind both columns hides the split view's own divider.
+        .overlay(alignment: .trailing) {
+            HStack(spacing: 0) { Divider() }.ignoresSafeArea()
+        }
         .onChange(of: model.destination) { _, destination in
             guard let destination else { return }
             ui.remember(destination, in: section(for: destination))
@@ -205,7 +215,7 @@ struct MacShellView: View {
             // A direct message that needs an answer is pinned above whatever section is
             // showing, so it is never hidden behind a rail switch. It stays while it is
             // the open conversation, rather than vanishing the moment it is read.
-            if ui.section != .dms, ui.section != .recent, !pinnedDMs.isEmpty {
+            if pinsUnreadDMs, ui.section != .dms, ui.section != .recent, !pinnedDMs.isEmpty {
                 Section("Direct Messages") {
                     ForEach(pinnedDMs) { dm in dmRow(dm) }
                 }
@@ -766,27 +776,31 @@ struct MacRail: View {
     @Environment(AppModel.self) private var model
     @Environment(MacUIState.self) private var ui
     @State private var dropTarget: String?
+    @AppStorage(MacSidebarSettings.showsRecentKey) private var showsRecent = true
 
     static let width: CGFloat = 64
+    private static let bubbleSize: CGFloat = 40
 
     var body: some View {
         ScrollView {
             VStack(spacing: 10) {
-                railButton(
-                    active: ui.section == .recent,
-                    unread: model.dms.contains { $0.unreadCount > 0 }
-                        || model.groups.contains { $0.unreadCount > 0 }
-                        || model.unfiledHasUnread,
-                    // Counted on the rows that own them, not again here.
-                    mentions: 0
-                ) {
-                    ui.section = .recent
-                } label: {
-                    MacRailIcon(systemImage: "clock.fill", active: ui.section == .recent)
-                }
-                .help("Recent  ⌘0")
-                .contextMenu {
-                    Button("Mark All as Read…") { ui.confirmingMarkAllRead = true }
+                if showsRecent {
+                    railButton(
+                        active: ui.section == .recent,
+                        unread: model.dms.contains { $0.unreadCount > 0 }
+                            || model.groups.contains { $0.unreadCount > 0 }
+                            || model.unfiledHasUnread,
+                        // Counted on the rows that own them, not again here.
+                        mentions: 0
+                    ) {
+                        ui.section = .recent
+                    } label: {
+                        MacRailIcon(systemImage: "clock.fill", active: ui.section == .recent)
+                    }
+                    .help("Recent  ⌘0")
+                    .contextMenu {
+                        Button("Mark All as Read…") { ui.confirmingMarkAllRead = true }
+                    }
                 }
 
                 railButton(
@@ -800,6 +814,8 @@ struct MacRail: View {
                     MacRailIcon(systemImage: "bubble.left.and.bubble.right.fill", active: ui.section == .dms)
                 }
                 .help("Direct Messages  ⌘1")
+
+                ForEach(unreadDMs) { dm in dmBubble(dm) }
 
                 Divider().frame(width: 26)
 
@@ -873,6 +889,31 @@ struct MacRail: View {
         .frame(width: Self.width)
         .scrollIndicators(.never)
         .background(.quaternary.opacity(0.35))
+    }
+
+    private var unreadDMs: [DMSummary] {
+        model.dms.filter { $0.unreadCount > 0 }
+    }
+
+    /// An unread conversation's own face on the rail, one click from being answered.
+    private func dmBubble(_ dm: DMSummary) -> some View {
+        let title = model.title(forDM: dm.dmKey)
+        return railButton(active: false, unread: true, mentions: dm.unreadCount) {
+            model.destination = .dm(dm.dmKey)
+            ui.section = .dms
+        } label: {
+            SenderAvatar(
+                name: title,
+                userID: model.soleParticipant(inDM: dm.dmKey),
+                size: Self.bubbleSize
+            )
+        }
+        .help(title)
+        .contextMenu {
+            Button("Mark as Read") {
+                Task { await model.markConversationRead(.dm(key: dm.dmKey)) }
+            }
+        }
     }
 
     /// Unread is a pill on the rail's edge; a count only appears when something actually

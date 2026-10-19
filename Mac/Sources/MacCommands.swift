@@ -7,6 +7,8 @@ struct MacCommands: Commands {
     let model: AppModel
     let ui: MacUIState
 
+    @AppStorage(MacSidebarSettings.showsRecentKey) private var showsRecent = true
+
     var body: some Commands {
         SidebarCommands()
 
@@ -38,8 +40,10 @@ struct MacCommands: Commands {
 
             Divider()
 
-            Button("Recent") { ui.section = .recent }
-                .keyboardShortcut("0")
+            if showsRecent {
+                Button("Recent") { ui.section = .recent }
+                    .keyboardShortcut("0")
+            }
             Button("Direct Messages") { ui.section = .dms }
                 .keyboardShortcut("1")
             Button(model.groups.isEmpty ? "Channels" : "Unfiled Channels") { ui.section = .unfiled }

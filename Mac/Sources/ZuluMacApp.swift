@@ -84,6 +84,12 @@ enum SidebarSection: Equatable, Hashable {
     }
 }
 
+/// What the sidebar shows, chosen in Settings.
+enum MacSidebarSettings {
+    static let showsRecentKey = "sidebar.showsRecent"
+    static let pinsUnreadDMsKey = "sidebar.pinsUnreadDirectMessages"
+}
+
 /// Everything the menu bar and the shell have to agree on: which sheets are up, which
 /// section is showing, and the requests a command makes of whatever view is in front.
 ///
