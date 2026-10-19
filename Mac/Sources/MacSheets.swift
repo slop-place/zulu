@@ -495,6 +495,7 @@ struct MacSettingsView: View {
 
     @AppStorage(MacNotifier.dmsKey) private var notifyDirectMessages = true
     @AppStorage(MacNotifier.mentionsKey) private var notifyMentions = true
+    @AppStorage(MacMessageActionStyle.storageKey) private var messageActionStyle = MacMessageActionStyle.standard
 
     var body: some View {
         Form {
@@ -506,6 +507,13 @@ struct MacSettingsView: View {
                     Button("Sign Out…") { ui.confirmingSignOut = true }
                 } else {
                     Text("Not signed in.").foregroundStyle(TextTone.secondary)
+                }
+            }
+            Section("Messages") {
+                Picker("Show actions", selection: $messageActionStyle) {
+                    ForEach(MacMessageActionStyle.allCases) { style in
+                        Text(style.title).tag(style)
+                    }
                 }
             }
             Section {
