@@ -50,6 +50,12 @@ struct MessageMarkupTests {
             == [.paragraph([InlineSpan(text: "\u{1F1FA}\u{1F1F8}")])])
     }
 
+    @Test func textDefaultEmojiSpanIsDrawnAsEmoji() {
+        let html = #"<p><span class="emoji emoji-2764">:heart:</span></p>"#
+        #expect(MessageMarkup.blocks(from: html)
+            == [.paragraph([InlineSpan(text: "\u{2764}\u{FE0F}")])])
+    }
+
     @Test func blockquoteKeepsItsOwnBlocks() {
         let html = "<blockquote>\n<p>quoted</p>\n</blockquote><p>reply</p>"
         #expect(MessageMarkup.blocks(from: html) == [

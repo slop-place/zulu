@@ -126,14 +126,35 @@ public enum EmojiCode {
         }.joined(separator: "-")
     }
 
+    private static let textVariationSelector = Unicode.Scalar(0xFE0E)!
+
+    /// The fully qualified glyph. Zulip's codes drop the selector, and without it `2764`
+    /// draws as a monochrome text heart on macOS.
     public static func glyph(for code: String) -> String? {
-        var scalars = String.UnicodeScalarView()
+        var scalars: [Unicode.Scalar] = []
         for part in code.split(separator: "-") {
             guard let value = UInt32(part, radix: 16), let scalar = Unicode.Scalar(value) else {
                 return nil
             }
             scalars.append(scalar)
         }
-        return scalars.isEmpty ? nil : String(scalars)
+        guard !scalars.isEmpty else { return nil }
+
+        var qualified = String.UnicodeScalarView()
+        let followers = scalars.dropFirst().map(Optional.some) + [nil]
+        for (scalar, next) in zip(scalars, followers) {
+            qualified.append(scalar)
+            if needsSelector(scalar, before: next) { qualified.append(variationSelector) }
+        }
+        return String(qualified)
+    }
+
+    /// A skin tone modifier already forces emoji presentation on the scalar before it.
+    private static func needsSelector(_ scalar: Unicode.Scalar, before next: Unicode.Scalar?) -> Bool {
+        guard scalar.properties.isEmoji, !scalar.properties.isEmojiPresentation else { return false }
+        guard let next else { return true }
+        return next != variationSelector
+            && next != textVariationSelector
+            && !next.properties.isEmojiModifier
     }
 }

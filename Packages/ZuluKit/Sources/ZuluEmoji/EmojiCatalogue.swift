@@ -173,7 +173,7 @@ public struct EmojiQuery: Sendable, Equatable {
     public func quality(of emoji: Emoji) -> MatchQuality? {
         // A pasted glyph carries no variation selector by the time it is compared, so
         // `❤️` finds `2764` — the case web gets wrong.
-        if let glyph, emoji.glyph == glyph { return .exact }
+        if let glyph, emoji.glyph.map(EmojiCode.unqualified) == glyph { return .exact }
 
         var best: MatchQuality?
         for name in emoji.allNames {

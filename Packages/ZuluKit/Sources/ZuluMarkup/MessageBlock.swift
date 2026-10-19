@@ -1,4 +1,5 @@
 import Foundation
+import ZuluEmoji
 
 /// One run of text with whatever inline styling applies to it.
 public struct InlineSpan: Sendable, Equatable {
@@ -399,15 +400,7 @@ public enum MessageMarkup {
         guard let codes = element.classes.first(where: { $0.hasPrefix("emoji-") })?
             .dropFirst("emoji-".count)
         else { return nil }
-
-        var result = ""
-        for part in codes.split(separator: "-") {
-            guard let value = UInt32(part, radix: 16), let scalar = Unicode.Scalar(value) else {
-                return nil
-            }
-            result.append(Character(scalar))
-        }
-        return result.isEmpty ? nil : result
+        return EmojiCode.glyph(for: String(codes))
     }
 
     private static func merge(_ spans: [InlineSpan]) -> [InlineSpan] {

@@ -21,7 +21,7 @@ let package = Package(
         .target(name: "ZulipAPI"),
         .target(name: "ZuluEmoji"),
         .target(name: "ZuluCompose", dependencies: ["ZuluEmoji"]),
-        .target(name: "ZuluMarkup"),
+        .target(name: "ZuluMarkup", dependencies: ["ZuluEmoji"]),
         .target(name: "ZuluPolls"),
         .target(name: "ZuluScroll"),
         .target(name: "ZuluStore", dependencies: [
