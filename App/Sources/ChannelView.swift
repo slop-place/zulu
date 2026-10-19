@@ -42,14 +42,14 @@ struct ChannelView: View {
                                 .font(.subheadline.weight(topic.unreadCount > 0 ? .semibold : .regular))
                                 .lineLimit(1)
                             if let sender = topic.lastSender {
-                                Text(sender).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                                Text(sender).font(.caption).foregroundStyle(TextTone.secondary).lineLimit(1)
                             }
                         }
                         Spacer(minLength: 4)
                         VStack(alignment: .trailing, spacing: 4) {
                             if let date = topic.date {
                                 Text(date, format: .dateTime.hour().minute())
-                                    .font(.caption2).foregroundStyle(.secondary)
+                                    .font(.caption2).foregroundStyle(TextTone.secondary)
                             }
                             Badge(count: topic.unreadCount)
                         }

@@ -30,7 +30,7 @@ struct GroupEditor: View {
                                 .font(.headline)
                             Text(icon == nil ? "Tap to choose an icon" : "Tap to change")
                                 .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(TextTone.secondary)
                         }
 
                         if icon != nil {
@@ -58,7 +58,7 @@ struct GroupEditor: View {
                                 ChannelIcon(
                                     isForum: channel.rendersAsForum, restricted: channel.isRestricted
                                 )
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(TextTone.secondary)
                                 .frame(width: 26, alignment: .leading)
                                 Text(channel.name).foregroundStyle(.primary)
                                 Spacer()

@@ -15,6 +15,9 @@ struct MacShellView: View {
 
     @State private var channels: [ChannelSummary] = []
     @State private var promoted: [PromotedTopicSummary] = []
+    /// Resolved when the store delivers, not on every redraw: each row's preview is a
+    /// parse of rendered HTML, and the sidebar redraws far more often than Recent changes.
+    @State private var recentEntries: [MacRecentEntry] = []
     /// Hidden channels with a mention waiting, surfaced so the rail's count can be answered.
     @State private var mentionedHidden: [ChannelSummary] = []
     @State private var promotedTask: Task<Void, Never>?
@@ -129,6 +132,15 @@ struct MacShellView: View {
                 Text("Only you see this name.")
             }
             .confirmationDialog(
+                "Mark everything as read?",
+                isPresented: $ui.confirmingMarkAllRead,
+                titleVisibility: .visible
+            ) {
+                Button("Mark All as Read") { Task { await model.markAllRead() } }
+            } message: {
+                Text("Every channel, topic and direct message, on every device.")
+            }
+            .confirmationDialog(
                 "Sign out of \(model.account?.email ?? "this account")?",
                 isPresented: $ui.confirmingSignOut,
                 titleVisibility: .visible
@@ -165,11 +177,21 @@ struct MacShellView: View {
                 MacSidebarFooter()
             }
         }
+        // Under the title bar too: the column's own vibrancy would otherwise show
+        // through as grey.
+        .background(Platform.canvas.ignoresSafeArea())
         .onChange(of: model.destination) { _, destination in
             guard let destination else { return }
             ui.remember(destination, in: section(for: destination))
+            // Recent lists conversations from every section, so what was opened from
+            // it is remembered there as well as where it lives.
+            if ui.section == .recent { ui.remember(destination, in: .recent) }
         }
         .onChange(of: ui.section) { _, section in
+            if section == .recent {
+                if let last = ui.lastDestination(in: .recent) { model.destination = last }
+                return
+            }
             guard model.destination.map(self.section(for:)) != section else { return }
             model.destination = ui.lastDestination(in: section)
         }
@@ -183,7 +205,7 @@ struct MacShellView: View {
             // A direct message that needs an answer is pinned above whatever section is
             // showing, so it is never hidden behind a rail switch. It stays while it is
             // the open conversation, rather than vanishing the moment it is read.
-            if ui.section != .dms, !pinnedDMs.isEmpty {
+            if ui.section != .dms, ui.section != .recent, !pinnedDMs.isEmpty {
                 Section("Direct Messages") {
                     ForEach(pinnedDMs) { dm in dmRow(dm) }
                 }
@@ -194,13 +216,14 @@ struct MacShellView: View {
                 sectionRows
             }
             // A hidden channel someone mentioned you in, listed until the mention is read.
-            if ui.section != .dms, !mentionedHidden.isEmpty {
+            if ui.section != .dms, ui.section != .recent, !mentionedHidden.isEmpty {
                 Section("Hidden") {
                     ForEach(mentionedHidden) { channel in channelRow(channel) }
                 }
             }
         }
         .listStyle(.sidebar)
+        .scrollContentBackground(.hidden)
         // A DM row moving from the DM section into the pinned section leaves a stale
         // copy drawn over the first channel. A fresh list per section has nothing to move.
         .id(ui.section)
@@ -223,11 +246,33 @@ struct MacShellView: View {
 
     @ViewBuilder
     private var sectionRows: some View {
-        if ui.section == .dms {
+        if ui.section == .recent {
+            ForEach(recentEntries) { entry in
+                // A row whose entry has not changed is not laid out again.
+                MacRecentRow(entry: entry)
+                    .equatable()
+                    .tag(entry.destination)
+                    .contextMenu {
+                        Button("Mark as Read") { Task { await markRead(entry) } }
+                            .disabled(entry.unreadCount == 0)
+                        if case .topic(let channelID, let name, _) = entry.destination {
+                            NotificationLevelMenu.topic(name, inChannel: channelID, model: model)
+                        } else if case .channel(let id) = entry.destination {
+                            NotificationLevelMenu.channel(id, model: model)
+                        }
+                    }
+            }
+            if recentEntries.isEmpty {
+                Text(emptyListMessage)
+                    .font(.callout)
+                    .foregroundStyle(TextTone.secondary)
+                    .selectionDisabled()
+            }
+        } else if ui.section == .dms {
             if model.dms.isEmpty {
                 Text("No direct messages yet.")
                     .font(.callout)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(TextTone.secondary)
                     .selectionDisabled()
             }
             ForEach(model.dms) { dm in dmRow(dm) }
@@ -248,7 +293,7 @@ struct MacShellView: View {
             if entries.isEmpty {
                 Text(emptyListMessage)
                     .font(.callout)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(TextTone.secondary)
                     .selectionDisabled()
             }
         }
@@ -409,6 +454,7 @@ struct MacShellView: View {
 
     private var listTitle: String {
         switch ui.section {
+        case .recent: "Recent"
         case .dms: "Direct Messages"
         case .unfiled: model.groups.isEmpty ? "Channels" : "Unfiled"
         case .group(let id): model.groups.first { $0.id == id }?.name ?? "Channels"
@@ -417,6 +463,7 @@ struct MacShellView: View {
 
     private var emptyListMessage: String {
         switch ui.section {
+        case .recent: model.allChannels.isEmpty ? "Syncing your channels…" : "Nothing has happened yet."
         case .group: "No channels in this group yet. Right-click its icon on the rail to edit it."
         case .unfiled: model.allChannels.isEmpty ? "Syncing your channels…" : "Every channel is filed into a group."
         case .dms: ""
@@ -438,8 +485,50 @@ struct MacShellView: View {
         )
     }
 
+    /// A chat channel is one conversation however many topics the server files it
+    /// under, so its topics fold into one row that opens the channel itself.
+    private func resolveRecent(_ rows: [RecentConversation]) -> [MacRecentEntry] {
+        var entries: [MacRecentEntry] = []
+        var chatChannelRows: [Int: Int] = [:]
+        for row in rows {
+            if row.isDirect || row.isForum == true {
+                entries.append(MacRecentEntry(row: row, model: model))
+            } else if let channelID = row.channelID {
+                if let index = chatChannelRows[channelID] {
+                    entries[index].unreadCount += row.unreadCount
+                    entries[index].mentionCount += row.mentionCount
+                } else {
+                    chatChannelRows[channelID] = entries.count
+                    entries.append(MacRecentEntry(row: row, model: model))
+                }
+            }
+        }
+        return entries
+    }
+
+    private func markRead(_ entry: MacRecentEntry) async {
+        switch entry.destination {
+        case .dm(let key):
+            await model.markConversationRead(.dm(key: key))
+        case .topic(let channelID, let name, let channelName):
+            await model.markConversationRead(.topic(channelID: channelID, name: name, channelName: channelName))
+        case .channel(let id):
+            await model.markChannelRead(id)
+        }
+    }
+
     private func observe() async {
-        guard ui.section != .dms, let writer = model.databaseWriter else { return }
+        guard let writer = model.databaseWriter else { return }
+        if ui.section == .recent {
+            guard let observation = model.recentConversationObservation() else { return }
+            do {
+                for try await rows in observation.removeDuplicates().values(in: writer) {
+                    recentEntries = resolveRecent(rows)
+                }
+            } catch {}
+            return
+        }
+        guard ui.section != .dms else { return }
         let groupID = currentGroupID
 
         promotedTask?.cancel()
@@ -524,13 +613,13 @@ struct MacSidebarRow: View {
                     if restricted {
                         Image(systemName: "lock.fill")
                             .font(.system(size: 9))
-                            .foregroundStyle(.tertiary)
+                            .foregroundStyle(TextTone.tertiary)
                     }
                 }
                 if let subtitle, !subtitle.isEmpty {
                     Text(subtitle)
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(TextTone.secondary)
                         .lineLimit(1)
                 }
             }
@@ -562,7 +651,7 @@ struct MacDMRow: View {
                 if let preview = model.preview(forDM: dm) {
                     Text(preview)
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(TextTone.secondary)
                         .lineLimit(1)
                 }
             }
@@ -625,7 +714,7 @@ private struct MacTopicRows: View {
                 // nothing here an expanded forum never loads its own topics.
                 Text(loaded ? "No topics yet" : "Loading…")
                     .font(.callout)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(TextTone.secondary)
                     .selectionDisabled()
             } else {
                 ForEach(shownTopics) { topic in
@@ -637,7 +726,7 @@ private struct MacTopicRows: View {
                     } label: {
                         Text("All \(topics.count) topics…")
                             .font(.callout)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(TextTone.secondary)
                     }
                     .buttonStyle(.plain)
                     .selectionDisabled()
@@ -683,6 +772,23 @@ struct MacRail: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 10) {
+                railButton(
+                    active: ui.section == .recent,
+                    unread: model.dms.contains { $0.unreadCount > 0 }
+                        || model.groups.contains { $0.unreadCount > 0 }
+                        || model.unfiledHasUnread,
+                    // Counted on the rows that own them, not again here.
+                    mentions: 0
+                ) {
+                    ui.section = .recent
+                } label: {
+                    MacRailIcon(systemImage: "clock.fill", active: ui.section == .recent)
+                }
+                .help("Recent  ⌘0")
+                .contextMenu {
+                    Button("Mark All as Read…") { ui.confirmingMarkAllRead = true }
+                }
+
                 railButton(
                     active: ui.section == .dms,
                     unread: model.dms.contains { $0.unreadCount > 0 },
@@ -873,11 +979,13 @@ struct MacSidebarFooter: View {
                 Text(selfName).font(.callout.weight(.medium)).lineLimit(1)
                 HStack(spacing: 4) {
                     SyncDot(status: model.status)
-                    Text(statusLabel).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                    Text(statusLabel).font(.caption).foregroundStyle(TextTone.secondary).lineLimit(1)
                 }
             }
             Spacer(minLength: 4)
             Menu {
+                Button("Mark All as Read…") { ui.confirmingMarkAllRead = true }
+                Divider()
                 Button("Hidden Channels…") { ui.showingHidden = true }
                 SettingsLink { Text("Settings…") }
                 Divider()

@@ -266,7 +266,7 @@ struct ShellView: View {
                 } label: {
                     Image(systemName: "ellipsis")
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(TextTone.secondary)
                         .frame(width: 22, height: 22)
                         .contentShape(.rect)
                 }
@@ -301,7 +301,7 @@ struct ShellView: View {
                         if visibleChannels.isEmpty {
                             Text(emptyListMessage)
                                 .font(.footnote)
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(TextTone.secondary)
                                 .padding(.horizontal, 8)
                                 .padding(.vertical, 12)
                         }
@@ -328,7 +328,7 @@ struct ShellView: View {
         VStack(alignment: .leading, spacing: 0) {
             Text("Hidden")
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(TextTone.secondary)
                 .padding(.horizontal, 8)
                 .padding(.top, 10)
                 .padding(.bottom, 4)
@@ -590,7 +590,7 @@ struct ShellView: View {
                     if let preview = model.preview(forDM: dm) {
                         Text(preview)
                             .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(TextTone.secondary)
                             .lineLimit(1)
                     }
                 }

@@ -38,6 +38,8 @@ struct MacCommands: Commands {
 
             Divider()
 
+            Button("Recent") { ui.section = .recent }
+                .keyboardShortcut("0")
             Button("Direct Messages") { ui.section = .dms }
                 .keyboardShortcut("1")
             Button(model.groups.isEmpty ? "Channels" : "Unfiled Channels") { ui.section = .unfiled }
@@ -54,10 +56,28 @@ struct MacCommands: Commands {
             Button("Mark as Read") { ui.requestMarkRead() }
                 .keyboardShortcut(.escape, modifiers: [.shift])
                 .disabled(model.destination == nil)
+            Button("Mark All as Read…") { ui.confirmingMarkAllRead = true }
+                .keyboardShortcut(.escape, modifiers: [.command, .shift])
+                .disabled(model.phase != .signedIn)
 
             Button("Focus Composer") { ui.requestComposerFocus() }
                 .keyboardShortcut("l", modifiers: [.command, .shift])
                 .disabled(model.destination == nil)
+
+            Divider()
+
+            if case .topic(let channelID, let name, _) = model.destination {
+                NotificationLevelMenu.topic(name, inChannel: channelID, model: model)
+                let muted = model.isMuted(topic: name, inChannel: channelID)
+                Button(muted ? "Unmute Topic" : "Mute Topic") {
+                    Task { await model.setMuted(!muted, topic: name, inChannel: channelID) }
+                }
+                .keyboardShortcut("m", modifiers: [.command, .shift])
+            } else {
+                Button("Mute Topic") {}
+                    .keyboardShortcut("m", modifiers: [.command, .shift])
+                    .disabled(true)
+            }
 
             Divider()
 

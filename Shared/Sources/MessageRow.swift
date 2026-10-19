@@ -27,7 +27,7 @@ struct DayDivider: View {
     var body: some View {
         HStack(spacing: 8) {
             Rectangle().fill(.separator).frame(height: 1)
-            Text(label).font(.caption2.weight(.semibold)).foregroundStyle(.secondary).fixedSize()
+            Text(label).font(.caption2.weight(.semibold)).foregroundStyle(TextTone.secondary).fixedSize()
             Rectangle().fill(.separator).frame(height: 1)
         }
     }
@@ -58,7 +58,11 @@ struct MessageRow: View {
 
             VStack(alignment: .leading, spacing: Self.headerSpacing) {
                 if startsGroup {
-                    MessageHeader(name: message.senderName, date: message.date, edited: message.editedAt != nil)
+                    MessageHeader(name: message.senderName, date: message.date, edited: message.editedAt != nil) {
+                        #if os(macOS)
+                        MacHeaderActions(message: message)
+                        #endif
+                    }
                 }
                 MessageContent(message: message).messageActions(message, reactions: reactions)
             }
@@ -67,22 +71,31 @@ struct MessageRow: View {
 }
 
 /// Shared with the pending row, so a sent message's header does not shift when the
-/// server's copy replaces it.
-struct MessageHeader: View {
+/// server's copy replaces it. `trailing` sits after the time: the Mac puts its
+/// reaction button there.
+struct MessageHeader<Trailing: View>: View {
     let name: String
     let date: Date
     let edited: Bool
+    @ViewBuilder let trailing: () -> Trailing
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 6) {
             Text(name).font(.subheadline.weight(.semibold)).lineLimit(1)
             Text(date, format: .dateTime.hour().minute())
-                .font(.caption).foregroundStyle(.secondary)
+                .font(.caption).foregroundStyle(TextTone.secondary)
                 .fixedSize()
             if edited {
-                Text("edited").font(.caption2).foregroundStyle(.tertiary).fixedSize()
+                Text("edited").font(.caption2).foregroundStyle(TextTone.tertiary).fixedSize()
             }
+            trailing()
         }
+    }
+}
+
+extension MessageHeader where Trailing == EmptyView {
+    init(name: String, date: Date, edited: Bool) {
+        self.init(name: name, date: date, edited: edited) { EmptyView() }
     }
 }
 

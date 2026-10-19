@@ -181,7 +181,7 @@ private struct ReactorBubble: View {
                     .fixedSize(horizontal: false, vertical: true)
                 Text(":\(emojiName):")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(TextTone.secondary)
                     .lineLimit(1)
             }
         }
@@ -258,7 +258,7 @@ struct EmojiDisplayView: View {
             Text(fallback)
                 .font(.system(size: size * 0.7))
                 .lineLimit(1)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(TextTone.secondary)
         }
     }
 
@@ -271,7 +271,7 @@ struct EmojiDisplayView: View {
                 .frame(width: imageSide, height: imageSide)
                 .task(id: path) {
                     guard let data = await model.imageData(at: path) else { return }
-                    frames = EmojiFrames.decode(data, height: imageSide)
+                    frames = await EmojiFrames.decode(data, height: imageSide)
                 }
         }
     }
@@ -361,6 +361,13 @@ extension AppModel {
             onMessage: id, emojiName: toggle.emojiName, emojiCode: toggle.emojiCode,
             reactionType: toggle.reactionType, userID: account.userID, present: toggle.adds
         )
+
+        if toggle.adds {
+            try? store.recordReaction(
+                emojiName: toggle.emojiName, emojiCode: toggle.emojiCode, reactionType: toggle.reactionType
+            )
+            reactionHistoryVersion += 1
+        }
 
         let client = ZulipClient(account: account)
         do {

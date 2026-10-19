@@ -43,7 +43,7 @@ struct ComposerBar: View {
             if uploading {
                 HStack(spacing: 6) {
                     ProgressView().controlSize(.small)
-                    Text("Uploading…").font(.caption).foregroundStyle(.secondary)
+                    Text("Uploading…").font(.caption).foregroundStyle(TextTone.secondary)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -160,7 +160,7 @@ struct ComposerBar: View {
                     .labelStyle(.titleAndIcon)
                 Text(reply.preview)
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(TextTone.secondary)
                     .lineLimit(1)
             }
             Spacer(minLength: 0)
@@ -169,7 +169,7 @@ struct ComposerBar: View {
             } label: {
                 Image(systemName: "xmark")
                     .font(.caption.weight(.bold))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(TextTone.secondary)
                     .frame(width: 22, height: 22)
                     .contentShape(.circle)
             }
@@ -200,7 +200,7 @@ struct ComposerBar: View {
             } label: {
                 Image(systemName: "xmark")
                     .font(.caption.weight(.bold))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(TextTone.secondary)
                     .frame(width: 22, height: 22)
                     .contentShape(.circle)
             }
@@ -232,7 +232,7 @@ struct ComposerBar: View {
             } label: {
                 Image(systemName: "face.smiling")
                     .font(.body)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(TextTone.secondary)
                     .frame(width: Self.controlSize, height: Self.controlSize)
                     .contentShape(.circle)
             }

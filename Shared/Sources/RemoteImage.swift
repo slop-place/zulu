@@ -37,7 +37,7 @@ struct RemoteImage: View {
             } else if failed {
                 Label(alt ?? "Image", systemImage: "photo")
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(TextTone.secondary)
                     .padding(8)
                     .background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
             } else {
@@ -78,10 +78,14 @@ struct RemoteImage: View {
         }
     }
 
+    /// The picture is shown at most this wide, so a frame need not be decoded larger
+    /// than twice that: enough for a Retina screen, and far less work than full size.
+    private static let maxFramePixels = 640
+
     /// Runs for as long as the picture is on screen, and only if it moves.
     private func play() async {
         guard let data = await model.imageData(at: path), AnimatedPicture.isAnimated(data) else { return }
-        for await next in AnimatedPicture.frames(of: data) {
+        for await next in AnimatedPicture.frames(of: data, maxPixelSize: Self.maxFramePixels) {
             frame = Image(decorative: next, scale: 1)
         }
     }

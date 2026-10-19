@@ -51,10 +51,51 @@ struct MessageBody: View {
 
     private func stack(at time: TimeInterval) -> some View {
         VStack(alignment: .leading, spacing: Self.blockSpacing) {
-            ForEach(blocks) { block in
-                BlockView(block: block, emoji: emoji, time: time, emojiOnly: emojiOnly)
+            ForEach(Self.pieces(of: blocks)) { piece in
+                switch piece {
+                case .text(let run, _):
+                    TextRunView(blocks: run, emoji: emoji, time: time, emojiOnly: emojiOnly)
+                case .block(let block):
+                    BlockView(block: block, emoji: emoji, time: time, emojiOnly: emojiOnly)
+                }
             }
         }
+    }
+
+    /// A message is drawn as runs of text with the other blocks between them. Every
+    /// paragraph used to be its own `Text`, and a selection cannot leave the `Text` it
+    /// started in, so dragging across a paragraph break selected nothing past it.
+    enum Piece: Identifiable {
+        case text([MessageBlock], id: String)
+        case block(MessageBlock)
+
+        var id: String {
+            switch self {
+            case .text(_, let id): id
+            case .block(let block): block.id
+            }
+        }
+    }
+
+    static func pieces(of blocks: [MessageBlock]) -> [Piece] {
+        var pieces: [Piece] = []
+        var run: [MessageBlock] = []
+        func flush() {
+            guard !run.isEmpty else { return }
+            pieces.append(.text(run, id: run.map(\.id).joined(separator: "\u{1E}")))
+            run = []
+        }
+        for block in blocks {
+            switch block {
+            case .paragraph, .bulletList, .numberedList:
+                run.append(block)
+            default:
+                flush()
+                pieces.append(.block(block))
+            }
+        }
+        flush()
+        return pieces
     }
 
     static func line(emojiOnly: Bool) -> (height: CGFloat, descender: CGFloat) {
@@ -67,7 +108,7 @@ struct MessageBody: View {
         let height = Self.line(emojiOnly: emojiOnly).height
         for url in Self.emojiURLs(in: blocks) where emoji[url] == nil {
             guard let data = await model.imageData(at: url),
-                  let frames = EmojiFrames.decode(data, height: height)
+                  let frames = await EmojiFrames.decode(data, height: height)
             else { continue }
             DecodedImages.store(frames, at: url, height: height)
             emoji[url] = frames
@@ -86,6 +127,93 @@ struct MessageBody: View {
         case .quotedReply(_, _, _, let quoted): quoted.flatMap(spans(in:))
         case .codeBlock, .image: []
         }
+    }
+}
+
+/// Consecutive paragraphs and lists as one `Text`, so a selection can run through them.
+/// Paragraphs are parted by a line in a tiny font, which is how one `Text` gets the
+/// spacing the stack gives separate blocks; list items get their marker in the text.
+struct TextRunView: View {
+    let blocks: [MessageBlock]
+    let emoji: [String: EmojiFrames]
+    var time: TimeInterval = 0
+    var emojiOnly = false
+
+    var body: some View {
+        merged
+            .font(emojiOnly ? .largeTitle : nil)
+            .linkPointer()
+            .textSelection(.enabled)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var merged: Text {
+        let styler = InlineStyler(emoji: emoji, time: time, emojiOnly: emojiOnly)
+        var result = Text("")
+        for (index, block) in blocks.enumerated() {
+            if index > 0 {
+                result = result + Text("\n") + Text("\n").font(.system(size: MessageBody.blockSpacing))
+            }
+            switch block {
+            case .paragraph(let spans):
+                result = result + styler.styled(spans)
+            case .bulletList(let items):
+                for (i, spans) in items.enumerated() {
+                    if i > 0 { result = result + Text("\n") }
+                    result = result + Text("•  ") + styler.styled(spans)
+                }
+            case .numberedList(let items):
+                for (i, spans) in items.enumerated() {
+                    if i > 0 { result = result + Text("\n") }
+                    result = result + Text("\(i + 1).  ").monospacedDigit() + styler.styled(spans)
+                }
+            default:
+                break
+            }
+        }
+        return result
+    }
+}
+
+/// Turns spans into `Text`, with the emoji frame for this moment in place of each
+/// custom emoji. Shared by the block and the run renderers.
+@MainActor
+struct InlineStyler {
+    let emoji: [String: EmojiFrames]
+    let time: TimeInterval
+    let emojiOnly: Bool
+
+    func styled(_ spans: [InlineSpan]) -> Text {
+        spans.reduce(Text("")) { result, span in
+            if let url = span.emojiURL {
+                if let frames = emoji[url] {
+                    return result + Text(frames.frame(at: time))
+                        .baselineOffset(MessageBody.line(emojiOnly: emojiOnly).descender)
+                }
+                return result + Text(span.text).foregroundColor(TextTone.secondary)
+            }
+            return result + text(for: span)
+        }
+    }
+
+    private func text(for span: InlineSpan) -> Text {
+        var attributed = AttributedString(span.text)
+        if span.bold { attributed.font = .body.bold() }
+        if span.italic { attributed.font = (span.bold ? Font.body.bold() : Font.body).italic() }
+        if span.code {
+            attributed.font = .system(.callout, design: .monospaced)
+            attributed.backgroundColor = .secondary.opacity(0.18)
+        }
+        if span.strikethrough { attributed.strikethroughStyle = .single }
+        if span.mention {
+            attributed.font = .body.weight(.semibold)
+            attributed.foregroundColor = .accentColor
+        }
+        if let link = span.link, let url = URL(string: link, relativeTo: RealmContext.realmURL) {
+            attributed.link = url
+            return Text(attributed).customAttribute(LinkAttribute())
+        }
+        return Text(attributed)
     }
 }
 
@@ -111,14 +239,14 @@ struct BlockView: View {
                 VStack(alignment: .leading, spacing: 6) {
                     ForEach(inner) { BlockView(block: $0, emoji: emoji, time: time) }
                 }
-                .foregroundStyle(.secondary)
+                .foregroundStyle(TextTone.secondary)
             }
             .fixedSize(horizontal: false, vertical: true)
 
         case .codeBlock(let language, let code):
             VStack(alignment: .leading, spacing: 4) {
                 if let language {
-                    Text(language).font(.caption2).foregroundStyle(.secondary)
+                    Text(language).font(.caption2).foregroundStyle(TextTone.secondary)
                 }
                 ScrollView(.horizontal) {
                     Text(code)
@@ -164,36 +292,7 @@ struct BlockView: View {
     /// Built by concatenating `Text`, which is the only way to put an image in the middle
     /// of a wrapping paragraph.
     private func styled(_ spans: [InlineSpan]) -> Text {
-        spans.reduce(Text("")) { result, span in
-            if let url = span.emojiURL {
-                if let frames = emoji[url] {
-                    return result + Text(frames.frame(at: time))
-                        .baselineOffset(MessageBody.line(emojiOnly: emojiOnly).descender)
-                }
-                return result + Text(span.text).foregroundColor(.secondary)
-            }
-            return result + text(for: span)
-        }
-    }
-
-    private func text(for span: InlineSpan) -> Text {
-        var attributed = AttributedString(span.text)
-        if span.bold { attributed.font = .body.bold() }
-        if span.italic { attributed.font = (span.bold ? Font.body.bold() : Font.body).italic() }
-        if span.code {
-            attributed.font = .system(.callout, design: .monospaced)
-            attributed.backgroundColor = .secondary.opacity(0.18)
-        }
-        if span.strikethrough { attributed.strikethroughStyle = .single }
-        if span.mention {
-            attributed.font = .body.weight(.semibold)
-            attributed.foregroundColor = .accentColor
-        }
-        if let link = span.link, let url = URL(string: link, relativeTo: RealmContext.realmURL) {
-            attributed.link = url
-            return Text(attributed).customAttribute(LinkAttribute())
-        }
-        return Text(attributed)
+        InlineStyler(emoji: emoji, time: time, emojiOnly: emojiOnly).styled(spans)
     }
 }
 
@@ -224,15 +323,15 @@ private struct QuotedReplyView: View {
                 HStack(spacing: 6) {
                     Image(systemName: "arrowshape.turn.up.left.fill")
                         .font(.system(size: 10))
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(TextTone.tertiary)
                     SenderAvatar(name: author, userID: authorID, size: 16)
                     Text(author)
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(TextTone.secondary)
                     if !expanded {
                         Text(preview)
                             .font(.caption)
-                            .foregroundStyle(.tertiary)
+                            .foregroundStyle(TextTone.tertiary)
                             .lineLimit(1)
                     }
                     Spacer(minLength: 0)
@@ -247,7 +346,7 @@ private struct QuotedReplyView: View {
                     VStack(alignment: .leading, spacing: 6) {
                         ForEach(quoted) { BlockView(block: $0, emoji: emoji, time: time) }
                     }
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(TextTone.secondary)
                 }
                 .fixedSize(horizontal: false, vertical: true)
             }

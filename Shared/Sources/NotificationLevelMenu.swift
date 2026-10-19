@@ -7,15 +7,39 @@ struct NotificationLevelMenu: View {
     let selection: NotificationLevel?
     let defaultLabel: String
     let choose: (NotificationLevel?) -> Void
+    /// Laid flat, for a menu that is already about notifications and needs no submenu.
+    var inline = false
 
     var body: some View {
-        Picker("Notifications", systemImage: "bell", selection: Binding(get: { selection }, set: choose)) {
+        if inline {
+            // No label: the menu this sits in already says what it is about.
+            Picker(selection: Binding(get: { selection }, set: choose)) {
+                options
+            } label: {
+                EmptyView()
+            }
+            .pickerStyle(.inline)
+        } else {
+            Picker("Notifications", systemImage: "bell", selection: Binding(get: { selection }, set: choose)) {
+                options
+            }
+            .pickerStyle(.menu)
+        }
+    }
+
+    private var options: some View {
+        Group {
             Text(defaultLabel).tag(NotificationLevel?.none)
             ForEach(NotificationLevel.allCases, id: \.self) { level in
                 Text(level.label).tag(NotificationLevel?.some(level))
             }
         }
-        .pickerStyle(.menu)
+    }
+
+    func flattened() -> Self {
+        var copy = self
+        copy.inline = true
+        return copy
     }
 }
 

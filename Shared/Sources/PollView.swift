@@ -62,13 +62,13 @@ struct PollView: View {
         HStack(spacing: 6) {
             Image(systemName: "chart.bar.xaxis")
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(TextTone.secondary)
             Text(poll.question.isEmpty ? "Poll" : poll.question)
                 .font(.subheadline.weight(.semibold))
         }
 
         if poll.options.isEmpty {
-            Text("No options yet.").font(.caption).foregroundStyle(.secondary)
+            Text("No options yet.").font(.caption).foregroundStyle(TextTone.secondary)
         }
         ForEach(poll.options) { option in
             optionRow(option)
@@ -106,7 +106,7 @@ struct PollView: View {
                     if !option.voterIDs.isEmpty {
                         Text(voters(of: option))
                             .font(.caption2)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(TextTone.secondary)
                             .lineLimit(2)
                     }
                 }
@@ -153,12 +153,12 @@ struct PollView: View {
     private var unsupported: some View {
         HStack(alignment: .top, spacing: 10) {
             Image(systemName: "rectangle.on.rectangle.angled")
-                .foregroundStyle(.secondary)
+                .foregroundStyle(TextTone.secondary)
             VStack(alignment: .leading, spacing: 2) {
                 Text("Interactive message").font(.subheadline.weight(.semibold))
                 Text("Zulu cannot show this one. Open it on the web or desktop app.")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(TextTone.secondary)
             }
         }
     }

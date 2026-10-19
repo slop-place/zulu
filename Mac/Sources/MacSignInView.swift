@@ -56,7 +56,7 @@ struct MacSignInView: View {
                 Text(lookupError).font(.caption).foregroundStyle(.red)
             } else {
                 Text("The address of your Zulip organization.")
-                    .font(.caption).foregroundStyle(.secondary)
+                    .font(.caption).foregroundStyle(TextTone.secondary)
             }
 
             HStack {
@@ -75,7 +75,7 @@ struct MacSignInView: View {
             HStack {
                 VStack(alignment: .leading, spacing: 1) {
                     Text(settings.realm_name ?? "Zulip").font(.headline)
-                    Text(realmURL.host() ?? "").font(.caption).foregroundStyle(.secondary)
+                    Text(realmURL.host() ?? "").font(.caption).foregroundStyle(TextTone.secondary)
                 }
                 Spacer()
                 Button("Change") {
@@ -118,7 +118,7 @@ struct MacSignInView: View {
                 Divider()
                 VStack(alignment: .leading, spacing: 6) {
                     Text("Or continue with")
-                        .font(.caption).foregroundStyle(.secondary)
+                        .font(.caption).foregroundStyle(TextTone.secondary)
                     ForEach(settings.externalMethods) { method in
                         Button(method.display_name) {
                             Task {

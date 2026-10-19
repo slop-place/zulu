@@ -38,7 +38,7 @@ struct MacComposerBar: View {
             if uploading {
                 HStack(spacing: 6) {
                     ProgressView().controlSize(.small)
-                    Text("Uploading…").font(.caption).foregroundStyle(.secondary)
+                    Text("Uploading…").font(.caption).foregroundStyle(TextTone.secondary)
                 }
             }
             if isEditing {
@@ -138,7 +138,7 @@ struct MacComposerBar: View {
                 showingEmoji = true
             } label: {
                 Image(systemName: "face.smiling")
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(TextTone.secondary)
                     .frame(width: 26, height: 26)
                     .contentShape(.rect)
             }
@@ -164,7 +164,7 @@ struct MacComposerBar: View {
                 Label("Replying to \(reply.author)", systemImage: "arrowshape.turn.up.left.fill")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(Color.accentColor)
-                Text(reply.preview).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                Text(reply.preview).font(.caption).foregroundStyle(TextTone.secondary).lineLimit(1)
             }
             Spacer(minLength: 0)
             Button {
@@ -172,7 +172,7 @@ struct MacComposerBar: View {
             } label: {
                 Image(systemName: "xmark")
                     .font(.caption.weight(.bold))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(TextTone.secondary)
                     .frame(width: 22, height: 22)
                     .contentShape(.rect)
             }
@@ -202,7 +202,7 @@ struct MacComposerBar: View {
             } label: {
                 Image(systemName: "xmark")
                     .font(.caption.weight(.bold))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(TextTone.secondary)
                     .frame(width: 22, height: 22)
                     .contentShape(.rect)
             }
@@ -475,14 +475,14 @@ struct MacAutocompleteBox: View {
                         if let subtitle = suggestion.subtitle, !subtitle.isEmpty {
                             Text(subtitle)
                                 .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(TextTone.secondary)
                                 .lineLimit(1)
                         }
                         Spacer(minLength: 0)
                         if index == selectedIndex {
                             Text("↩")
                                 .font(.caption2)
-                                .foregroundStyle(.tertiary)
+                                .foregroundStyle(TextTone.tertiary)
                         }
                     }
                     .padding(.horizontal, 8)

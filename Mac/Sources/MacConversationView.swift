@@ -15,6 +15,9 @@ struct MacConversationView: View {
     @State private var readTracker: ReadTracker?
     @State private var quickReactions: [QuickReaction] = []
     @State private var dropTargeted = false
+    /// Observed rather than read, so the bell changes the moment the topic is muted —
+    /// from here, the menu bar, or another device.
+    @State private var mutedTopics: [MutedTopicRecord] = []
 
     var body: some View {
         Group {
@@ -30,13 +33,27 @@ struct MacConversationView: View {
                 MacComposerBar(source: source, placeholder: placeholder)
             }
             // Behind the typing line too, or history scrolled under it shows through.
-            .background(.bar)
+            .background(Platform.canvas)
         }
         .macAutocompleteBox()
         .overlay {
             if dropTargeted {
                 MacDropHint()
             }
+        }
+        .confirmationDialog(
+            "Delete this message?",
+            isPresented: Binding(
+                get: { ui.confirmingDeleteOf != nil },
+                set: { if !$0 { ui.confirmingDeleteOf = nil } }
+            ),
+            presenting: ui.confirmingDeleteOf
+        ) { message in
+            Button("Delete", role: .destructive) {
+                Task { _ = await MessageActionsController(message: message, model: model).delete() }
+            }
+        } message: { _ in
+            Text("It is deleted for everyone, and cannot be undone.")
         }
         // Anything dragged in from the Finder is an attachment, wherever it lands.
         .dropDestination(for: URL.self) { urls, _ in
@@ -77,8 +94,36 @@ struct MacConversationView: View {
                 .disabled(unreadCount == 0)
                 .help("Mark as Read  ⇧⎋")
             }
+            if case .topic(let channelID, let name, _) = source {
+                ToolbarItem(placement: .automatic) {
+                    Menu {
+                        Section("This Topic") {
+                            NotificationLevelMenu.topic(name, inChannel: channelID, model: model).flattened()
+                        }
+                        if let channel = model.channel(channelID) {
+                            Section {
+                                Menu("#\(channel.name)") {
+                                    NotificationLevelMenu.channel(channelID, model: model).flattened()
+                                }
+                            }
+                        }
+                    } label: {
+                        Label("Notifications", systemImage: isMuted ? "bell.slash" : "bell")
+                    }
+                    .help(isMuted ? "Muted  ⇧⌘M to unmute" : "Notifications for this topic  ⇧⌘M to mute")
+                }
+            }
         }
         .environment(\.macQuickReactions, quickReactions)
+        .task(id: source) {
+            guard case .topic(let channelID, _, _) = source,
+                  let writer = model.databaseWriter,
+                  let observation = model.mutedTopicObservation(inChannel: channelID)
+            else { return }
+            do {
+                for try await rows in observation.removeDuplicates().values(in: writer) { mutedTopics = rows }
+            } catch {}
+        }
         .task(id: source) {
             self.loader?.stop()
             let loader = MessageHistoryLoader(source: source, model: model)
@@ -88,9 +133,9 @@ struct MacConversationView: View {
             // the rows the reader scrolls past mark themselves.
             await loader.start()
         }
-        .task {
-            // The hover bar's emoji are the realm's habits, looked up once per
-            // conversation rather than once per message hovered.
+        .task(id: model.reactionHistoryVersion) {
+            // The quick row's emoji are the viewer's habits, looked up once per
+            // conversation and again after each reaction, not once per message.
             quickReactions = MacQuickReactionsLoader.load(model: model)
         }
         .onChange(of: ui.markReadRequests) {
@@ -126,6 +171,11 @@ struct MacConversationView: View {
         }
     }
 
+    private var isMuted: Bool {
+        guard case .topic(_, let name, _) = source else { return false }
+        return mutedTopics.contains { $0.topic == name }
+    }
+
     private var forumChannel: ChannelSummary? {
         guard case .topic(let channelID, _, _) = source,
               let channel = model.channel(channelID), channel.rendersAsForum
@@ -151,10 +201,10 @@ private struct MacConversationStart: View {
 
     var body: some View {
         VStack(spacing: 4) {
-            Image(systemName: "sparkles").foregroundStyle(.tertiary)
+            Image(systemName: "sparkles").foregroundStyle(TextTone.tertiary)
             Text("This is the beginning of \(title).")
                 .font(.callout)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(TextTone.secondary)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 24)

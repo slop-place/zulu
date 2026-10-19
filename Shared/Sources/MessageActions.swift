@@ -256,15 +256,20 @@ final class MessageActionsController {
 
     // MARK: reacting
 
-    /// The realm's own habits first — what people here have actually reacted with —
-    /// topped up from the web client's fallback set when the realm has not reacted six
+    /// The viewer's own habits first: what they reacted with most recently on this
+    /// device, then their reactions on the messages held locally. Only then the realm's
+    /// habits, and the web client's fallback set for a viewer who has not reacted six
     /// distinct ways yet.
     ///
     /// Emoji that no longer resolve are dropped: a deactivated custom emoji still has old
     /// reactions pointing at it, and offering it again would only be refused by the server.
     func loadQuickReactions() {
         let catalogue = EmojiCatalogueLoader.shared.catalogue
-        let used = ((try? model.storeForReading?.popularReactions(limit: Self.quickCount * 2)) ?? [])
+        let store = model.storeForReading
+        let limit = Self.quickCount * 2
+        let own = ((try? store?.recentReactions(limit: limit)) ?? [])
+            + ((try? model.account.flatMap { try store?.ownReactions(by: $0.userID, limit: limit) }) ?? [])
+        let used = (own + ((try? store?.popularReactions(limit: limit)) ?? []))
             .map { QuickReaction(name: $0.emojiName, code: $0.emojiCode, type: $0.reactionType) }
 
         // Codes, not names: the canonical name of a popular emoji differs between server

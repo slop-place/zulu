@@ -19,7 +19,7 @@ struct MacQuickSwitcher: View {
             HStack(spacing: 10) {
                 Image(systemName: "magnifyingglass")
                     .font(.title3)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(TextTone.secondary)
                 TextField("Jump to a channel, topic or person", text: $query)
                     .textFieldStyle(.plain)
                     .font(.title3)
@@ -32,7 +32,7 @@ struct MacQuickSwitcher: View {
                     Button {
                         query = ""
                     } label: {
-                        Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
+                        Image(systemName: "xmark.circle.fill").foregroundStyle(TextTone.secondary)
                     }
                     .buttonStyle(.plain)
                 }
@@ -45,7 +45,7 @@ struct MacQuickSwitcher: View {
             if items.isEmpty {
                 Text(query.isEmpty ? "Nothing to jump to yet." : "Nothing matches “\(query)”.")
                     .font(.callout)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(TextTone.secondary)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 28)
             } else {
@@ -82,7 +82,7 @@ struct MacQuickSwitcher: View {
                 } else {
                     Image(systemName: item.symbol)
                         .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(TextTone.secondary)
                         .frame(width: 24, height: 24)
                         .background(.quaternary.opacity(0.6), in: RoundedRectangle(cornerRadius: 6))
                 }
@@ -91,17 +91,17 @@ struct MacQuickSwitcher: View {
             VStack(alignment: .leading, spacing: 1) {
                 Text(item.title).font(.body).lineLimit(1)
                 if let subtitle = item.subtitle {
-                    Text(subtitle).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                    Text(subtitle).font(.caption).foregroundStyle(TextTone.secondary).lineLimit(1)
                 }
             }
             Spacer(minLength: 8)
             if item.mentions > 0 {
                 Badge(count: item.mentions, mention: true)
             } else if item.unread > 0 {
-                Text("\(item.unread)").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                Text("\(item.unread)").font(.caption.weight(.semibold)).foregroundStyle(TextTone.secondary)
             }
             if selected {
-                Text("↩").font(.caption).foregroundStyle(.tertiary)
+                Text("↩").font(.caption).foregroundStyle(TextTone.tertiary)
             }
         }
         .padding(.horizontal, 10)

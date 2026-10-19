@@ -45,7 +45,7 @@ struct ConversationView: View {
                         // The alias is what the sidebar shows; the real name lives here
                         // so a reference to it elsewhere is still recognisable.
                         Text(model.headerSubtitle(forChannel: channelName))
-                            .font(.caption2).foregroundStyle(.secondary)
+                            .font(.caption2).foregroundStyle(TextTone.secondary)
                     }
                 }
             }

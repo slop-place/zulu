@@ -12,6 +12,13 @@ struct MacDetailView: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
+        content
+            .background(Platform.canvas.ignoresSafeArea())
+            .toolbarBackground(Platform.canvas, for: .windowToolbar)
+    }
+
+    @ViewBuilder
+    private var content: some View {
         switch model.destination {
         case .topic(let channelID, let name, let channelName):
             let source = ConversationSource.topic(channelID: channelID, name: name, channelName: channelName)
@@ -52,9 +59,9 @@ struct MacEmptyDetail: View {
             Image(systemName: symbol)
                 .font(.system(size: 36))
                 .foregroundStyle(.quaternary)
-            Text(title).font(.title3).foregroundStyle(.secondary)
+            Text(title).font(.title3).foregroundStyle(TextTone.secondary)
             if let detail {
-                Text(detail).font(.callout).foregroundStyle(.tertiary)
+                Text(detail).font(.callout).foregroundStyle(TextTone.tertiary)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -167,20 +174,20 @@ struct MacTopicListView: View {
                             .font(.body.weight(topic.unreadCount > 0 ? .semibold : .regular))
                             .lineLimit(1)
                         if let sender = topic.lastSender {
-                            Text(sender).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                            Text(sender).font(.caption).foregroundStyle(TextTone.secondary).lineLimit(1)
                         }
                     }
                     Spacer(minLength: 8)
                     VStack(alignment: .trailing, spacing: 3) {
                         if let date = topic.date {
                             Text(date, format: Self.dateFormat(for: date))
-                                .font(.caption).foregroundStyle(.secondary).monospacedDigit()
+                                .font(.caption).foregroundStyle(TextTone.secondary).monospacedDigit()
                         }
                         if topic.unreadCount > 0 {
                             Text("\(topic.unreadCount)")
                                 .font(.caption.weight(.semibold))
                                 .monospacedDigit()
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(TextTone.secondary)
                         }
                     }
                 }

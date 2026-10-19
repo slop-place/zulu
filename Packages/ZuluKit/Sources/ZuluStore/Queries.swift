@@ -307,3 +307,96 @@ extension ZuluStore {
         }
     }
 }
+
+// MARK: - Recent conversations
+
+/// One line of the Recent view: a topic or a direct message, and what last happened in
+/// it. A channel's own name arrives already aliased, the way the sidebar shows it.
+public struct RecentConversation: Decodable, FetchableRecord, Sendable, Identifiable, Equatable {
+    public var channelID: Int?
+    public var channelName: String?
+    public var topic: String?
+    public var isForum: Bool?
+    public var isRestricted: Bool?
+    public var dmKey: String?
+    public var lastMessageID: Int
+    public var lastSenderID: Int?
+    public var lastSender: String?
+    /// Rendered HTML, flattened for display by the caller. Nil when the topic is known
+    /// from the server's topic list but none of its messages have been fetched yet.
+    public var lastContent: String?
+    public var lastTimestamp: Int?
+    public var unreadCount: Int
+    public var mentionCount: Int
+
+    public var id: String {
+        if let dmKey { "d:\(dmKey)" } else { "c:\(channelID ?? 0)/\(topic ?? "")" }
+    }
+    public var isDirect: Bool { dmKey != nil }
+    public var date: Date? { lastTimestamp.map { Date(timeIntervalSince1970: TimeInterval($0)) } }
+}
+
+extension ZuluStore {
+
+    /// Every conversation that is not muted or hidden, newest first, so catching up is
+    /// reading top to bottom. Message ids are monotonic across a realm, which is why a
+    /// topic with no fetched messages can still take its place in the order.
+    public func observeRecentConversations(limit: Int = 60)
+        -> ValueObservation<ValueReducers.Fetch<[RecentConversation]>>
+    {
+        ValueObservation.tracking { db in
+            try RecentConversation.fetchAll(db, sql: """
+                SELECT * FROM (
+                    SELECT t.channelID AS channelID,
+                           COALESCE(c.alias, c.name) AS channelName,
+                           t.name AS topic,
+                           COALESCE(c.modeOverride, c.detectedForum) AS isForum,
+                           c.isRestricted AS isRestricted,
+                           NULL AS dmKey,
+                           t.maxMessageID AS lastMessageID,
+                           (SELECT m.senderID FROM message m
+                             WHERE m.channelID = t.channelID AND m.topic = t.name
+                             ORDER BY m.id DESC LIMIT 1) AS lastSenderID,
+                           (SELECT m.senderName FROM message m
+                             WHERE m.channelID = t.channelID AND m.topic = t.name
+                             ORDER BY m.id DESC LIMIT 1) AS lastSender,
+                           (SELECT m.renderedContent FROM message m
+                             WHERE m.channelID = t.channelID AND m.topic = t.name
+                             ORDER BY m.id DESC LIMIT 1) AS lastContent,
+                           (SELECT m.timestamp FROM message m
+                             WHERE m.channelID = t.channelID AND m.topic = t.name
+                             ORDER BY m.id DESC LIMIT 1) AS lastTimestamp,
+                           (SELECT COUNT(*) FROM unread u
+                             WHERE u.channelID = t.channelID AND u.topic = t.name) AS unreadCount,
+                           (SELECT COUNT(*) FROM unread u
+                             WHERE u.channelID = t.channelID AND u.topic = t.name
+                               AND u.isMention = 1) AS mentionCount
+                      FROM topic t
+                      JOIN channel c ON c.id = t.channelID
+                     WHERE c.hidden = 0
+                       AND c.isMuted = 0
+                       AND \(TopicMuting.isNotMuted(channel: "t.channelID", topic: "t.name"))
+                    UNION ALL
+                    SELECT NULL, NULL, NULL, NULL, NULL,
+                           m.dmKey,
+                           MAX(m.id) AS lastMessageID,
+                           (SELECT s.senderID FROM message s WHERE s.dmKey = m.dmKey
+                             ORDER BY s.id DESC LIMIT 1),
+                           (SELECT s.senderName FROM message s WHERE s.dmKey = m.dmKey
+                             ORDER BY s.id DESC LIMIT 1),
+                           (SELECT s.renderedContent FROM message s WHERE s.dmKey = m.dmKey
+                             ORDER BY s.id DESC LIMIT 1),
+                           (SELECT s.timestamp FROM message s WHERE s.dmKey = m.dmKey
+                             ORDER BY s.id DESC LIMIT 1),
+                           (SELECT COUNT(*) FROM unread u WHERE u.dmKey = m.dmKey),
+                           (SELECT COUNT(*) FROM unread u WHERE u.dmKey = m.dmKey AND u.isMention = 1)
+                      FROM message m
+                     WHERE m.dmKey IS NOT NULL
+                     GROUP BY m.dmKey
+                )
+                ORDER BY lastMessageID DESC
+                LIMIT ?
+                """, arguments: [limit])
+        }
+    }
+}

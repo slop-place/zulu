@@ -15,6 +15,7 @@ struct ZuluMacApp: App {
         // question ("which one is live?") with no good answer.
         Window("Zulu", id: "main") {
             MacRootView()
+                .containerBackground(Platform.canvas, for: .window)
                 .environment(model)
                 .environment(ui)
                 .task {
@@ -64,6 +65,8 @@ struct MacRootView: View {
 /// Which part of the sidebar is showing. Lives outside the shell so a menu command can
 /// switch it.
 enum SidebarSection: Equatable, Hashable {
+    /// Every conversation that moved lately, newest first, for catching up.
+    case recent
     case dms
     case group(String)
     /// Channels no group has claimed, so filing is optional rather than required.
@@ -73,6 +76,7 @@ enum SidebarSection: Equatable, Hashable {
 
     var storageKey: String {
         switch self {
+        case .recent: "recent"
         case .dms: "dms"
         case .unfiled: "unfiled"
         case .group(let id): Self.groupPrefix + id
@@ -95,6 +99,10 @@ final class MacUIState {
     var showingNewGroup = false
     var showingHidden = false
     var confirmingSignOut = false
+    var confirmingMarkAllRead = false
+    /// The message whose deletion is being confirmed. Asked for by a row, shown by the
+    /// conversation, so a conversation carries one dialog rather than one per message.
+    var confirmingDeleteOf: MessageRecord?
     var newTopicChannel: ChannelSummaryBox?
     var mutedTopicsChannel: ChannelSummaryBox?
     var editingGroup: GroupBox?

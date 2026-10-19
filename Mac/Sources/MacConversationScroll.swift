@@ -55,12 +55,13 @@ final class ConversationScrollManager {
             setFollowsNewest(false)
         case .idle, .animating:
             // The scroll view is left holding whichever message it stopped on, and holds
-            // it in place as new ones arrive. Back on the bottom edge, it follows them.
-            if follow.userFinishedScrolling(), follow.isPinned {
-                withAnimation(.snappy) { apply(follow.pin()) }
-            } else {
-                publish()
-            }
+            // it in place as new ones arrive. Near the bottom edge it goes back to
+            // following them, but it is never scrolled there: a mouse wheel ends a
+            // scroll at every notch, and snapping the list back to the bottom after
+            // each of the first few undid them, so fast wheel scrolling kept landing
+            // back on the newest message.
+            follow.userFinishedScrolling()
+            publish()
         case .decelerating:
             break
         @unknown default:

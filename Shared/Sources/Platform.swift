@@ -5,6 +5,7 @@ import SwiftUI
 import UIKit
 
 typealias PlatformImage = UIImage
+typealias PlatformColor = UIColor
 
 enum Platform {
     static func copyToClipboard(_ text: String) {
@@ -41,12 +42,26 @@ enum Platform {
             : UIColor(white: light, alpha: 1)
         })
     }
+
+    /// The surface everything sits on. Dark mode means black, not a lighter grey; light
+    /// mode keeps the system's own background.
+    static let canvas = Color(UIColor { $0.userInterfaceStyle == .dark ? .black : .systemBackground })
+
+    /// The system's text roles, under one name on both platforms.
+    static let label = UIColor.label
+    static let secondaryLabel = UIColor.secondaryLabel
+    static let tertiaryLabel = UIColor.tertiaryLabel
+
+    static func dynamic(light: UIColor, dark: UIColor) -> Color {
+        Color(UIColor { $0.userInterfaceStyle == .dark ? dark : light })
+    }
 }
 
 #else
 import AppKit
 
 typealias PlatformImage = NSImage
+typealias PlatformColor = NSColor
 
 enum Platform {
     static func copyToClipboard(_ text: String) {
@@ -78,6 +93,23 @@ enum Platform {
         Color(NSColor(name: nil) { appearance in
             let isDark = appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
             return NSColor(white: isDark ? dark : light, alpha: 1)
+        })
+    }
+
+    /// The surface everything sits on. Dark mode means black, not a lighter grey; light
+    /// mode keeps the system's own window colour.
+    static let canvas = Color(NSColor(name: nil) { appearance in
+        appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua ? .black : .windowBackgroundColor
+    })
+
+    /// The system's text roles, under one name on both platforms.
+    static let label = NSColor.labelColor
+    static let secondaryLabel = NSColor.secondaryLabelColor
+    static let tertiaryLabel = NSColor.tertiaryLabelColor
+
+    static func dynamic(light: NSColor, dark: NSColor) -> Color {
+        Color(NSColor(name: nil) { appearance in
+            appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua ? dark : light
         })
     }
 }

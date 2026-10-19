@@ -91,7 +91,7 @@ struct EmojiGlyph: View {
                 Text(":\(emoji.name):")
                     .font(.system(size: size * 0.32))
                     .lineLimit(1)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(TextTone.secondary)
                     .task { await load() }
             }
         }
@@ -101,6 +101,6 @@ struct EmojiGlyph: View {
     private func load() async {
         guard let path = emoji.imageURL ?? emoji.stillURL else { return }
         guard let data = await model.imageData(at: path) else { return }
-        frames = EmojiFrames.decode(data, height: size)
+        frames = await EmojiFrames.decode(data, height: size)
     }
 }

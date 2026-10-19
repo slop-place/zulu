@@ -27,7 +27,7 @@ struct MacNewMessageSheet: View {
             .padding(.bottom, 10)
 
             HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text("To:").foregroundStyle(.secondary)
+                Text("To:").foregroundStyle(TextTone.secondary)
                 FlowRow(spacing: 4) {
                     ForEach(chosen, id: \.self) { id in
                         HStack(spacing: 4) {
@@ -64,7 +64,7 @@ struct MacNewMessageSheet: View {
                         VStack(alignment: .leading, spacing: 1) {
                             Text(user.fullName).lineLimit(1)
                             if let email = user.email {
-                                Text(email).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                                Text(email).font(.caption).foregroundStyle(TextTone.secondary).lineLimit(1)
                             }
                         }
                         if user.isBot {
@@ -89,7 +89,7 @@ struct MacNewMessageSheet: View {
 
             HStack {
                 Text(chosen.count > 1 ? "Group message with \(chosen.count) people" : " ")
-                    .font(.caption).foregroundStyle(.secondary)
+                    .font(.caption).foregroundStyle(TextTone.secondary)
                 Spacer()
                 Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
                 Button("Start") { start() }
@@ -187,7 +187,7 @@ struct MacNewTopicSheet: View {
             }
 
             HStack {
-                Text("⌘↩ to send").font(.caption).foregroundStyle(.tertiary)
+                Text("⌘↩ to send").font(.caption).foregroundStyle(TextTone.tertiary)
                 Spacer()
                 if sending { ProgressView().controlSize(.small) }
                 Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
@@ -271,12 +271,12 @@ struct MacGroupEditor: View {
                 Toggle(isOn: binding(for: channel.id)) {
                     HStack(spacing: 8) {
                         ChannelIcon(isForum: channel.rendersAsForum, restricted: channel.isRestricted, size: 12)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(TextTone.secondary)
                             .frame(width: 18, alignment: .leading)
                         Text(channel.name).lineLimit(1)
                         if let elsewhere = model.group(containingChannel: channel.id), elsewhere != groupID,
                            let other = model.groups.first(where: { $0.id == elsewhere }) {
-                            Text("in \(other.name)").font(.caption).foregroundStyle(.tertiary)
+                            Text("in \(other.name)").font(.caption).foregroundStyle(TextTone.tertiary)
                         }
                     }
                 }
@@ -288,7 +288,7 @@ struct MacGroupEditor: View {
 
             HStack {
                 Text("\(selected.count) channel\(selected.count == 1 ? "" : "s")")
-                    .font(.caption).foregroundStyle(.secondary)
+                    .font(.caption).foregroundStyle(TextTone.secondary)
                 Spacer()
                 Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
                 Button("Done") { save() }
@@ -388,7 +388,7 @@ struct MacHiddenChannelsSheet: View {
                 List(channels) { channel in
                     HStack(spacing: 10) {
                         ChannelIcon(isForum: channel.rendersAsForum, restricted: channel.isRestricted, size: 12)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(TextTone.secondary)
                             .frame(width: 18, alignment: .leading)
                         Text(channel.name)
                         Spacer()
@@ -505,7 +505,7 @@ struct MacSettingsView: View {
                     LabeledContent("Server", value: account.realmURL.host() ?? account.realmURL.absoluteString)
                     Button("Sign Out…") { ui.confirmingSignOut = true }
                 } else {
-                    Text("Not signed in.").foregroundStyle(.secondary)
+                    Text("Not signed in.").foregroundStyle(TextTone.secondary)
                 }
             }
             Section {

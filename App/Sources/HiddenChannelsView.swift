@@ -26,7 +26,7 @@ struct HiddenChannelsView: View {
                             ChannelIcon(
                                 isForum: channel.rendersAsForum, restricted: channel.isRestricted
                             )
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(TextTone.secondary)
                             .frame(width: 26, alignment: .leading)
                             Text(channel.name)
                             Spacer()

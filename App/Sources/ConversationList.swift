@@ -224,10 +224,10 @@ private struct ConversationStart: View {
     var body: some View {
         if isShown {
             VStack(spacing: 4) {
-                Image(systemName: "sparkles").foregroundStyle(.tertiary)
+                Image(systemName: "sparkles").foregroundStyle(TextTone.tertiary)
                 Text("This is the beginning of \(title).")
                     .font(.callout)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(TextTone.secondary)
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, Self.verticalPadding)

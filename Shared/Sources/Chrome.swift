@@ -6,7 +6,7 @@ struct EmptyStateView: View {
     var body: some View {
         VStack {
             Spacer()
-            Text(text).foregroundStyle(.secondary).multilineTextAlignment(.center).padding()
+            Text(text).foregroundStyle(TextTone.secondary).multilineTextAlignment(.center).padding()
             Spacer()
         }
         .navigationTitle("Zulu")
@@ -76,10 +76,22 @@ struct UnreadDot: View {
 }
 
 /// How a read sidebar row is drawn. A step brighter than `.secondary`, which made read
-/// rows look disabled.
+/// rows look disabled, and brighter again in the dark, where the window is black.
 enum SidebarTone {
-    static let readTitle = Color.primary.opacity(0.72)
-    static let readIcon = Color.primary.opacity(0.5)
+    static let readTitle = Platform.dynamic(
+        light: Platform.label.withAlphaComponent(0.72), dark: .white.withAlphaComponent(0.88)
+    )
+    static let readIcon = Platform.dynamic(
+        light: Platform.label.withAlphaComponent(0.5), dark: .white.withAlphaComponent(0.7)
+    )
+}
+
+/// The system's grey text is tuned for a grey window. On a black one it reads as dark
+/// grey, so in dark mode every supporting line is a step brighter; light mode keeps the
+/// system's own roles.
+enum TextTone {
+    static let secondary = Platform.dynamic(light: Platform.secondaryLabel, dark: .white.withAlphaComponent(0.74))
+    static let tertiary = Platform.dynamic(light: Platform.tertiaryLabel, dark: .white.withAlphaComponent(0.52))
 }
 
 struct ChannelIcon: View {

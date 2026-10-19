@@ -158,6 +158,7 @@ public final class ZuluStore: Sendable {
         registerOrderingMigration(&migrator)
         registerMutedTopicMigration(&migrator)
         registerChannelNotificationMigration(&migrator)
+        registerReactionHistoryMigration(&migrator)
 
         return migrator
     }

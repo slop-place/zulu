@@ -139,7 +139,7 @@ struct TypingIndicatorView: View {
         // A space rather than nothing, so the blank line is still one line tall.
         Text(text ?? " ")
             .font(.caption)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(TextTone.secondary)
             .lineLimit(1)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 16)

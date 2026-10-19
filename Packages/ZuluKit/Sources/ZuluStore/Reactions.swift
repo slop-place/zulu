@@ -110,6 +110,88 @@ public struct ReactionTally: Decodable, FetchableRecord, Sendable, Equatable, Id
     public var id: String { "\(reactionType):\(emojiCode)" }
 }
 
+// MARK: - The viewer's own history
+
+extension ZuluStore {
+    /// Every emoji the viewer has reacted with from this device, so the quick row can be
+    /// their own habits rather than the realm's. Never synced: it is a preference, and
+    /// the server has no slot for one.
+    static func registerReactionHistoryMigration(_ migrator: inout DatabaseMigrator) {
+        migrator.registerMigration("v16-reaction-history") { db in
+            try db.create(table: "reactionHistory") { t in
+                t.column("reactionType", .text).notNull()
+                t.column("emojiCode", .text).notNull()
+                t.column("emojiName", .text).notNull()
+                t.column("uses", .integer).notNull().defaults(to: 0)
+                t.column("lastUsedAt", .integer).notNull()
+                // Uses, each worth less the older it is: see `recordReaction`.
+                t.column("score", .double).notNull().defaults(to: 0)
+                t.primaryKey(["reactionType", "emojiCode"])
+            }
+        }
+    }
+
+    /// How fast a use fades. Something reacted with once today outranks something
+    /// reacted with five times a month ago; something reacted with daily stays near the
+    /// top through a quiet week.
+    static let reactionHalfLife: TimeInterval = 2 * 24 * 60 * 60
+
+    static func decayedScore(_ score: Double, from lastUsedAt: Int, to now: Date) -> Double {
+        let age = max(0, now.timeIntervalSince1970 - TimeInterval(lastUsedAt))
+        return score * pow(0.5, age / reactionHalfLife)
+    }
+
+    public func recordReaction(emojiName: String, emojiCode: String, reactionType: String, at date: Date = .now) throws {
+        try writer.write { db in
+            let previous = try Row.fetchOne(db, sql: """
+                SELECT score, lastUsedAt FROM reactionHistory WHERE reactionType = ? AND emojiCode = ?
+                """, arguments: [reactionType, emojiCode])
+            let carried = previous.map { Self.decayedScore($0["score"], from: $0["lastUsedAt"], to: date) } ?? 0
+            try db.execute(sql: """
+                INSERT INTO reactionHistory (reactionType, emojiCode, emojiName, uses, lastUsedAt, score)
+                VALUES (?, ?, ?, 1, ?, ?)
+                ON CONFLICT (reactionType, emojiCode) DO UPDATE
+                   SET uses = uses + 1, lastUsedAt = excluded.lastUsedAt,
+                       emojiName = excluded.emojiName, score = excluded.score
+                """, arguments: [reactionType, emojiCode, emojiName, Int(date.timeIntervalSince1970), carried + 1])
+        }
+    }
+
+    /// The viewer's reactions, the ones that matter now first: a recent use counts for
+    /// much more than an old one, and repeated use still counts. Sorted here rather
+    /// than in SQL, because the table is a few dozen rows and SQLite has no `pow`.
+    public func recentReactions(limit: Int, now: Date = .now) throws -> [ReactionTally] {
+        try writer.read { db in
+            let rows = try Row.fetchAll(db, sql: """
+                SELECT reactionType, emojiCode, emojiName, uses, lastUsedAt, score FROM reactionHistory
+                """)
+            return try rows
+                .map { row in
+                    (tally: try ReactionTally(row: row), weight: Self.decayedScore(row["score"], from: row["lastUsedAt"], to: now))
+                }
+                .sorted { $0.weight > $1.weight }
+                .prefix(limit)
+                .map(\.tally)
+        }
+    }
+
+    /// The viewer's reactions on the messages held locally, newest first: history from
+    /// before this device started keeping its own.
+    public func ownReactions(by userID: Int, limit: Int) throws -> [ReactionTally] {
+        try writer.read { db in
+            try ReactionTally.fetchAll(db, sql: """
+                SELECT r.reactionType, r.emojiCode, r.emojiName, COUNT(*) AS uses,
+                       MAX(r.messageID) AS latest
+                  FROM reaction r
+                 WHERE r.userID = ?
+                 GROUP BY r.reactionType, r.emojiCode
+                 ORDER BY latest DESC
+                 LIMIT ?
+                """, arguments: [userID, limit])
+        }
+    }
+}
+
 extension ReactionRecord {
     public init(messageID: Int, emojiName: String, emojiCode: String, reactionType: String, userID: Int) {
         self.messageID = messageID

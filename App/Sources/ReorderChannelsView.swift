@@ -32,13 +32,13 @@ struct ReorderChannelsView: View {
                                         isForum: entry.rendersAsForum,
                                         restricted: entry.isRestricted
                                     )
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(TextTone.secondary)
                                     .frame(width: 24, alignment: .leading)
                                     Text(entry.name).lineLimit(1)
                                     if case .promoted(let promoted) = entry {
                                         Text(promoted.channelName)
                                             .font(.caption)
-                                            .foregroundStyle(.tertiary)
+                                            .foregroundStyle(TextTone.tertiary)
                                             .lineLimit(1)
                                     }
                                 }

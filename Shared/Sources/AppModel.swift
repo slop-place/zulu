@@ -49,6 +49,8 @@ final class AppModel {
     fileprivate(set) var recentTopics: [Int: [TopicSummary]] = [:]
     fileprivate var sidebarObserversStarted = false
     private(set) var dms: [DMSummary] = []
+    /// Bumped whenever the viewer reacts, so quick-reaction rows rebuild from the history.
+    var reactionHistoryVersion = 0
     private(set) var users: [Int: UserRecord] = [:]
 
     var destination: Destination? {
@@ -624,6 +626,15 @@ extension AppModel {
         return MessageRecord.dmKey(for: userIDs, selfUserID: selfID)
     }
 
+    /// Everything unread, everywhere. Cleared locally first so the sidebar empties at
+    /// once; the server's own flags event confirms it, and a refusal is put right by the
+    /// next full sync of unreads. Nothing queued is worth sending after this.
+    func markAllRead() async {
+        try? store?.markEverythingRead()
+        unsentReads.removeAll()
+        try? await client?.markAllRead()
+    }
+
     /// Everything unread in a channel, cleared at once. A sidebar row's "mark as read"
     /// means the whole channel, not the topics that happen to be open.
     func markChannelRead(_ id: Int) async {
@@ -763,6 +774,13 @@ extension AppModel {
         -> ValueObservation<ValueReducers.Fetch<[PromotedTopicSummary]>>?
     {
         store?.observePromotedTopics(inGroup: id)
+    }
+
+    /// Everything that moved lately, in one list, for catching up.
+    func recentConversationObservation()
+        -> ValueObservation<ValueReducers.Fetch<[RecentConversation]>>?
+    {
+        store?.observeRecentConversations()
     }
 
     func promote(topic: String, inChannel channelID: Int, toGroup groupID: String? = nil) {
@@ -938,11 +956,19 @@ extension AppModel {
     /// The stored content is rendered HTML, so it is flattened to its first line of text —
     /// an image-only message has none, and says so rather than showing an empty row.
     func preview(forDM dm: DMSummary) -> String? {
-        guard let html = dm.lastContent else { return nil }
+        preview(html: dm.lastContent, sender: dm.lastSender, senderID: dm.lastSenderID)
+    }
 
-        let speaker = dm.lastSenderID == account?.userID
+    func preview(for recent: RecentConversation) -> String? {
+        preview(html: recent.lastContent, sender: recent.lastSender, senderID: recent.lastSenderID)
+    }
+
+    private func preview(html: String?, sender: String?, senderID: Int?) -> String? {
+        guard let html else { return nil }
+
+        let speaker = senderID == account?.userID
             ? "You"
-            : (dm.lastSender?.split(separator: " ").first.map(String.init) ?? "")
+            : (sender?.split(separator: " ").first.map(String.init) ?? "")
 
         let body = MessageMarkup.blocks(from: html).lazy.compactMap { block -> String? in
             switch block {

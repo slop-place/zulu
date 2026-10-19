@@ -9,14 +9,14 @@ import SwiftUI
 enum DrawerPalette {
     static var rail: Color {
         Color(UIColor { $0.userInterfaceStyle == .dark
-            ? UIColor(white: 0.155, alpha: 1)
+            ? UIColor(white: 0.07, alpha: 1)
             : UIColor(white: 0.90, alpha: 1)
         })
     }
 
     static var list: Color {
         Color(UIColor { $0.userInterfaceStyle == .dark
-            ? UIColor(white: 0.075, alpha: 1)
+            ? UIColor(white: 0, alpha: 1)
             : UIColor(white: 0.97, alpha: 1)
         })
     }
@@ -24,7 +24,7 @@ enum DrawerPalette {
     /// Sits under the list header, so the title reads as a bar rather than a floating word.
     static var listHeader: Color {
         Color(UIColor { $0.userInterfaceStyle == .dark
-            ? UIColor(white: 0.115, alpha: 1)
+            ? UIColor(white: 0.05, alpha: 1)
             : UIColor(white: 0.93, alpha: 1)
         })
     }

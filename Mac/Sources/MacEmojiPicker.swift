@@ -36,7 +36,7 @@ struct MacEmojiPicker: View {
                 if results.isEmpty {
                     Text(emptyMessage)
                         .font(.callout)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(TextTone.secondary)
                         .frame(maxWidth: .infinity)
                         .padding(.top, 40)
                 } else {

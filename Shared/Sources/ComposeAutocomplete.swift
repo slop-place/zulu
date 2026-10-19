@@ -249,7 +249,7 @@ struct AutocompleteBox: View {
             if let subtitle = suggestion.subtitle, !subtitle.isEmpty {
                 Text(subtitle)
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(TextTone.secondary)
                     .lineLimit(1)
             }
             Spacer(minLength: 0)
@@ -276,7 +276,7 @@ struct SuggestionIcon: View {
             case .glyph(let text):
                 Text(text).font(.system(size: 20))
             case .symbol(let name):
-                Image(systemName: name).foregroundStyle(.secondary)
+                Image(systemName: name).foregroundStyle(TextTone.secondary)
             case .image(let path):
                 if let frames {
                     AnimatedEmojiView(frames: frames)
@@ -300,6 +300,6 @@ struct SuggestionIcon: View {
 
     private func loadFrames(_ path: String) async {
         guard !path.isEmpty, let data = await model.imageData(at: path) else { return }
-        frames = EmojiFrames.decode(data, height: size)
+        frames = await EmojiFrames.decode(data, height: size)
     }
 }
