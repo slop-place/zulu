@@ -14,6 +14,7 @@ struct ConversationView: View {
 
     @State private var loader: MessageHistoryLoader?
     @State private var readTracker: ReadTracker?
+    @State private var suggestionBox = AutocompleteSlot()
 
     var body: some View {
         Group {
@@ -26,10 +27,11 @@ struct ConversationView: View {
                 ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
+        .overlay(alignment: .bottom) { AutocompleteOverlay(slot: suggestionBox) }
         .safeAreaBar(edge: .bottom) {
             VStack(spacing: 0) {
                 TypingIndicatorView(source: source)
-                ComposerBar(source: source, placeholder: placeholder)
+                ComposerBar(source: source, placeholder: placeholder, suggestionBox: suggestionBox)
             }
         }
         .overlay(alignment: .top) {

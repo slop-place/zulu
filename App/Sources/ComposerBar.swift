@@ -12,6 +12,7 @@ import ZuluCompose
 struct ComposerBar: View {
     let source: ConversationView.Source
     let placeholder: String
+    let suggestionBox: AutocompleteSlot
 
     @Environment(AppModel.self) private var model
 
@@ -32,6 +33,7 @@ struct ComposerBar: View {
     /// What a glass button pads around its label. The emoji button sits that far in from
     /// the field's corner, so it centres on the same line as the buttons either side.
     private static let glassControlInset: CGFloat = 7
+    static let horizontalPadding: CGFloat = 12
     /// Half the field's one-line height.
     private static let fieldCornerRadius: CGFloat = 20
 
@@ -85,26 +87,8 @@ struct ComposerBar: View {
                 .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || editMode?.isSaving == true)
             }
         }
-        .padding(.horizontal, 12)
+        .padding(.horizontal, Self.horizontalPadding)
         .padding(.vertical, 8)
-        // Floats above the bar rather than sitting in it: in the bar, every suggestion
-        // list that opened or closed resized it and moved the conversation.
-        //
-        // Hung from a zero-height line along the bar's top edge. An alignment guide
-        // lifting the box by its own height is not honoured in an overlay, and the box
-        // then hung down over the bar and under the keyboard.
-        .overlay(alignment: .top) {
-            Color.clear
-                .frame(height: 0)
-                .overlay(alignment: .bottom) {
-                    if let autocomplete, autocomplete.isOpen {
-                        AutocompleteBox(suggestions: autocomplete.suggestions) { suggestion in
-                            draft = autocomplete.apply(suggestion, to: draft)
-                        }
-                        .padding(.horizontal, 12)
-                    }
-                }
-        }
         .task(id: source) {
             typingSender?.stop()
             // What was being edited belongs to the conversation being left.
@@ -116,6 +100,9 @@ struct ComposerBar: View {
             let controller = ComposeAutocompleteController(model: model, source: source)
             await controller.prepare()
             autocomplete = controller
+            suggestionBox.request = AutocompleteRequest(controller: controller) { suggestion in
+                draft = controller.apply(suggestion, to: draft)
+            }
         }
         // The emoji table arrives well after the conversation opens, so the sources are
         // rebuilt when it lands rather than waiting for it up front.
@@ -384,6 +371,39 @@ struct ComposerBar: View {
             draft += markdown + "\n"
         case .failure(let message):
             sendError = message
+        }
+    }
+}
+
+/// What the conversation needs to draw the composer's suggestion box over itself.
+struct AutocompleteRequest {
+    let controller: ComposeAutocompleteController
+    let pick: (AutocompleteSuggestion) -> Void
+}
+
+/// Hands the composer's suggestions up to the conversation.
+///
+/// The composer sits in the bottom bar, and the bar takes no touches outside its own
+/// frame. A box hung above it from inside could be seen but not tapped, apart from the
+/// sliver of its bottom row that overlapped the typing line.
+@MainActor
+@Observable
+final class AutocompleteSlot {
+    var request: AutocompleteRequest?
+}
+
+/// Floats over the conversation, along its bottom edge, which is the top of the bar.
+/// In the bar instead, every list that opened or closed resized it and moved the
+/// conversation.
+///
+/// Its own view, so a keystroke redraws the box and not the whole conversation.
+struct AutocompleteOverlay: View {
+    let slot: AutocompleteSlot
+
+    var body: some View {
+        if let request = slot.request, request.controller.isOpen {
+            AutocompleteBox(suggestions: request.controller.suggestions, pick: request.pick)
+                .padding(.horizontal, ComposerBar.horizontalPadding)
         }
     }
 }
