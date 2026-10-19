@@ -395,6 +395,8 @@ final class MessageActionsController {
                 .joined(separator: "\n")
         case .image(let source, _, let alt, _):
             alt ?? source
+        case .attachment(let attachment):
+            attachment.name
         }
     }
 }

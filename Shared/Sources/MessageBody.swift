@@ -125,7 +125,7 @@ struct MessageBody: View {
         case .bulletList(let items), .numberedList(let items): items.flatMap { $0 }
         case .quote(let inner): inner.flatMap(spans(in:))
         case .quotedReply(_, _, _, let quoted): quoted.flatMap(spans(in:))
-        case .codeBlock, .image: []
+        case .codeBlock, .image, .attachment: []
         }
     }
 }
@@ -282,6 +282,9 @@ struct BlockView: View {
         case .image(let source, let link, let alt, let aspectRatio):
             RemoteImage(path: source, fullSize: link, alt: alt, aspectRatio: aspectRatio)
 
+        case .attachment(let attachment):
+            AttachmentRow(attachment: attachment)
+
         case .quotedReply(let author, let authorID, _, let quoted):
             QuotedReplyView(
                 author: author, authorID: authorID, quoted: quoted, emoji: emoji, time: time
@@ -362,6 +365,8 @@ private struct QuotedReplyView: View {
                 if !text.isEmpty { return text }
             case .image(_, _, let alt, _):
                 return alt ?? "Image"
+            case .attachment(let attachment):
+                return attachment.name
             case .codeBlock(_, let code):
                 return code
             case .bulletList(let items), .numberedList(let items):

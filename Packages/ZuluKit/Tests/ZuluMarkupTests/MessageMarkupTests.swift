@@ -19,9 +19,9 @@ struct MessageMarkupTests {
     }
 
     @Test func linksCarryTheirHref() {
-        let blocks = MessageMarkup.blocks(from: #"<p><a href="/user_uploads/2/x.jpg">x.jpg</a></p>"#)
+        let blocks = MessageMarkup.blocks(from: #"<p><a href="https://example.com/x">x</a></p>"#)
         #expect(blocks == [.paragraph([
-            InlineSpan(text: "x.jpg", link: "/user_uploads/2/x.jpg"),
+            InlineSpan(text: "x", link: "https://example.com/x"),
         ])])
     }
 

@@ -976,6 +976,7 @@ extension AppModel {
                 let text = spans.map(\.text).joined().trimmingCharacters(in: .whitespacesAndNewlines)
                 return text.isEmpty ? nil : text
             case .image(_, _, let alt, _): return alt ?? "Image"
+            case .attachment(let attachment): return attachment.name
             case .codeBlock(_, let code): return code
             case .bulletList(let items), .numberedList(let items):
                 return items.first?.map(\.text).joined()

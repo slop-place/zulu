@@ -45,6 +45,8 @@ public enum MessageBlock: Sendable, Equatable, Identifiable {
     /// `aspectRatio` is width over height where the server told us, so a row can
     /// reserve its height before the bytes arrive and the list never reflows.
     case image(source: String, link: String?, alt: String?, aspectRatio: Double? = nil)
+    /// An uploaded file linked on a line of its own.
+    case attachment(MessageAttachment)
     /// Zulip's quote-and-reply: an attribution line followed by a blockquote. Kept as one
     /// thing so it can be drawn as a compact reply header rather than a wall of quote.
     case quotedReply(author: String, authorID: Int?, messageID: Int?, quoted: [MessageBlock])
@@ -57,6 +59,7 @@ public enum MessageBlock: Sendable, Equatable, Identifiable {
         case .bulletList(let items): "ul:" + items.flatMap { $0 }.map(\.text).joined()
         case .numberedList(let items): "ol:" + items.flatMap { $0 }.map(\.text).joined()
         case .image(let source, _, _, _): "img:\(source)"
+        case .attachment(let attachment): "file:\(attachment.path)"
         case .quotedReply(let author, _, let messageID, _): "reply:\(author):\(messageID ?? 0)"
         }
     }
@@ -71,7 +74,7 @@ public enum MessageMarkup {
     public static func blocks(from html: String) -> [MessageBlock] {
         var blocks: [MessageBlock] = []
         collect(HTMLParser.parse(html), into: &blocks)
-        return foldQuotedReplies(blocks)
+        return foldQuotedReplies(withoutPreviewedAttachments(blocks))
     }
 
     /// A message of nothing but emoji, which is drawn large.
@@ -153,6 +156,7 @@ public enum MessageMarkup {
                     flushPending()
                     var inner: [MessageBlock] = []
                     collect(element.children, into: &inner)
+                    inner = withoutPreviewedAttachments(inner)
                     if !inner.isEmpty { blocks.append(.quote(inner)) }
 
                 case "pre":
@@ -216,6 +220,7 @@ public enum MessageMarkup {
     /// and custom emoji `emoji`, both as `<img>`, so the class decides which is which:
     /// an upload breaks the paragraph into its own block, an emoji stays in the text.
     private static func paragraph(_ nodes: [HTMLNode]) -> [MessageBlock] {
+        if let attachments = attachments(in: nodes) { return attachments.map(MessageBlock.attachment) }
         var blocks: [MessageBlock] = []
         var spans: [InlineSpan] = []
 
@@ -245,6 +250,42 @@ public enum MessageMarkup {
         }
         flush()
         return blocks
+    }
+
+    /// A paragraph of nothing but upload links, as Zulip writes a file attached in the
+    /// composer. A link in the middle of a sentence stays in the sentence.
+    private static func attachments(in nodes: [HTMLNode]) -> [MessageAttachment]? {
+        var attachments: [MessageAttachment] = []
+        for node in nodes {
+            switch node {
+            case .text(let text):
+                guard text.allSatisfy(\.isWhitespace) else { return nil }
+            case .element(let element) where element.name == "br":
+                continue
+            case .element(let element):
+                guard element.name == "a",
+                      let href = element.attribute("href"),
+                      let attachment = MessageAttachment(
+                          path: href, title: inline(element.children).map(\.text).joined()
+                      )
+                else { return nil }
+                attachments.append(attachment)
+            }
+        }
+        return attachments.isEmpty ? nil : attachments
+    }
+
+    /// Zulip follows an uploaded picture's link with its preview. The preview is the
+    /// attachment, so the link is not drawn a second time.
+    private static func withoutPreviewedAttachments(_ blocks: [MessageBlock]) -> [MessageBlock] {
+        let previewed = Set(blocks.compactMap { block -> String? in
+            guard case .image(_, let link, _, _) = block else { return nil }
+            return link
+        })
+        return blocks.filter { block in
+            guard case .attachment(let attachment) = block else { return true }
+            return !previewed.contains(attachment.path)
+        }
     }
 
     private static func firstImage(in nodes: [HTMLNode]) -> MessageBlock? {
