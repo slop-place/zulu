@@ -60,6 +60,22 @@ struct Badge: View {
     }
 }
 
+/// How many messages wait in an unread conversation, in the accent colour its unread mark
+/// uses. A mention takes the red `Badge` instead.
+struct UnreadCount: View {
+    let count: Int
+
+    var body: some View {
+        Text(count > 99 ? "99+" : "\(count)")
+            .font(.caption2.weight(.bold))
+            .monospacedDigit()
+            .foregroundStyle(.white)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(Color.accentColor, in: Capsule())
+    }
+}
+
 /// The small mark beside an unread sidebar row. Its slot is always there, so rows line up
 /// whether or not they have one.
 struct UnreadDot: View {

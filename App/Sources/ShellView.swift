@@ -57,6 +57,8 @@ struct ShellView: View {
     @State private var sidebarCollapsed = false
     /// Set from inside the page, where the toolbar environment is.
     @State private var barsRunDownTheSide = false
+    /// Where the page's navigation bar ends, from the top of the screen.
+    @State private var pageBarBottom: CGFloat = 0
 
     private let railW: CGFloat = 80
     private let listW: CGFloat = 236
@@ -88,6 +90,18 @@ struct ShellView: View {
     /// The drawer takes the whole screen there instead: the channel list or the
     /// conversation, one at a time.
     private var drawerFillsScreen: Bool { !docked && barsRunDownTheSide }
+
+    /// The list's header is exactly as tall as the page's navigation bar, so the two read
+    /// as one bar across the screen rather than two bars of different heights side by
+    /// side. The bar's height changes with the display and the pose, so it is measured.
+    private var headerHeight: CGFloat {
+        guard pageBarBottom > space.top else { return Self.fallbackHeaderHeight }
+        return max(Self.minimumHeaderHeight, pageBarBottom - space.top)
+    }
+
+    private static let minimumHeaderHeight: CGFloat = 44
+    private static let fallbackHeaderHeight: CGFloat = 52
+    private static let railButtonSize: CGFloat = 46
 
     /// Narrower than this, a conversation beside the sidebar wraps like a phone held
     /// sideways, and the drawer serves better.
@@ -332,7 +346,9 @@ struct ShellView: View {
                     RailIcon(systemImage: "plus")
                 }
             }
-            .padding(.vertical, 12)
+            // The first button sits on the line the header and the page's title share.
+            .padding(.top, max(4, (headerHeight - Self.railButtonSize) / 2))
+            .padding(.bottom, 12)
         }
         // Pinned under the groups, however many there are, where every chat app keeps it.
         .safeAreaInset(edge: .bottom, spacing: 0) {
@@ -410,85 +426,88 @@ struct ShellView: View {
         }
     }
 
-    private var list: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 8) {
-                Text(listTitle).font(.headline).lineLimit(1)
-                Spacer(minLength: 4)
-                SyncDot(status: model.status)
-                Menu {
-                    Button("Settings", systemImage: "gearshape") { showingSettings = true }
-                    Divider()
-                    Button("Reorder channels", systemImage: "arrow.up.arrow.down") {
-                        showingReorder = true
-                    }
-                    Button("Hidden channels", systemImage: "eye.slash") { showingHidden = true }
-                    Button("Notifications", systemImage: "bell") { showingNotifications = true }
-                    Divider()
-                    Button("Sign out…", systemImage: "rectangle.portrait.and.arrow.right", role: .destructive) {
-                        confirmingSignOut = true
-                    }
-                } label: {
-                    Image(systemName: "ellipsis")
-                        .font(.footnote)
-                        .foregroundStyle(TextTone.secondary)
-                        .frame(width: 22, height: 22)
-                        .contentShape(.rect)
+    /// Floats over the list the way the page's navigation bar floats over a conversation,
+    /// at the same height, so the rows scroll under both alike.
+    private var listHeader: some View {
+        HStack(spacing: 8) {
+            Text(listTitle).font(.headline).lineLimit(1)
+            Spacer(minLength: 4)
+            SyncDot(status: model.status)
+            Menu {
+                Button("Settings", systemImage: "gearshape") { showingSettings = true }
+                Divider()
+                Button("Reorder channels", systemImage: "arrow.up.arrow.down") {
+                    showingReorder = true
                 }
-                .buttonStyle(.plain)
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 12)
-            .background(DrawerPalette.listHeader.ignoresSafeArea(edges: drawerFillsScreen ? .trailing : []))
-
-            ScrollView {
-                // Channels are headers with their topics hanging under them, so the gap
-                // between one channel's group and the next has to be bigger than the gap
-                // inside one. At equal spacing the whole list reads as one flat run.
-                VStack(alignment: .leading, spacing: 0) {
-                    if section == .recent {
-                        ForEach(recentEntries) { entry in recentRow(entry) }
-                        if recentEntries.isEmpty {
-                            Text(emptyListMessage)
-                                .font(.footnote)
-                                .foregroundStyle(TextTone.secondary)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 12)
-                        }
-                    } else if section == .dms {
-                        ForEach(model.dms) { dm in dmRow(dm) }
-                    } else {
-                        ForEach(sidebarEntries) { entry in
-                            switch entry {
-                            case .promoted(let promoted):
-                                promotedRow(promoted)
-                            case .channel(let channel):
-                                VStack(alignment: .leading, spacing: 0) {
-                                    channelRow(channel)
-                                    if channel.rendersAsForum {
-                                        topicBranch(under: channel)
-                                    }
-                                }
-                                .padding(.bottom, 6)
-                            }
-                        }
-                        if visibleChannels.isEmpty {
-                            Text(emptyListMessage)
-                                .font(.footnote)
-                                .foregroundStyle(TextTone.secondary)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 12)
-                        }
-                        if !mentionedHidden.isEmpty {
-                            hiddenSection
-                        }
-                    }
+                Button("Hidden channels", systemImage: "eye.slash") { showingHidden = true }
+                Button("Notifications", systemImage: "bell") { showingNotifications = true }
+                Divider()
+                Button("Sign out…", systemImage: "rectangle.portrait.and.arrow.right", role: .destructive) {
+                    confirmingSignOut = true
                 }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 8)
+            } label: {
+                Image(systemName: "ellipsis")
+                    .font(.footnote)
+                    .foregroundStyle(TextTone.secondary)
+                    .frame(width: 22, height: 22)
+                    .contentShape(.rect)
             }
-            .refreshable { await model.refreshTopics() }
+            .buttonStyle(.plain)
         }
+        .padding(.horizontal, 14)
+        .frame(height: headerHeight)
+    }
+
+    private var list: some View {
+        ScrollView {
+            // Channels are headers with their topics hanging under them, so the gap
+            // between one channel's group and the next has to be bigger than the gap
+            // inside one. At equal spacing the whole list reads as one flat run.
+            VStack(alignment: .leading, spacing: 0) {
+                if section == .recent {
+                    ForEach(recentEntries) { entry in recentRow(entry) }
+                    if recentEntries.isEmpty {
+                        Text(emptyListMessage)
+                            .font(.footnote)
+                            .foregroundStyle(TextTone.secondary)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 12)
+                    }
+                } else if section == .dms {
+                    ForEach(model.dms) { dm in dmRow(dm) }
+                } else {
+                    ForEach(sidebarEntries) { entry in
+                        switch entry {
+                        case .promoted(let promoted):
+                            promotedRow(promoted)
+                        case .channel(let channel):
+                            VStack(alignment: .leading, spacing: 0) {
+                                channelRow(channel)
+                                if channel.rendersAsForum {
+                                    topicBranch(under: channel)
+                                }
+                            }
+                            .padding(.bottom, 6)
+                        }
+                    }
+                    if visibleChannels.isEmpty {
+                        Text(emptyListMessage)
+                            .font(.footnote)
+                            .foregroundStyle(TextTone.secondary)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 12)
+                    }
+                    if !mentionedHidden.isEmpty {
+                        hiddenSection
+                    }
+                }
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 8)
+        }
+        .refreshable { await model.refreshTopics() }
+        .safeAreaBar(edge: .top, spacing: 0) { listHeader }
+        .scrollEdgeEffectStyle(.soft, for: .top)
         // Filling the screen, the list runs on under the status bar beside it rather than
         // leaving a strip of a different colour there.
         .background(DrawerPalette.list.ignoresSafeArea(edges: drawerFillsScreen ? [.vertical, .trailing] : .vertical))
@@ -850,7 +869,12 @@ struct ShellView: View {
     private var content: some View {
         NavigationStack(path: $path) {
             destinationView
-                .background { VerticalBarProbe { barsRunDownTheSide = $0 } }
+                .background {
+                    PageBarProbe { bars in
+                        barsRunDownTheSide = bars.runDownTheSide
+                        pageBarBottom = bars.bottom
+                    }
+                }
                 .navigationDestination(for: ConversationView.Source.self) { source in
                     ConversationView(source: source)
                 }
@@ -996,22 +1020,37 @@ struct ShellView: View {
     }
 }
 
-/// Reports whether the navigation bars around it run down the side of the screen, as
-/// they do on a foldable's outer display. Read from inside the navigation stack, the only
-/// place the toolbar environment is set.
-private struct VerticalBarProbe: View {
-    let changed: (Bool) -> Void
+/// The page's navigation bars, as the shell needs them.
+private struct PageBars: Equatable {
+    /// Whether the bars run down the side of the screen, as on a foldable's outer display.
+    var runDownTheSide = false
+    /// Where the navigation bar ends, measured from the top of the screen.
+    var bottom: CGFloat = 0
+}
+
+/// Reports the page's bars from inside the navigation stack, the only place the toolbar
+/// environment is set and the bar's height shows in the safe area.
+private struct PageBarProbe: View {
+    let changed: (PageBars) -> Void
+    @State private var bars = PageBars()
 
     var body: some View {
-        if #available(iOS 27.1, *) {
-            Reader(changed: changed)
-        } else {
-            Color.clear
+        Group {
+            if #available(iOS 27.1, *) {
+                EdgeReader { bars.runDownTheSide = $0 }
+            }
         }
+        // Spread over the whole page, so the top of its safe area is the bottom of the bar.
+        .background {
+            Color.clear
+                .ignoresSafeArea()
+                .onGeometryChange(for: CGFloat.self) { $0.safeAreaInsets.top } action: { bars.bottom = $0 }
+        }
+        .onChange(of: bars, initial: true) { _, bars in changed(bars) }
     }
 
     @available(iOS 27.1, *)
-    private struct Reader: View {
+    private struct EdgeReader: View {
         let changed: (Bool) -> Void
         @Environment(\.toolbarVerticalEdge) private var edge
 
@@ -1024,6 +1063,8 @@ private struct VerticalBarProbe: View {
 /// The room the shell has, and where a fold divides it.
 struct ShellSpace: Equatable {
     var width: CGFloat = 0
+    /// What the status bar or sensor housing covers above the shell.
+    var top: CGFloat = 0
     /// The safe area's sides: what bars and sensor housings cover beside the shell.
     var leading: CGFloat = 0
     var trailing: CGFloat = 0
@@ -1036,6 +1077,7 @@ struct ShellSpace: Equatable {
 
     init(_ proxy: GeometryProxy) {
         width = proxy.size.width
+        top = proxy.safeAreaInsets.top
         leading = proxy.safeAreaInsets.leading
         trailing = proxy.safeAreaInsets.trailing
         if #available(iOS 27.1, *) {

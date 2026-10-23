@@ -21,14 +21,6 @@ enum DrawerPalette {
         })
     }
 
-    /// Sits under the list header, so the title reads as a bar rather than a floating word.
-    static var listHeader: Color {
-        Color(UIColor { $0.userInterfaceStyle == .dark
-            ? UIColor(white: 0.05, alpha: 1)
-            : UIColor(white: 0.93, alpha: 1)
-        })
-    }
-
     /// The edge between rail and list.
     static var edge: Color {
         Color(UIColor { $0.userInterfaceStyle == .dark

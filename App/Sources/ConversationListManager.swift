@@ -26,6 +26,7 @@ final class ConversationListManager {
     @ObservationIgnored private let firstUnreadID: Int?
     @ObservationIgnored private weak var scrollView: UIScrollView?
     @ObservationIgnored private var insetObservation: NSKeyValueObservation?
+    @ObservationIgnored private var offsetObservation: NSKeyValueObservation?
 
     init(opensAt firstUnread: Int?) {
         follow = ConversationFollow(opensAt: firstUnread)
@@ -54,6 +55,15 @@ final class ConversationListManager {
         insetObservation = scrollView.observe(\.contentInset, options: [.old, .new]) { [weak self] _, change in
             guard change.oldValue != change.newValue else { return }
             MainActor.assumeIsolated { self?.contentChanged() }
+        }
+        // The list folds the safe area's sides into its content insets while laying its
+        // rows out at its full width, which leaves a conversation free to slide sideways
+        // by the width of a bar down the side of the screen. It only scrolls up and down.
+        scrollView.showsHorizontalScrollIndicator = false
+        offsetObservation = scrollView.observe(\.contentOffset, options: [.new]) { scrollView, _ in
+            MainActor.assumeIsolated {
+                if scrollView.contentOffset.x != 0 { scrollView.contentOffset.x = 0 }
+            }
         }
         // Found mid-layout; deciding there would change the rows UIKit is laying out.
         Task { self.contentChanged() }
