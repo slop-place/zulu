@@ -195,22 +195,6 @@ struct MacConversationView: View {
     }
 }
 
-/// The top of history, so scrolling back ends at a statement rather than a blank.
-private struct MacConversationStart: View {
-    let title: String
-
-    var body: some View {
-        VStack(spacing: 4) {
-            Image(systemName: "sparkles").foregroundStyle(TextTone.tertiary)
-            Text("This is the beginning of \(title).")
-                .font(.callout)
-                .foregroundStyle(TextTone.secondary)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 24)
-    }
-}
-
 private struct MacDropHint: View {
     var body: some View {
         RoundedRectangle(cornerRadius: 12)
@@ -288,81 +272,24 @@ private struct MacConversationHistory: View {
     let title: String
 
     @Environment(AppModel.self) private var model
-    @State private var scroll: ConversationScrollManager
-
-    init(source: ConversationSource, loader: MessageHistoryLoader, readTracker: ReadTracker?, title: String) {
-        self.source = source
-        self.loader = loader
-        self.readTracker = readTracker
-        self.title = title
-        _scroll = State(initialValue: ConversationScrollManager(opensAt: loader.firstUnreadID))
-    }
+    @Environment(MacUIState.self) private var ui
+    @Environment(AttachmentPreviewer.self) private var previewer
+    @Environment(\.openURL) private var openURL
+    @Environment(\.macQuickReactions) private var quickReactions
+    @State private var scroll = MacConversationScroll()
 
     var body: some View {
-        @Bindable var scroll = scroll
-        // The binding alone never reads the position while the list renders, so the
-        // manager's scrolls, like the one after sending, would not reach the scroll view.
-        let _ = scroll.position
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: 0) {
-                if loader.isLoadingOlder {
-                    ProgressView().controlSize(.small).frame(maxWidth: .infinity).frame(height: 36)
-                } else if !loader.hasMoreOlder, !loader.messages.isEmpty {
-                    MacConversationStart(title: title)
-                }
-                ForEach(loader.grouped) { entry in
-                    VStack(alignment: .leading, spacing: 0) {
-                        if entry.startsDay {
-                            DayDivider(date: entry.message.date).padding(.top, 12)
-                        }
-                        if entry.message.id == loader.firstUnreadID {
-                            UnreadDivider().padding(.top, 10)
-                        }
-                        MessageRow(
-                            message: entry.message,
-                            startsGroup: entry.startsGroup,
-                            reactions: loader.reactions[entry.message.id] ?? []
-                        )
-                        .padding(.top, entry.startsGroup ? 12 : 1)
-                        .padding(.bottom, 1)
-                        .macMessageActions(entry.message, in: source)
-                    }
-                    .onAppear { readTracker?.sawMessage(id: entry.message.id) }
-                    .id(entry.message.id)
-                }
-
-                ForEach(model.pendingEntries(in: source, after: loader.messages)) { pending in
-                    PendingMessageRow(message: pending.entry, startsGroup: pending.startsGroup)
-                        .padding(.top, pending.startsGroup ? 12 : 1)
-                        .padding(.bottom, 1)
-                }
-            }
-            .scrollTargetLayout()
-            .padding(.horizontal, 12)
-            .padding(.vertical, 12)
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        // Anchoring by item identity is what keeps the view still while older messages are
-        // prepended. Everything about following the newest message lives in the manager.
-        .scrollPosition($scroll.position, anchor: .bottom)
-        .defaultScrollAnchor(.bottom, for: .initialOffset)
-        .defaultScrollAnchor(.bottom, for: .alignment)
-        .defaultScrollAnchor(scroll.followsNewest ? .bottom : nil, for: .sizeChanges)
-        .onScrollPhaseChange { _, phase in
-            scroll.scrollPhaseChanged(to: phase)
-            loader.noteScrollPhase(phase)
-        }
-        .onScrollTargetVisibilityChange(idType: Int.self, threshold: 0.1) { visible in
-            loader.noteVisible(visible)
-        }
-        .onScrollGeometryChange(for: ConversationLayout.self) { geometry in
-            ConversationLayout(geometry)
-        } action: { _, layout in
-            scroll.layoutChanged(to: layout)
-        }
-        .onScrollGeometryChange(for: Bool.self) { geometry in
-            ConversationLayout(geometry).isNearBottom
-        } action: { _, isNearBottom in
+        MacConversationTable(
+            rows: rows,
+            context: MacConversationCellContext(
+                model: model, ui: ui, previewer: previewer, openURL: openURL,
+                quickReactions: quickReactions, source: source
+            ),
+            scroll: scroll,
+            loader: loader,
+            readTracker: readTracker
+        )
+        .onChange(of: scroll.isNearBottom, initial: true) { _, isNearBottom in
             if isNearBottom {
                 model.liveEdgeReached(in: source)
                 Task { await model.markConversationRead(source) }
@@ -393,10 +320,31 @@ private struct MacConversationHistory: View {
             }
             .animation(.snappy(duration: 0.2), value: scroll.showsJumpToNewest)
         }
-        // Sending always shows what was sent, even from partway up the history.
         .onChange(of: model.outbox.count(in: source)) { old, new in
             guard new > old else { return }
             scroll.didSend()
         }
+    }
+
+    private var rows: [MacConversationRow] {
+        var rows: [MacConversationRow] = [.top(top)]
+        rows.reserveCapacity(loader.grouped.count + 2)
+        for entry in loader.grouped {
+            rows.append(.message(
+                entry,
+                reactions: loader.reactions[entry.id] ?? [],
+                isFirstUnread: entry.message.id == loader.firstUnreadID
+            ))
+        }
+        for pending in model.pendingEntries(in: source, after: loader.messages) {
+            rows.append(.pending(pending))
+        }
+        return rows
+    }
+
+    private var top: MacConversationTop {
+        if loader.isLoadingOlder { return .loading }
+        if !loader.hasMoreOlder, !loader.messages.isEmpty { return .start(title: title) }
+        return .margin
     }
 }
