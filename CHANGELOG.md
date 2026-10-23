@@ -1,5 +1,28 @@
 # Changelog
 
+## [1.13.0](https://github.com/slop-place/zulu/compare/zulu-v1.12.0...zulu-v1.13.0) (2026-10-23)
+
+
+### Features
+
+* add an iOS Settings screen behind a gear on the rail ([ea53977](https://github.com/slop-place/zulu/commit/ea53977319c93b4fd0d9497a33f6d3d9df03a211))
+* add Recent to the iOS rail ([ea53977](https://github.com/slop-place/zulu/commit/ea53977319c93b4fd0d9497a33f6d3d9df03a211))
+* fit the iOS app to the iPhone Duo ([ea53977](https://github.com/slop-place/zulu/commit/ea53977319c93b4fd0d9497a33f6d3d9df03a211))
+* open a conversation in a window of its own on the iPhone Duo and iPad ([ea53977](https://github.com/slop-place/zulu/commit/ea53977319c93b4fd0d9497a33f6d3d9df03a211))
+
+
+### Bug Fixes
+
+* keep message text clear of bars down the side of the screen ([ea53977](https://github.com/slop-place/zulu/commit/ea53977319c93b4fd0d9497a33f6d3d9df03a211))
+* line the iOS channel list header up with the conversation's bar ([f8fda52](https://github.com/slop-place/zulu/commit/f8fda52d2b8eeb380fec1ec96f8f1d7fbb45a289))
+* mark unread conversations in Recent with a dot, a count and the time in colour ([f8fda52](https://github.com/slop-place/zulu/commit/f8fda52d2b8eeb380fec1ec96f8f1d7fbb45a289))
+* stop conversations sliding sideways beside a bar down the side of the screen ([f8fda52](https://github.com/slop-place/zulu/commit/f8fda52d2b8eeb380fec1ec96f8f1d7fbb45a289))
+
+
+### Performance Improvements
+
+* draw the Mac conversation in an NSTableView ([dd046d5](https://github.com/slop-place/zulu/commit/dd046d531460e91a599176c003af9a6c6c909ba0))
+
 ## [1.12.0](https://github.com/slop-place/zulu/compare/zulu-v1.11.0...zulu-v1.12.0) (2026-10-19)
 
 
