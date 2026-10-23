@@ -17,7 +17,7 @@ struct MacShellView: View {
     @State private var promoted: [PromotedTopicSummary] = []
     /// Resolved when the store delivers, not on every redraw: each row's preview is a
     /// parse of rendered HTML, and the sidebar redraws far more often than Recent changes.
-    @State private var recentEntries: [MacRecentEntry] = []
+    @State private var recentEntries: [RecentEntry] = []
     /// Hidden channels with a mention waiting, surfaced so the rail's count can be answered.
     @State private var mentionedHidden: [ChannelSummary] = []
     @State private var promotedTask: Task<Void, Never>?
@@ -263,7 +263,7 @@ struct MacShellView: View {
                     .equatable()
                     .tag(entry.destination)
                     .contextMenu {
-                        Button("Mark as Read") { Task { await markRead(entry) } }
+                        Button("Mark as Read") { Task { await model.markRead(entry) } }
                             .disabled(entry.unreadCount == 0)
                         if case .topic(let channelID, let name, _) = entry.destination {
                             NotificationLevelMenu.topic(name, inChannel: channelID, model: model)
@@ -495,45 +495,13 @@ struct MacShellView: View {
         )
     }
 
-    /// A chat channel is one conversation however many topics the server files it
-    /// under, so its topics fold into one row that opens the channel itself.
-    private func resolveRecent(_ rows: [RecentConversation]) -> [MacRecentEntry] {
-        var entries: [MacRecentEntry] = []
-        var chatChannelRows: [Int: Int] = [:]
-        for row in rows {
-            if row.isDirect || row.isForum == true {
-                entries.append(MacRecentEntry(row: row, model: model))
-            } else if let channelID = row.channelID {
-                if let index = chatChannelRows[channelID] {
-                    entries[index].unreadCount += row.unreadCount
-                    entries[index].mentionCount += row.mentionCount
-                } else {
-                    chatChannelRows[channelID] = entries.count
-                    entries.append(MacRecentEntry(row: row, model: model))
-                }
-            }
-        }
-        return entries
-    }
-
-    private func markRead(_ entry: MacRecentEntry) async {
-        switch entry.destination {
-        case .dm(let key):
-            await model.markConversationRead(.dm(key: key))
-        case .topic(let channelID, let name, let channelName):
-            await model.markConversationRead(.topic(channelID: channelID, name: name, channelName: channelName))
-        case .channel(let id):
-            await model.markChannelRead(id)
-        }
-    }
-
     private func observe() async {
         guard let writer = model.databaseWriter else { return }
         if ui.section == .recent {
             guard let observation = model.recentConversationObservation() else { return }
             do {
                 for try await rows in observation.removeDuplicates().values(in: writer) {
-                    recentEntries = resolveRecent(rows)
+                    recentEntries = RecentEntry.resolve(rows, model: model)
                 }
             } catch {}
             return

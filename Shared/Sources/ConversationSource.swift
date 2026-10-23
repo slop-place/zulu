@@ -4,10 +4,24 @@ import ZuluStore
 /// One conversation: a channel topic, or a DM.
 ///
 /// Shared rather than owned by a view, because both shells navigate by it and the
-/// model layer under them keys drafts, history and read state on it.
-enum ConversationSource: Equatable, Hashable {
+/// model layer under them keys drafts, history and read state on it. Codable so a window
+/// can be opened on one and restored with it.
+enum ConversationSource: Equatable, Hashable, Codable {
     case topic(channelID: Int, name: String, channelName: String)
     case dm(key: String)
+}
+
+extension AppModel.Destination {
+    /// The conversation a destination is, where it is one. A channel picks its
+    /// conversation, or shows its topics, only once it is open.
+    var conversation: ConversationSource? {
+        switch self {
+        case .dm(let key): .dm(key: key)
+        case .topic(let channelID, let name, let channelName):
+            .topic(channelID: channelID, name: name, channelName: channelName)
+        case .channel: nil
+        }
+    }
 }
 
 

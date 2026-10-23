@@ -27,6 +27,17 @@ struct ZuluApp: App {
                     }
                 }
         }
+
+        WindowGroup("Conversation", id: ConversationWindow.id, for: ConversationSource.self) { $source in
+            ConversationWindow(source: source)
+                .environment(model)
+                .environment(push.settings)
+                // Restored on its own at launch, this window may be the first to ask.
+                .task {
+                    push.attach(model: model)
+                    await model.bootstrap()
+                }
+        }
     }
 }
 

@@ -11,6 +11,7 @@ struct ConversationView: View {
     let source: Source
     @Environment(AppModel.self) private var model
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.isStandaloneConversation) private var isStandalone
 
     @State private var loader: MessageHistoryLoader?
     @State private var readTracker: ReadTracker?
@@ -51,7 +52,7 @@ struct ConversationView: View {
                     }
                 }
             }
-            if let forum = forumChannel {
+            if let forum = forumChannel, !isStandalone {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("All topics", systemImage: "list.bullet") {
                         model.destination = .channel(forum.id)

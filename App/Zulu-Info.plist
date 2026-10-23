@@ -37,6 +37,11 @@
 	<false/>
 	<key>NSCameraUsageDescription</key>
 	<string>Zulu uses the camera to take photos you attach to messages.</string>
+	<key>UIApplicationSceneManifest</key>
+	<dict>
+		<key>UIApplicationSupportsMultipleScenes</key>
+		<true/>
+	</dict>
 	<key>UILaunchScreen</key>
 	<dict/>
 	<key>UISupportedInterfaceOrientations</key>

@@ -34,8 +34,13 @@ struct ConversationList: View {
     @Environment(AppModel.self) private var model
     @Environment(AttachmentPreviewer.self) private var previewer
     @Environment(\.openURL) private var openURL
+    @Environment(\.pageSideInsets) private var pageSideInsets
     @State private var manager: ConversationListManager
     @State private var presenter = MessagePresenter()
+    /// How far bars beside the conversation reach over it. Shared with the rows through
+    /// an observable rather than handed to them: the list builds each row's content once
+    /// and never asks again.
+    @State private var sideInsets = SideInsets()
 
     private static let listPadding: CGFloat = 12
     private static let loaderHeight: CGFloat = 44
@@ -58,7 +63,13 @@ struct ConversationList: View {
                 list(bars: nil)
             }
         }
-        .presentsMessageSheets(presenter)
+        // The list runs edge to edge under every bar and hosts its rows without a safe
+        // area, so a bar down the side of the screen, where a foldable puts its toolbar,
+        // sat on top of the text. The rows step in by the bar's width instead.
+        .onChange(of: pageSideInsets, initial: true) { _, insets in
+            sideInsets.leading = insets.leading
+            sideInsets.trailing = insets.trailing
+        }
         .overlay(alignment: .bottomTrailing) {
             Group {
                 if manager.showsJumpToNewest {
@@ -80,6 +91,7 @@ struct ConversationList: View {
             // changed in the same update, like a message landing.
             .animation(.snappy(duration: 0.2), value: manager.showsJumpToNewest)
         }
+        .presentsMessageSheets(presenter)
         // Scrolling back down after reading history, and catching up on messages that
         // arrived while the conversation was open, both land here.
         .onChange(of: manager.isAtNewest) { _, isAtNewest in
@@ -107,7 +119,8 @@ struct ConversationList: View {
             presenter: presenter,
             manager: manager,
             source: source,
-            readTracker: readTracker
+            readTracker: readTracker,
+            sideInsets: sideInsets
         )
         // The loader and the header are attached for good and only change what they show.
         // Attaching or detaching one is a batch update of the collection view, and the
@@ -125,7 +138,9 @@ struct ConversationList: View {
         ) {
             ProgressView().frame(maxWidth: .infinity).frame(height: Self.loaderHeight)
         })
-        .headerContent(HeaderContent.header { ConversationStart(title: title, isShown: showsStart) })
+        .headerContent(HeaderContent.header {
+            ConversationStart(title: title, isShown: showsStart, sideInsets: sideInsets)
+        })
         .revealConfiguration(.disabled)
         .additionalContentInset(EdgeInsets(top: Self.listPadding, leading: 0, bottom: Self.listPadding, trailing: 0))
         .onTiledScrollGeometryChange { geometry in
@@ -159,6 +174,28 @@ private struct ConversationCellHost {
     let manager: ConversationListManager
     let source: ConversationSource
     let readTracker: ReadTracker?
+    let sideInsets: SideInsets
+}
+
+/// The part of the list's width that bars cover, on each side.
+@MainActor
+@Observable
+final class SideInsets {
+    var leading: CGFloat = 0
+    var trailing: CGFloat = 0
+}
+
+extension EnvironmentValues {
+    /// How far bars reach over the sides of the page a conversation is on: the status
+    /// bar and toolbar column of a foldable, or a phone's sensor housing in landscape.
+    /// Measured by whatever holds the page still, because the page's own safe area
+    /// changes on every frame of the drawer sliding it aside.
+    @Entry var pageSideInsets = HorizontalInsets()
+}
+
+struct HorizontalInsets: Equatable {
+    var leading: CGFloat = 0
+    var trailing: CGFloat = 0
 }
 
 @MainActor
@@ -173,7 +210,8 @@ private struct ConversationCell: @MainActor TiledCellContent {
 
     func body(context: CellContext<Void>) -> some View {
         row
-            .padding(.horizontal, Self.horizontalPadding)
+            .padding(.leading, Self.horizontalPadding + host.sideInsets.leading)
+            .padding(.trailing, Self.horizontalPadding + host.sideInsets.trailing)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(ConversationScrollProbe { [manager = host.manager] in manager.attach($0) }.frame(width: 0, height: 0))
             .environment(host.model)
@@ -218,6 +256,7 @@ private struct ConversationCell: @MainActor TiledCellContent {
 private struct ConversationStart: View {
     let title: String
     let isShown: Bool
+    let sideInsets: SideInsets
 
     private static let verticalPadding: CGFloat = 24
 
@@ -230,6 +269,8 @@ private struct ConversationStart: View {
                     .foregroundStyle(TextTone.secondary)
             }
             .frame(maxWidth: .infinity)
+            .padding(.leading, sideInsets.leading)
+            .padding(.trailing, sideInsets.trailing)
             .padding(.vertical, Self.verticalPadding)
         } else {
             Color.clear.frame(maxWidth: .infinity).frame(height: 0)

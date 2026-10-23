@@ -5,11 +5,19 @@ import ZuluSync
 
 /// The drawer shell, wired to the store. Structure follows the nav-shell prototype:
 /// a rail, a channel list, and a message page that slides off them.
+///
+/// Where there is room for both, the open inner display of a foldable or an iPad, the
+/// drawer docks beside the page instead. It is the same drawer and the same page either
+/// way, so folding or unfolding keeps the conversation, its scroll position and its draft.
 struct ShellView: View {
     @Environment(AppModel.self) private var model
     @Environment(NotificationServiceSettings.self) private var notifications
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
 
     private enum Section: Equatable, Hashable {
+        /// Every conversation that moved lately, newest first, whichever section it is in.
+        case recent
         case dms
         case group(String)
         /// Channels no group has claimed, so filing is optional rather than required.
@@ -19,6 +27,10 @@ struct ShellView: View {
     @State private var section: Section = .unfiled
     @State private var visibleChannels: [ChannelSummary] = []
     @State private var visiblePromoted: [PromotedTopicSummary] = []
+    /// Resolved once per change rather than per render: each row's preview is a parse of
+    /// rendered HTML.
+    @State private var recentEntries: [RecentEntry] = []
+    @State private var confirmingMarkAllRead = false
     /// Hidden channels with a mention waiting, surfaced so the rail's count can be answered.
     @State private var mentionedHidden: [ChannelSummary] = []
     @State private var renamingChannel: ChannelSummary?
@@ -27,6 +39,7 @@ struct ShellView: View {
     @State private var mentionedHiddenTask: Task<Void, Never>?
     @State private var showingHidden = false
     @State private var showingNotifications = false
+    @State private var showingSettings = false
     @State private var mutedTopicsChannel: ChannelSummary?
     @State private var showingReorder = false
     @State private var reorderingGroups = false
@@ -39,12 +52,80 @@ struct ShellView: View {
     @State private var drag: CGFloat = 0
     @State private var drawerVisible = true
     @State private var path: [ConversationView.Source] = []
+    @State private var space = ShellSpace()
+    /// Docked, the sidebar can still be put away to read a conversation full width.
+    @State private var sidebarCollapsed = false
+    /// Set from inside the page, where the toolbar environment is.
+    @State private var barsRunDownTheSide = false
 
     private let railW: CGFloat = 80
     private let listW: CGFloat = 236
     private var drawerW: CGFloat { railW + listW }
 
-    private var offset: CGFloat { min(max((open ? drawerW : 0) + drag, 0), drawerW) }
+    /// How far the page has slid off the drawer. Always zero while docked, where the page
+    /// sits beside the drawer rather than on top of it.
+    private var offset: CGFloat {
+        guard !docked else { return 0 }
+        return min(max((open ? slideDistance : 0) + drag, 0), slideDistance)
+    }
+
+    /// Filling the screen, the drawer pushes the page all the way off it, past the bars
+    /// down its side as well, or a strip of the page would show through under them.
+    private var slideDistance: CGFloat {
+        drawerFillsScreen ? sidebarWidth + space.trailing : sidebarWidth
+    }
+
+    /// The page casts a shadow on the drawer while it is aside. Pushed right off a screen
+    /// the drawer fills, it fades out on the way, or it would linger along the edge.
+    private var pageShadowOpacity: Double {
+        guard offset > 0 else { return 0 }
+        guard drawerFillsScreen, slideDistance > 0 else { return 0.28 }
+        return 0.28 * max(0, 1 - offset / slideDistance)
+    }
+
+    /// Where the page's bars run down the side of the screen, as on a foldable's closed
+    /// outer display, a strip of conversation left beside the drawer would sit under them.
+    /// The drawer takes the whole screen there instead: the channel list or the
+    /// conversation, one at a time.
+    private var drawerFillsScreen: Bool { !docked && barsRunDownTheSide }
+
+    /// Narrower than this, a conversation beside the sidebar wraps like a phone held
+    /// sideways, and the drawer serves better.
+    private static let minimumDockedPageWidth: CGFloat = 420
+
+    /// Both size classes regular, so a phone in landscape keeps its drawer: only its width
+    /// is regular there, and its height has no room to spare for a second column's chrome.
+    private var docked: Bool {
+        horizontalSizeClass == .regular && verticalSizeClass == .regular
+            && space.width >= drawerW + Self.minimumDockedPageWidth
+    }
+
+    private var sidebarShown: Bool { docked && !sidebarCollapsed }
+
+    /// Whether the drawer is on screen to be used, docked or slid out.
+    private var drawerShown: Bool { docked ? !sidebarCollapsed : drawerVisible }
+
+    /// The fold, when the device is folded like a book and the fold leaves a sensible
+    /// sidebar on one side and a sensible page on the other.
+    private var bookFold: ClosedRange<CGFloat>? {
+        guard docked, let fold = space.fold,
+              fold.lowerBound >= drawerW,
+              space.width - fold.upperBound >= Self.minimumDockedPageWidth * 0.8
+        else { return nil }
+        return fold
+    }
+
+    /// Folded like a book, the sidebar takes the left page and the conversation the right,
+    /// so the fold divides them instead of running through the middle of the messages.
+    private var sidebarWidth: CGFloat {
+        if drawerFillsScreen, space.width > drawerW { return space.width }
+        return bookFold?.lowerBound ?? drawerW
+    }
+
+    private var pageLeading: CGFloat {
+        guard sidebarShown else { return 0 }
+        return bookFold?.upperBound ?? sidebarWidth
+    }
 
     private static let slide = Animation.snappy(duration: 0.24, extraBounce: 0)
 
@@ -70,54 +151,87 @@ struct ShellView: View {
     }
 
     var body: some View {
+        // Measured on a view that only ever takes the space offered, with the shell laid
+        // over it. The shell grows to fit its widest child, the drawer, which is sized from
+        // this measurement: measured on the shell, a drawer as wide as the unfolded screen
+        // held the shell at that width once the phone was folded again.
+        Color.clear
+            .onGeometryChange(for: ShellSpace.self) { ShellSpace($0) } action: { space = $0 }
+            .overlay(alignment: .leading) { shell }
+            // Simultaneous, not exclusive: a plain `.gesture` loses the opening swipe to the
+            // conversation's own scroll view, which claims the touch first. On the whole
+            // shell rather than the page, so a drawer filling the screen, with no page left
+            // beside it to swipe, still closes with a swipe across itself.
+            .simultaneousGesture(drawerDrag, including: docked ? .subviews : .all)
+            .onChange(of: docked) { _, docked in
+                guard !docked else { return }
+                // Folding the phone shut: back to whatever was being read, or to the list
+                // when nothing was. The drawer's last state was from before it docked.
+                var transaction = Transaction()
+                transaction.disablesAnimations = true
+                withTransaction(transaction) {
+                    drag = 0
+                    open = model.destination == nil
+                    drawerVisible = open
+                }
+            }
+            // Observed from here rather than from the list: a list observing only while
+            // open showed its last state for a moment every time the drawer came back.
+            .task(id: section) { await observeChannels() }
+    }
+
+    private var shell: some View {
         ZStack(alignment: .leading) {
             Color(.systemBackground).ignoresSafeArea()
             // Kept mounted so the swipe that reveals it doesn't stall on rebuilding the list.
             drawer
-                .opacity(drawerVisible ? 1 : 0)
-                .allowsHitTesting(drawerVisible)
-                .accessibilityHidden(!drawerVisible)
+                .opacity(docked || drawerVisible ? 1 : 0)
+                .allowsHitTesting(drawerShown)
+                .accessibilityHidden(!drawerShown)
+                .offset(x: docked && sidebarCollapsed ? -(sidebarWidth + 1) : 0)
+            // One page in every layout, only moved and resized, so changing layout never
+            // rebuilds the conversation on it.
             content
+                .environment(\.pageSideInsets, HorizontalInsets(
+                    leading: pageLeading > 0 ? 0 : space.leading,
+                    trailing: space.trailing
+                ))
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background {
                     RoundedRectangle(cornerRadius: offset > 0 ? 28 : 0)
                         .fill(Color(.systemBackground))
-                        .shadow(color: .black.opacity(offset > 0 ? 0.28 : 0), radius: 20, x: -8)
+                        .shadow(color: .black.opacity(pageShadowOpacity), radius: 20, x: -8)
                         .ignoresSafeArea()
                 }
                 .offset(x: offset)
                 .overlay {
-                    if offset > drawerW * 0.4 {
+                    if offset > sidebarWidth * 0.4 {
                         Color.black.opacity(0.001)
                             .onTapGesture { setOpen(false) }
                             .offset(x: offset)
                     }
                 }
-                // Simultaneous, not exclusive: a plain `.gesture` loses the opening
-                // swipe to the conversation's own scroll view, which claims the touch
-                // first. Closing worked only because the dimming overlay sat on top.
-                .simultaneousGesture(
-                    DragGesture(minimumDistance: 12)
-                        .onChanged { value in
-                            guard abs(value.translation.width) > abs(value.translation.height) else { return }
-                            // Left-to-right belongs to the drawer; right-to-left is left
-                            // alone so row swipe actions keep it.
-                            guard open || value.translation.width > 0 else { return }
-                            if value.translation.width > 0, !drawerVisible {
-                                drawerVisible = true
-                                dismissKeyboard()
-                            }
-                            drag = value.translation.width
-                        }
-                        .onEnded { value in
-                            let projected = offset + value.predictedEndTranslation.width * 0.4
-                            setOpen(projected > drawerW / 2)
-                        }
-                )
+                .padding(.leading, pageLeading)
         }
-        // Observed from here rather than from the list: a list observing only while
-        // open showed its last state for a moment every time the drawer came back.
-        .task(id: section) { await observeChannels() }
+    }
+
+    private var drawerDrag: some Gesture {
+        DragGesture(minimumDistance: 12)
+            .onChanged { value in
+                guard abs(value.translation.width) > abs(value.translation.height) else { return }
+                // Left-to-right belongs to the drawer; right-to-left is left
+                // alone so row swipe actions keep it.
+                guard open || value.translation.width > 0 else { return }
+                if value.translation.width > 0, !drawerVisible {
+                    drawerVisible = true
+                    dismissKeyboard()
+                }
+                drag = value.translation.width
+            }
+            .onEnded { value in
+                let projected = offset + value.predictedEndTranslation.width * 0.4
+                setOpen(projected > slideDistance / 2)
+            }
     }
 
     // MARK: drawer
@@ -129,14 +243,40 @@ struct ShellView: View {
                 .fill(DrawerPalette.edge)
                 .frame(width: 1)
                 .ignoresSafeArea(edges: .vertical)
-            list.frame(width: listW)
+            list.frame(width: sidebarWidth - railW - 1)
         }
-        .frame(width: drawerW)
+        .frame(width: sidebarWidth)
+        // Docked, the page needs the same hard edge the rail has. Against a fold it has
+        // one already.
+        .overlay(alignment: .trailing) {
+            if docked, bookFold == nil {
+                Rectangle()
+                    .fill(DrawerPalette.edge)
+                    .frame(width: 1)
+                    .ignoresSafeArea(edges: .vertical)
+            }
+        }
     }
 
     private var rail: some View {
         ScrollView {
             VStack(spacing: 12) {
+                railButton(
+                    active: section == .recent,
+                    unread: model.dms.contains { $0.unreadCount > 0 }
+                        || model.groups.contains { $0.unreadCount > 0 }
+                        || model.unfiledHasUnread,
+                    // Counted on the rows that own them, not again here.
+                    mentions: 0
+                ) { section = .recent } label: {
+                    RailIcon(systemImage: "clock.fill", active: section == .recent)
+                }
+                .contextMenu {
+                    Button("Mark all as read…", systemImage: "checkmark.circle") {
+                        confirmingMarkAllRead = true
+                    }
+                }
+
                 railButton(
                     active: section == .dms,
                     unread: model.dms.contains { $0.unreadCount > 0 },
@@ -194,12 +334,31 @@ struct ShellView: View {
             }
             .padding(.vertical, 12)
         }
+        // Pinned under the groups, however many there are, where every chat app keeps it.
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            Button {
+                showingSettings = true
+            } label: {
+                Image(systemName: "gearshape.fill")
+                    .font(.title3)
+                    .foregroundStyle(TextTone.secondary)
+                    .frame(width: 46, height: 46)
+                    .contentShape(.rect)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Settings")
+            .padding(.vertical, 8)
+            .frame(maxWidth: .infinity)
+            .background(DrawerPalette.rail.ignoresSafeArea(edges: .bottom))
+        }
         // Liquid Glass morphs beyond a controls bounds, and a ScrollView clips by
         // default, which shears the animation off mid-flight.
         .scrollClipDisabled()
         .scrollEdgeEffectStyle(.soft, for: .all)
         .frame(width: railW)
-        .background(DrawerPalette.rail.ignoresSafeArea(edges: .vertical))
+        // Under whatever sits beside it too: a toolbar moved to the left edge in split
+        // screen, or a phone's sensor housing in landscape.
+        .background(DrawerPalette.rail.ignoresSafeArea(edges: [.vertical, .leading]))
     }
 
     /// Unread is a pill on the rail's edge; a count only appears when something actually
@@ -244,6 +403,7 @@ struct ShellView: View {
 
     private var listTitle: String {
         switch section {
+        case .recent: "Recent"
         case .dms: "Direct Messages"
         case .unfiled: "Channels"
         case .group(let id): model.groups.first { $0.id == id }?.name ?? "Channels"
@@ -257,6 +417,8 @@ struct ShellView: View {
                 Spacer(minLength: 4)
                 SyncDot(status: model.status)
                 Menu {
+                    Button("Settings", systemImage: "gearshape") { showingSettings = true }
+                    Divider()
                     Button("Reorder channels", systemImage: "arrow.up.arrow.down") {
                         showingReorder = true
                     }
@@ -277,14 +439,23 @@ struct ShellView: View {
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 12)
-            .background(DrawerPalette.listHeader)
+            .background(DrawerPalette.listHeader.ignoresSafeArea(edges: drawerFillsScreen ? .trailing : []))
 
             ScrollView {
                 // Channels are headers with their topics hanging under them, so the gap
                 // between one channel's group and the next has to be bigger than the gap
                 // inside one. At equal spacing the whole list reads as one flat run.
                 VStack(alignment: .leading, spacing: 0) {
-                    if section == .dms {
+                    if section == .recent {
+                        ForEach(recentEntries) { entry in recentRow(entry) }
+                        if recentEntries.isEmpty {
+                            Text(emptyListMessage)
+                                .font(.footnote)
+                                .foregroundStyle(TextTone.secondary)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 12)
+                        }
+                    } else if section == .dms {
                         ForEach(model.dms) { dm in dmRow(dm) }
                     } else {
                         ForEach(sidebarEntries) { entry in
@@ -318,7 +489,9 @@ struct ShellView: View {
             }
             .refreshable { await model.refreshTopics() }
         }
-        .background(DrawerPalette.list.ignoresSafeArea(edges: .vertical))
+        // Filling the screen, the list runs on under the status bar beside it rather than
+        // leaving a strip of a different colour there.
+        .background(DrawerPalette.list.ignoresSafeArea(edges: drawerFillsScreen ? [.vertical, .trailing] : .vertical))
     }
 
     private var sidebarEntries: [SidebarEntry] {
@@ -349,6 +522,7 @@ struct ShellView: View {
 
     private var emptyListMessage: String {
         switch section {
+        case .recent: model.allChannels.isEmpty ? "Syncing your channels…" : "Nothing has happened yet."
         case .group: "No channels in this group yet. Long-press its icon to edit."
         default: "Every channel is filed into a group."
         }
@@ -356,6 +530,10 @@ struct ShellView: View {
 
     private func observeChannels() async {
         guard section != .dms else { return }
+        if section == .recent {
+            await observeRecent()
+            return
+        }
         let groupID: String? = if case .group(let id) = section { id } else { nil }
         guard let writer = model.databaseWriter else { return }
         if let promoted = model.promotedTopicObservation(inGroup: groupID) {
@@ -419,6 +597,9 @@ struct ShellView: View {
         }
         .buttonStyle(.plain)
         .contextMenu {
+            if let conversation = destination.conversation {
+                OpenInNewWindowButton(source: conversation)
+            }
             if mentionedHidden.contains(where: { $0.id == channel.id }) {
                 Button("Unhide channel", systemImage: "eye") {
                     model.setHidden(false, forChannel: channel.id)
@@ -508,6 +689,9 @@ struct ShellView: View {
         }
         .buttonStyle(.plain)
         .contextMenu {
+            if let conversation = destination.conversation {
+                OpenInNewWindowButton(source: conversation)
+            }
             Button("Promote to sidebar", systemImage: "arrow.up.left") {
                 model.promote(topic: topic.name, inChannel: channel.id, toGroup: currentGroupID)
             }
@@ -554,6 +738,9 @@ struct ShellView: View {
         }
         .buttonStyle(.plain)
         .contextMenu {
+            if let conversation = destination.conversation {
+                OpenInNewWindowButton(source: conversation)
+            }
             Button("Rename for me…", systemImage: "pencil") {
                 aliasDraft = promoted.displayName
                 renamingPromoted = promoted
@@ -571,6 +758,46 @@ struct ShellView: View {
                         model.setGroup(group.id, forPromotedTopic: promoted.topic, inChannel: promoted.channelID)
                     }
                 }
+            }
+        }
+    }
+
+    private func observeRecent() async {
+        guard let writer = model.databaseWriter,
+              let observation = model.recentConversationObservation()
+        else { return }
+        do {
+            for try await rows in observation.removeDuplicates().values(in: writer) {
+                recentEntries = RecentEntry.resolve(rows, model: model)
+            }
+        } catch {
+            // Observation ends when the section changes; nothing to recover.
+        }
+    }
+
+    private func recentRow(_ entry: RecentEntry) -> some View {
+        Button {
+            model.destination = entry.destination
+            path = []
+            setOpen(false)
+        } label: {
+            // A row whose entry has not changed is not laid out again.
+            RecentRow(entry: entry, isOpen: model.destination == entry.destination)
+                .equatable()
+        }
+        .buttonStyle(.plain)
+        .contextMenu {
+            if let conversation = entry.destination.conversation {
+                OpenInNewWindowButton(source: conversation)
+            }
+            Button("Mark as read", systemImage: "checkmark.circle") {
+                Task { await model.markRead(entry) }
+            }
+            .disabled(entry.unreadCount == 0)
+            if case .topic(let channelID, let name, _) = entry.destination {
+                NotificationLevelMenu.topic(name, inChannel: channelID, model: model)
+            } else if case .channel(let id) = entry.destination {
+                NotificationLevelMenu.channel(id, model: model)
             }
         }
     }
@@ -609,6 +836,13 @@ struct ShellView: View {
             )
         }
         .buttonStyle(.plain)
+        .contextMenu {
+            OpenInNewWindowButton(source: .dm(key: dm.dmKey))
+            Button("Mark as read", systemImage: "checkmark.circle") {
+                Task { await model.markConversationRead(.dm(key: dm.dmKey)) }
+            }
+            .disabled(dm.unreadCount == 0)
+        }
     }
 
     // MARK: content
@@ -616,17 +850,25 @@ struct ShellView: View {
     private var content: some View {
         NavigationStack(path: $path) {
             destinationView
+                .background { VerticalBarProbe { barsRunDownTheSide = $0 } }
                 .navigationDestination(for: ConversationView.Source.self) { source in
                     ConversationView(source: source)
                 }
                 .toolbar {
                     ToolbarItem(placement: .topBarLeading) {
-                        Button { setOpen(!open) } label: { Image(systemName: "line.3.horizontal") }
+                        if docked {
+                            Button(sidebarCollapsed ? "Show Sidebar" : "Hide Sidebar", systemImage: "sidebar.leading") {
+                                withAnimation(Self.slide) { sidebarCollapsed.toggle() }
+                            }
+                        } else {
+                            Button("Channels", systemImage: "line.3.horizontal") { setOpen(!open) }
+                        }
                     }
                 }
         }
         .sheet(isPresented: $showingHidden) { HiddenChannelsView() }
         .sheet(isPresented: $showingNotifications) { NotificationSettingsView() }
+        .sheet(isPresented: $showingSettings) { SettingsView() }
         .sheet(item: $mutedTopicsChannel) { channel in MutedTopicsView(channel: channel) }
         .sheet(isPresented: $showingReorder) { ReorderChannelsView(entries: sidebarEntries) }
         .sheet(isPresented: $reorderingGroups) { ReorderGroupsView(groups: model.groups) }
@@ -702,6 +944,17 @@ struct ShellView: View {
         } message: {
             Text("Your channel groups, renames and hidden channels on this device are removed with it.")
         }
+        .confirmationDialog(
+            "Mark every message as read?",
+            isPresented: $confirmingMarkAllRead,
+            titleVisibility: .visible
+        ) {
+            Button("Mark All as Read", role: .destructive) {
+                Task { await model.markAllRead() }
+            }
+        } message: {
+            Text("Every channel, topic and direct message, here and on the server. This can't be undone.")
+        }
         .onChange(of: model.pendingGroupToEdit) { _, id in
             guard let id else { return }
             editingGroup = id
@@ -739,6 +992,57 @@ struct ShellView: View {
             EmptyStateView(text: model.allChannels.isEmpty
                 ? "Syncing your channels…"
                 : "Pick a channel to start reading.")
+        }
+    }
+}
+
+/// Reports whether the navigation bars around it run down the side of the screen, as
+/// they do on a foldable's outer display. Read from inside the navigation stack, the only
+/// place the toolbar environment is set.
+private struct VerticalBarProbe: View {
+    let changed: (Bool) -> Void
+
+    var body: some View {
+        if #available(iOS 27.1, *) {
+            Reader(changed: changed)
+        } else {
+            Color.clear
+        }
+    }
+
+    @available(iOS 27.1, *)
+    private struct Reader: View {
+        let changed: (Bool) -> Void
+        @Environment(\.toolbarVerticalEdge) private var edge
+
+        var body: some View {
+            Color.clear.onChange(of: edge != nil, initial: true) { _, vertical in changed(vertical) }
+        }
+    }
+}
+
+/// The room the shell has, and where a fold divides it.
+struct ShellSpace: Equatable {
+    var width: CGFloat = 0
+    /// The safe area's sides: what bars and sensor housings cover beside the shell.
+    var leading: CGFloat = 0
+    var trailing: CGFloat = 0
+    /// The band the hinge occupies while the device is folded partway like a book, in the
+    /// shell's own coordinates. Nil when it lies flat, is closed, or folds top to bottom:
+    /// only a fold running down the screen can separate a sidebar from a page.
+    var fold: ClosedRange<CGFloat>?
+
+    init() {}
+
+    init(_ proxy: GeometryProxy) {
+        width = proxy.size.width
+        leading = proxy.safeAreaInsets.leading
+        trailing = proxy.safeAreaInsets.trailing
+        if #available(iOS 27.1, *) {
+            fold = proxy.reservedRegions(kind: .division)
+                .map(\.frame)
+                .first { $0.height > $0.width }
+                .map { $0.minX...$0.maxX }
         }
     }
 }

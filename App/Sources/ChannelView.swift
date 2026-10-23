@@ -57,6 +57,9 @@ struct ChannelView: View {
                     .padding(.vertical, 2)
                 }
                 .contextMenu {
+                    OpenInNewWindowButton(source: .topic(
+                        channelID: channel.id, name: topic.name, channelName: channel.name
+                    ))
                     Button("Promote to sidebar", systemImage: "arrow.up.left") {
                         model.promote(topic: topic.name, inChannel: channel.id)
                     }
