@@ -55,19 +55,13 @@ struct ConversationView: View {
             if ScrollDebugReadout.isEnabled { ScrollDebugLabel().padding(.top, 4) }
         }
         .navigationTitle(title)
+        // The alias is what the sidebar shows; the real name lives here so a reference to
+        // it elsewhere is still recognisable. The system's own subtitle rather than a
+        // custom title view: a custom one cannot sit in the bar down a foldable's side,
+        // and it surfaced as an empty bubble under the composer every time a topic opened.
+        .navigationSubtitle(subtitle)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            if case .topic(_, _, let channelName) = source {
-                ToolbarItem(placement: .principal) {
-                    VStack(spacing: 0) {
-                        Text(title).font(.headline).lineLimit(1)
-                        // The alias is what the sidebar shows; the real name lives here
-                        // so a reference to it elsewhere is still recognisable.
-                        Text(model.headerSubtitle(forChannel: channelName))
-                            .font(.caption2).foregroundStyle(TextTone.secondary)
-                    }
-                }
-            }
             // While the list is still showing, closed, the toolbar is the list's: these
             // belong to the conversation, and "All topics" would replace it.
             if let forum = forumChannel, !isCoveredByList {
@@ -77,10 +71,10 @@ struct ConversationView: View {
                             model.destination = .channel(forum.id)
                         }
                     }
+                    .sideBarItem()
                 }
-                ToolbarItem(placement: .topBarTrailing) {
-                    NewTopicButton(channel: forum)
-                }
+                ToolbarItem(placement: .topBarTrailing) { NewTopicButton(channel: forum) }
+                    .sideBarItem()
             }
         }
         .task(id: source) {
@@ -126,10 +120,32 @@ struct ConversationView: View {
         }
     }
 
+    private var subtitle: String {
+        if case .topic(_, _, let channelName) = source {
+            return model.headerSubtitle(forChannel: channelName)
+        }
+        return ""
+    }
+
     private var placeholder: String {
         switch source {
         case .topic(_, let name, _): "Message \(name.isEmpty ? "general chat" : name)"
         case .dm(let key): "Message \(model.title(forDM: key))"
+        }
+    }
+}
+
+private extension ToolbarContent {
+    /// Goes down the side with the back button wherever bars run vertically, as on a
+    /// foldable's displays. Left to decide while a conversation was being pushed, the
+    /// system laid these out as a bar along the bottom first, an empty bubble under the
+    /// composer that pushed it up for half a second.
+    @ToolbarContentBuilder
+    func sideBarItem() -> some ToolbarContent {
+        if #available(iOS 27.1, *) {
+            axisBehavior(.verticalPreferred)
+        } else {
+            self
         }
     }
 }

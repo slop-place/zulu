@@ -193,10 +193,13 @@ struct NativeShellView: View {
             // sidebar, with a hairline where one ends and the other begins.
             .background(Platform.canvas.ignoresSafeArea())
             .overlay(alignment: .trailing) {
-                Rectangle()
-                    .fill(DrawerPalette.edge)
-                    .frame(width: 1 / displayScale)
-                    .ignoresSafeArea()
+                // Closed, the list has the screen to itself and there is nothing to divide.
+                if horizontalSizeClass == .regular {
+                    Rectangle()
+                        .fill(DrawerPalette.edge)
+                        .frame(width: 1 / displayScale)
+                        .ignoresSafeArea()
+                }
             }
         } detail: {
             // One stack for the section's whole life, with only the conversation in it
