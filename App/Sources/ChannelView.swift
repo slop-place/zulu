@@ -70,6 +70,9 @@ struct ChannelView: View {
         .listStyle(.insetGrouped)
         .navigationTitle("#\(channel.name)")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) { NewTopicButton(channel: channel) }
+        }
         .refreshable { await model.refreshTopics() }
     }
 

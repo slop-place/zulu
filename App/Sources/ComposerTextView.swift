@@ -13,6 +13,8 @@ struct ComposerTextView: UIViewRepresentable {
     var focusToken: Int
     /// Called for what the person typed, never for text the parent set.
     var onEdit: (String) -> Void = { _ in }
+    /// Whether the field has the keyboard.
+    var onFocusChange: (Bool) -> Void = { _ in }
     var onImage: (Data, UTType) -> Void
 
     static let maxLines = 5
@@ -59,6 +61,14 @@ struct ComposerTextView: UIViewRepresentable {
         init(parent: ComposerTextView) {
             self.parent = parent
             focusToken = parent.focusToken
+        }
+
+        func textViewDidBeginEditing(_ textView: UITextView) {
+            parent.onFocusChange(true)
+        }
+
+        func textViewDidEndEditing(_ textView: UITextView) {
+            parent.onFocusChange(false)
         }
 
         func textViewDidChange(_ textView: UITextView) {

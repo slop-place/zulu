@@ -27,6 +27,7 @@ struct ComposerBar: View {
     @State private var focusToken = 0
     @State private var typingSender: TypingSender?
     @State private var editMode: ComposerEditMode?
+    @State private var hasKeyboard = false
 
     /// Every icon control in the bar is the same circle, so the row reads as one piece.
     private static let controlSize: CGFloat = 26
@@ -59,6 +60,24 @@ struct ComposerBar: View {
             }
 
             HStack(alignment: .bottom, spacing: 8) {
+                // Swiping the conversation away is not obvious, and there is no key for
+                // it on a phone's keyboard.
+                if hasKeyboard {
+                    Button {
+                        UIApplication.shared.sendAction(
+                            #selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil
+                        )
+                    } label: {
+                        Image(systemName: "keyboard.chevron.compact.down")
+                            .font(.body.weight(.semibold))
+                            .frame(width: Self.controlSize, height: Self.controlSize)
+                    }
+                    .buttonStyle(.glass)
+                    .buttonBorderShape(.circle)
+                    .accessibilityLabel("Hide keyboard")
+                    .transition(.scale.combined(with: .opacity))
+                }
+
                 Menu {
                     Button("Photo Library", systemImage: "photo.on.rectangle") { attachment = .photos }
                     Button("Choose Files", systemImage: "folder") { attachment = .files }
@@ -212,6 +231,9 @@ struct ComposerBar: View {
                 placeholder: placeholder,
                 focusToken: focusToken,
                 onEdit: { typingSender?.draftChanged(to: $0) },
+                onFocusChange: { focused in
+                    withAnimation(.snappy(duration: 0.2)) { hasKeyboard = focused }
+                },
                 onImage: { data, type in
                     Task { await upload(data: data, filename: Self.pastedName(type), contentType: type.preferredMIME) }
                 }

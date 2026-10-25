@@ -53,6 +53,7 @@ struct SectionList: View {
     @State private var renamingPromoted: PromotedTopicSummary?
     @State private var aliasDraft = ""
     @State private var mutedTopicsChannel: ChannelSummary?
+    @State private var newTopicChannel: ChannelSummary?
 
     var body: some View {
         ScrollView {
@@ -106,6 +107,7 @@ struct SectionList: View {
         // shown showed its last state for a moment every time it came back.
         .task(id: section) { await observe() }
         .sheet(item: $mutedTopicsChannel) { channel in MutedTopicsView(channel: channel) }
+        .sheet(item: $newTopicChannel) { channel in NewTopicSheet(channel: channel) }
         .sheet(isPresented: $showingReorder) { ReorderChannelsView(entries: sidebarEntries) }
         .alert(
             "Rename for me",
@@ -282,6 +284,9 @@ struct SectionList: View {
                 Button("Hide channel", systemImage: "eye.slash") {
                     model.setHidden(true, forChannel: channel.id)
                 }
+            }
+            Button("New topic…", systemImage: "square.and.pencil") {
+                newTopicChannel = channel
             }
             Button("Rename for me…", systemImage: "pencil") {
                 aliasDraft = model.alias(forChannel: channel.id) ?? ""
