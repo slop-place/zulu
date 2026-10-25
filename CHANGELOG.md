@@ -1,5 +1,34 @@
 # Changelog
 
+## [1.13.0](https://github.com/slop-place/zulu/compare/zulu-v1.12.0...zulu-v1.13.0) (2026-10-25)
+
+
+### Features
+
+* add an iOS Settings screen behind a gear on the rail ([ea53977](https://github.com/slop-place/zulu/commit/ea53977319c93b4fd0d9497a33f6d3d9df03a211))
+* add Recent to the iOS rail ([ea53977](https://github.com/slop-place/zulu/commit/ea53977319c93b4fd0d9497a33f6d3d9df03a211))
+* fit the iOS app to the iPhone Duo ([ea53977](https://github.com/slop-place/zulu/commit/ea53977319c93b4fd0d9497a33f6d3d9df03a211))
+* open a conversation in a window of its own on the iPhone Duo and iPad ([ea53977](https://github.com/slop-place/zulu/commit/ea53977319c93b4fd0d9497a33f6d3d9df03a211))
+* pin channels to the top of their list ([3316c3a](https://github.com/slop-place/zulu/commit/3316c3a6cc694292c1603614908d35132a40b31c))
+* start a new topic and hide the keyboard on iOS ([dfe9fcb](https://github.com/slop-place/zulu/commit/dfe9fcbda058445e0db3ed38ca2e88e8fd755511))
+* use the system tab bar and split view on the iPhone Duo ([ce77555](https://github.com/slop-place/zulu/commit/ce77555e5d74aa1f52e583143b39c886b3ebdb13))
+
+
+### Bug Fixes
+
+* draw the iPhone Duo's channel list black in dark mode ([dfe9fcb](https://github.com/slop-place/zulu/commit/dfe9fcbda058445e0db3ed38ca2e88e8fd755511))
+* keep message sheets full width on the iPhone Duo's outer display ([698ca8a](https://github.com/slop-place/zulu/commit/698ca8a0c755af08bfdb8bc4b74b1ac1aaf3a501))
+* keep message text clear of bars down the side of the screen ([ea53977](https://github.com/slop-place/zulu/commit/ea53977319c93b4fd0d9497a33f6d3d9df03a211))
+* line the iOS channel list header up with the conversation's bar ([f8fda52](https://github.com/slop-place/zulu/commit/f8fda52d2b8eeb380fec1ec96f8f1d7fbb45a289))
+* mark unread conversations in Recent with a dot, a count and the time in colour ([f8fda52](https://github.com/slop-place/zulu/commit/f8fda52d2b8eeb380fec1ec96f8f1d7fbb45a289))
+* stop conversations flickering when switching on the iPhone Duo ([35d7e60](https://github.com/slop-place/zulu/commit/35d7e602db25c253632ca7b8cad9e85ada48d6a2))
+* stop conversations sliding sideways beside a bar down the side of the screen ([f8fda52](https://github.com/slop-place/zulu/commit/f8fda52d2b8eeb380fec1ec96f8f1d7fbb45a289))
+
+
+### Performance Improvements
+
+* draw the Mac conversation in an NSTableView ([dd046d5](https://github.com/slop-place/zulu/commit/dd046d531460e91a599176c003af9a6c6c909ba0))
+
 ## [1.12.0](https://github.com/slop-place/zulu/compare/zulu-v1.11.0...zulu-v1.12.0) (2026-10-19)
 
 
