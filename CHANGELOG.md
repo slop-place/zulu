@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.13.1](https://github.com/slop-place/zulu/compare/zulu-v1.13.0...zulu-v1.13.1) (2026-10-25)
+
+
+### Bug Fixes
+
+* drop the line beside the channel list on the Duo's outer display ([35ad28b](https://github.com/slop-place/zulu/commit/35ad28be1e98b1391a43f78bd3c83fa72d90785f))
+* stop an empty bubble pushing the composer up when a topic opens on the Duo ([35ad28b](https://github.com/slop-place/zulu/commit/35ad28be1e98b1391a43f78bd3c83fa72d90785f))
+
 ## [1.13.0](https://github.com/slop-place/zulu/compare/zulu-v1.12.0...zulu-v1.13.0) (2026-10-25)
 
 
