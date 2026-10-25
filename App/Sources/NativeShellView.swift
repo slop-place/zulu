@@ -45,6 +45,7 @@ struct NativeShellView: View {
     @Environment(AppModel.self) private var model
     @Environment(NotificationServiceSettings.self) private var notifications
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.displayScale) private var displayScale
 
     enum ShellTab: Hashable {
         case section(ShellSection)
@@ -56,6 +57,8 @@ struct NativeShellView: View {
     @State private var opened: [ShellSection: AppModel.Destination] = [:]
     /// Closed, whether each section is showing its list or its conversation.
     @State private var compactColumns: [ShellSection: NavigationSplitViewColumn] = [:]
+    /// Topics opened from a channel's topic list, on top of the section's conversation.
+    @State private var paths: [ShellSection: [ConversationView.Source]] = [:]
 
     @State private var showingReorderChannels = false
     @State private var reorderingGroups = false
@@ -136,6 +139,7 @@ struct NativeShellView: View {
             let section = currentSection ?? .recent
             if currentSection == nil { selection = .section(section) }
             guard opened[section] != destination else { return }
+            paths[section] = []
             opened[section] = destination
             compactColumns[section] = .detail
         }
@@ -185,21 +189,30 @@ struct NativeShellView: View {
             .navigationTitle(model.title(of: section))
             .navigationSubtitle(syncSubtitle)
             .toolbar { listMenu(for: section) }
+            // Black like the conversation beside it, rather than the system's grey
+            // sidebar, with a hairline where one ends and the other begins.
+            .background(Platform.canvas.ignoresSafeArea())
+            .overlay(alignment: .trailing) {
+                Rectangle()
+                    .fill(DrawerPalette.edge)
+                    .frame(width: 1 / displayScale)
+                    .ignoresSafeArea()
+            }
         } detail: {
-            let destination = opened[section]
-            NavigationStack {
+            // One stack for the section's whole life, with only the conversation in it
+            // replaced. A new stack per conversation was laid out once as if the sidebar
+            // were not there, and every message jumped sideways on its first frame.
+            NavigationStack(path: path(for: section)) {
                 DestinationView(
-                    destination: destination,
+                    destination: opened[section],
                     prompt: section == .dms ? "Pick a conversation to start reading." : "Pick a channel to start reading."
                 )
-                    .navigationDestination(for: ConversationView.Source.self) { source in
-                        ConversationView(source: source)
-                    }
+                .navigationDestination(for: ConversationView.Source.self) { source in
+                    ConversationView(source: source)
+                }
             }
-            // A conversation opened, or a topic opened from a channel's list, starts the
-            // stack over rather than pushing onto whatever was there.
-            .id(destination)
             .modifier(MeasuresPageSideInsets())
+            .environment(\.isCoveredByList, coversWithList(section))
             // Closed, a conversation has the screen to itself: the tabs belong to the
             // list it was opened from, and are a back swipe away. Only while it shows:
             // the collapsed split view carries the detail's bars onto the list as well.
@@ -207,8 +220,20 @@ struct NativeShellView: View {
         }
     }
 
+    /// Closed, with the list on screen over the conversation behind it.
+    private func coversWithList(_ section: ShellSection) -> Bool {
+        horizontalSizeClass == .compact && compactColumns[section] != .detail
+    }
+
     private func conversationCoversList(in section: ShellSection) -> Bool {
         horizontalSizeClass == .compact && compactColumns[section] == .detail && opened[section] != nil
+    }
+
+    private func path(for section: ShellSection) -> Binding<[ConversationView.Source]> {
+        Binding(
+            get: { paths[section] ?? [] },
+            set: { paths[section] = $0 }
+        )
     }
 
     private func compactColumn(for section: ShellSection) -> Binding<NavigationSplitViewColumn> {
@@ -218,7 +243,10 @@ struct NativeShellView: View {
         )
     }
 
+    /// A conversation opened, or a topic opened from a channel's list, starts the stack
+    /// over rather than pushing onto whatever was there.
     private func open(_ destination: AppModel.Destination, in section: ShellSection) {
+        paths[section] = []
         opened[section] = destination
         compactColumns[section] = .detail
         model.destination = destination
@@ -305,4 +333,10 @@ enum GroupTabIcon {
         // Tinted like every other tab, selected or not.
         return image.withRenderingMode(.alwaysTemplate)
     }
+}
+
+extension EnvironmentValues {
+    /// True while a closed foldable shows the list in front of this conversation, whose
+    /// toolbar items would otherwise show over the list.
+    @Entry var isCoveredByList = false
 }

@@ -48,10 +48,31 @@ final class MessageHistoryLoader {
         reactionTask = nil
     }
 
+    /// Opens on what is stored when that reaches back to the first unread message, and
+    /// merges in what the server adds as it arrives. Waiting for the server on every
+    /// switch drew a blank conversation for a network round trip each time. Otherwise it
+    /// does wait: opened on a stored history that stops short of the first unread, the
+    /// conversation would open past everything the reader has not seen.
     func start() async {
-        await loadInitialHistory()
-        observeReactions()
-        observe()
+        if canOpenFromStore {
+            observeReactions()
+            observe()
+            await loadInitialHistory()
+        } else {
+            await loadInitialHistory()
+            observeReactions()
+            observe()
+        }
+    }
+
+    private var canOpenFromStore: Bool {
+        guard let store = model.storeForReading else { return false }
+        return switch source {
+        case .topic(let channelID, let name, _):
+            (try? store.canOpenFromStore(channelID: channelID, topic: name)) ?? false
+        case .dm(let key):
+            (try? store.canOpenFromStore(dmKey: key)) ?? false
+        }
     }
 
     private func loadInitialHistory() async {
@@ -126,7 +147,12 @@ final class MessageHistoryLoader {
             guard let previous else {
                 return GroupedMessage(message: message, startsGroup: true, startsDay: true)
             }
+            // The first unread message always carries its date beside the unread line.
+            // A conversation opens on it from what is stored, often before the message
+            // before it has arrived; were its date to depend on that message, it would
+            // vanish once that message landed and the whole screen would jump.
             let startsDay = !Calendar.current.isDate(previous.date, inSameDayAs: message.date)
+                || message.id == firstUnreadID
             let sameSender = previous.senderID == message.senderID
             let closeInTime = message.timestamp - previous.timestamp < Self.groupingWindow
             let continues = sameSender && closeInTime && !startsDay && message.id != firstUnreadID

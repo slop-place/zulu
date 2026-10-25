@@ -37,15 +37,21 @@ struct ConversationList: View {
     @Environment(\.pageSideInsets) private var pageSideInsets
     @State private var manager: ConversationListManager
     @State private var presenter = MessagePresenter()
-    /// How far bars beside the conversation reach over it. Shared with the rows through
-    /// an observable rather than handed to them: the list builds each row's content once
-    /// and never asks again.
-    @State private var sideInsets = SideInsets()
+    /// How far the bars beside the conversation reach over the list. Shared with the
+    /// rows through an observable rather than handed to them: the list builds each row's
+    /// content once and never asks again.
+    @State private var sideInsets: SideInsets
 
     private static let listPadding: CGFloat = 12
     private static let loaderHeight: CGFloat = 44
 
-    init(source: ConversationSource, title: String, loader: MessageHistoryLoader, readTracker: ReadTracker?) {
+    init(
+        source: ConversationSource, title: String, loader: MessageHistoryLoader, readTracker: ReadTracker?,
+        sideInsets: HorizontalInsets
+    ) {
+        // Known from the first row on, so no row is measured at one width and drawn at
+        // another.
+        _sideInsets = State(initialValue: SideInsets(sideInsets))
         self.source = source
         self.title = title
         self.loader = loader
@@ -63,13 +69,8 @@ struct ConversationList: View {
                 list(bars: nil)
             }
         }
-        // The list runs edge to edge under every bar and hosts its rows without a safe
-        // area, so a bar down the side of the screen, where a foldable puts its toolbar,
-        // sat on top of the text. The rows step in by the bar's width instead.
-        .onChange(of: pageSideInsets, initial: true) { _, insets in
-            sideInsets.leading = insets.leading
-            sideInsets.trailing = insets.trailing
-        }
+        // Folding or rotating moves the bars; the rows step in by the new amount.
+        .onChange(of: pageSideInsets) { _, insets in sideInsets.update(insets) }
         .overlay(alignment: .bottomTrailing) {
             Group {
                 if manager.showsJumpToNewest {
@@ -147,6 +148,12 @@ struct ConversationList: View {
             manager.geometryChanged(geometry)
             if let bars { ScrollDebugReadout.shared.record(geometry, bars: bars) }
         }
+        // The list runs the full width, under the sidebar and any bar down the side of
+        // the screen, and its rows step in by `sideInsets`. Said outright rather than left
+        // to the list, which extends itself only once it has been laid out: its first
+        // frame drew every row a sidebar's width to the right. It also keeps the side
+        // insets out of the list's own scrolling, which let a conversation slide sideways.
+        .ignoresSafeArea(.container, edges: .horizontal)
     }
 
     private var entries: [ConversationEntry] {
@@ -177,12 +184,22 @@ private struct ConversationCellHost {
     let sideInsets: SideInsets
 }
 
-/// The part of the list's width that bars cover, on each side.
+/// The part of the list's width that the sidebar and bars cover, on each side.
 @MainActor
 @Observable
 final class SideInsets {
-    var leading: CGFloat = 0
-    var trailing: CGFloat = 0
+    private(set) var leading: CGFloat
+    private(set) var trailing: CGFloat
+
+    init(_ insets: HorizontalInsets) {
+        leading = insets.leading
+        trailing = insets.trailing
+    }
+
+    func update(_ insets: HorizontalInsets) {
+        if leading != insets.leading { leading = insets.leading }
+        if trailing != insets.trailing { trailing = insets.trailing }
+    }
 }
 
 extension EnvironmentValues {

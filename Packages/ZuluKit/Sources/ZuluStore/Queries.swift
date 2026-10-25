@@ -139,6 +139,41 @@ extension ZuluStore {
         }
     }
 
+    /// How many stored messages a conversation with nothing unread needs before it opens
+    /// on them. It opens on its newest message, and what the server adds goes above the
+    /// oldest stored one; with fewer than a screen's worth stored, that change would be on
+    /// screen.
+    public static let storedMessagesToOpenOn = 20
+
+    /// Whether a topic can be shown from what is stored while the server is asked for the
+    /// rest, without what the server adds moving what is on screen. With something unread,
+    /// the oldest unread message has to be stored: the conversation opens on it, and what
+    /// arrives goes above it. With nothing unread, enough has to be stored to fill the
+    /// screen.
+    public func canOpenFromStore(channelID: Int, topic: String) throws -> Bool {
+        try writer.read { db in
+            try Bool.fetchOne(db, sql: """
+                SELECT COALESCE(
+                    (SELECT EXISTS (SELECT 1 FROM message m WHERE m.id = u.messageID)
+                       FROM unread u WHERE u.channelID = ? AND u.topic = ?
+                      ORDER BY u.messageID LIMIT 1),
+                    (SELECT COUNT(*) FROM message WHERE channelID = ? AND topic = ?) >= ?)
+                """, arguments: [channelID, topic, channelID, topic, Self.storedMessagesToOpenOn]) ?? false
+        }
+    }
+
+    public func canOpenFromStore(dmKey: String) throws -> Bool {
+        try writer.read { db in
+            try Bool.fetchOne(db, sql: """
+                SELECT COALESCE(
+                    (SELECT EXISTS (SELECT 1 FROM message m WHERE m.id = u.messageID)
+                       FROM unread u WHERE u.dmKey = ?
+                      ORDER BY u.messageID LIMIT 1),
+                    (SELECT COUNT(*) FROM message WHERE dmKey = ?) >= ?)
+                """, arguments: [dmKey, dmKey, Self.storedMessagesToOpenOn]) ?? false
+        }
+    }
+
     public func observeMessages(dmKey: String) -> ValueObservation<ValueReducers.Fetch<[MessageRecord]>> {
         ValueObservation.tracking { db in
             try MessageRecord

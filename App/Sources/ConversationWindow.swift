@@ -68,11 +68,20 @@ extension EnvironmentValues {
 struct MeasuresPageSideInsets: ViewModifier {
     @State private var insets = HorizontalInsets()
 
+    private static let minimumMeasuredSize: CGFloat = 200
+
     func body(content: Content) -> some View {
         content
             .environment(\.pageSideInsets, insets)
-            .onGeometryChange(for: HorizontalInsets.self) { proxy in
-                HorizontalInsets(leading: proxy.safeAreaInsets.leading, trailing: proxy.safeAreaInsets.trailing)
-            } action: { insets = $0 }
+            .onGeometryChange(for: HorizontalInsets?.self) { proxy in
+                // Laid out at a placeholder size before the split view sizes its columns;
+                // a conversation built then would take its insets from nothing.
+                guard proxy.size.width >= Self.minimumMeasuredSize, proxy.size.height >= Self.minimumMeasuredSize else {
+                    return nil
+                }
+                return HorizontalInsets(leading: proxy.safeAreaInsets.leading, trailing: proxy.safeAreaInsets.trailing)
+            } action: { measured in
+                if let measured { insets = measured }
+            }
     }
 }

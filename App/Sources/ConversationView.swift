@@ -12,9 +12,14 @@ struct ConversationView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.isStandaloneConversation) private var isStandalone
+    @Environment(\.pageSideInsets) private var pageSideInsets
+    @Environment(\.isCoveredByList) private var isCoveredByList
 
     @State private var loader: MessageHistoryLoader?
     @State private var readTracker: ReadTracker?
+    @State private var isSlowToLoad = false
+
+    private static let spinnerDelay = Duration.milliseconds(350)
     @State private var suggestionBox = AutocompleteSlot()
 
     var body: some View {
@@ -22,10 +27,21 @@ struct ConversationView: View {
             if let loader, loader.isReady {
                 // Apart from this view: the toolbar and title read sidebar data that
                 // changes on every sync, and in the same view each change rebuilt the list.
-                ConversationList(source: source, title: title, loader: loader, readTracker: readTracker)
+                ConversationList(
+                    source: source, title: title, loader: loader, readTracker: readTracker,
+                    sideInsets: pageSideInsets
+                )
                     .id(ObjectIdentifier(loader))
             } else {
-                ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
+                // Most conversations are drawn within a few frames. A spinner shown for
+                // those few frames flashed on every switch, so it waits to be needed.
+                ProgressView()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .opacity(isSlowToLoad ? 1 : 0)
+                    .task {
+                        try? await Task.sleep(for: Self.spinnerDelay)
+                        isSlowToLoad = true
+                    }
             }
         }
         .overlay(alignment: .bottom) { AutocompleteOverlay(slot: suggestionBox) }
@@ -52,11 +68,18 @@ struct ConversationView: View {
                     }
                 }
             }
-            if let forum = forumChannel, !isStandalone {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("All topics", systemImage: "list.bullet") {
-                        model.destination = .channel(forum.id)
+            // While the list is still showing, closed, the toolbar is the list's: these
+            // belong to the conversation, and "All topics" would replace it.
+            if let forum = forumChannel, !isCoveredByList {
+                if !isStandalone {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button("All topics", systemImage: "list.bullet") {
+                            model.destination = .channel(forum.id)
+                        }
                     }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    NewTopicButton(channel: forum)
                 }
             }
         }
