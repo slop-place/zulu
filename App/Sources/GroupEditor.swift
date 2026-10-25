@@ -51,7 +51,7 @@ struct GroupEditor: View {
                         confirmingDelete = true
                     }
                 } footer: {
-                    Text("Its channels go back to Channels. Nothing changes on the server.")
+                    Text("Its channels are kept. Nothing changes on the server.")
                 }
 
                 Section("Channels") {

@@ -6,10 +6,10 @@ import ZuluStore
 struct SettingsView: View {
     /// A sheet has Done; a tab of its own has nowhere to be dismissed to.
     var showsDone = true
-    /// Only the tab bar layout has a channels tab to configure.
-    var showsChannelsTabOption = false
 
     @AppStorage(ChannelsTabMode.storageKey) private var channelsTab = ChannelsTabMode.standard
+    @AppStorage(ShellLayout.foldableKey) private var isFoldable = false
+    @AppStorage(ShellLayout.tabBarKey) private var prefersTabBar = false
 
     @Environment(AppModel.self) private var model
     @Environment(NotificationServiceSettings.self) private var notifications
@@ -36,6 +36,8 @@ struct SettingsView: View {
                 }
 
                 groupsSection
+
+                layoutSection
 
                 Section {
                     Button {
@@ -94,7 +96,7 @@ struct SettingsView: View {
             ) { group in
                 Button("Delete Group", role: .destructive) { model.deleteGroup(id: group.id) }
             } message: { _ in
-                Text("Its channels go back to Channels. Nothing changes on the server.")
+                Text("Its channels are kept. Nothing changes on the server.")
             }
             .sheet(isPresented: $showingHidden) { HiddenChannelsView() }
             .confirmationDialog(
@@ -171,7 +173,23 @@ struct SettingsView: View {
                     Label("Reorder groups", systemImage: "arrow.up.arrow.down")
                 }
             }
-            if showsChannelsTabOption {
+        } header: {
+            Text("Groups")
+        } footer: {
+            if !model.groups.isEmpty {
+                Text("Swipe a group to delete it. Its channels are kept.")
+            }
+        }
+    }
+
+    /// A foldable always has the tab bar; only another phone has a choice. Only the tab bar
+    /// has a channels tab to configure.
+    private var layoutSection: some View {
+        Section {
+            if !isFoldable {
+                Toggle("Tab bar layout", isOn: $prefersTabBar)
+            }
+            if isFoldable || prefersTabBar {
                 Picker("Channels tab shows", selection: $channelsTab) {
                     ForEach(ChannelsTabMode.allCases) { mode in
                         Text(mode.title).tag(mode)
@@ -179,10 +197,10 @@ struct SettingsView: View {
                 }
             }
         } header: {
-            Text("Groups")
+            Text("Layout")
         } footer: {
-            if !model.groups.isEmpty {
-                Text("Swipe a group to delete it. Its channels go back to Channels.")
+            if !isFoldable {
+                Text("Tabs along the bottom for Recent, Direct Messages, groups and channels, instead of the drawer.")
             }
         }
     }

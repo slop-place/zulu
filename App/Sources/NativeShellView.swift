@@ -4,17 +4,18 @@ import ZuluStore
 /// Picks the shell for the device. A foldable gets the native one: the system's tab bar,
 /// which its displays run down the side, and a split view that sits the list beside the
 /// conversation when open and pushes one onto the other when closed. Every other phone
-/// keeps the drawer for now.
+/// keeps the drawer unless the tab bar layout is turned on in Settings.
 ///
 /// A foldable is known by its hinge, and only once one has reported, so the choice is
 /// remembered: the first launch on a foldable shows the drawer for a moment, later ones
 /// open straight onto the native shell.
 struct ShellChooser: View {
-    @AppStorage("shell.nativeOnFoldable") private var hasHinge = false
+    @AppStorage(ShellLayout.foldableKey) private var hasHinge = false
+    @AppStorage(ShellLayout.tabBarKey) private var prefersTabBar = false
 
     var body: some View {
         Group {
-            if hasHinge {
+            if hasHinge || prefersTabBar {
                 NativeShellView()
             } else {
                 ShellView()
@@ -136,7 +137,7 @@ struct NativeShellView: View {
             .badge(channelsBadge)
 
             Tab("Settings", systemImage: "gearshape", value: ShellTab.settings) {
-                SettingsView(showsDone: false, showsChannelsTabOption: true)
+                SettingsView(showsDone: false)
             }
         }
         .onAppear {
@@ -172,7 +173,7 @@ struct NativeShellView: View {
         ) { group in
             Button("Delete Group", role: .destructive) { model.deleteGroup(id: group.id) }
         } message: { _ in
-            Text("Its channels go back to Channels. Nothing changes on the server.")
+            Text("Its channels are kept. Nothing changes on the server.")
         }
         // The last group gone, its tab goes too; whoever was on it lands on the channels.
         .onChange(of: model.groups.isEmpty) { _, isEmpty in
@@ -473,4 +474,12 @@ enum ChannelsTabMode: String, CaseIterable, Identifiable {
         case .ungrouped: "Channels in no group"
         }
     }
+}
+
+/// Where the choice of shell is kept.
+enum ShellLayout {
+    /// Set once a hinge has been seen: a foldable always gets the tab bar layout.
+    static let foldableKey = "shell.nativeOnFoldable"
+    /// The tab bar layout on a phone without a hinge, from Settings.
+    static let tabBarKey = "shell.tabBarLayout"
 }
