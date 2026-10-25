@@ -182,7 +182,7 @@ struct SectionList: View {
     private var emptyListMessage: String {
         switch section {
         case .recent: model.allChannels.isEmpty ? "Syncing your channels…" : "Nothing has happened yet."
-        case .group: "No channels in this group yet. Long-press its icon to edit."
+        case .group: "No channels in this group yet. Edit the group to add some."
         default: "Every channel is filed into a group."
         }
     }

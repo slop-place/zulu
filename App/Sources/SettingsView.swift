@@ -1,4 +1,5 @@
 import SwiftUI
+import ZuluStore
 
 /// Everything that is about the app rather than about one channel, in one place. The
 /// list header's menu keeps the actions that belong to the list on show.
@@ -14,6 +15,11 @@ struct SettingsView: View {
     @State private var showingHidden = false
     @State private var confirmingMarkAllRead = false
     @State private var confirmingSignOut = false
+    @State private var editingGroup: GroupID?
+    @State private var creatingGroup = false
+    @State private var newGroupName = ""
+    @State private var reorderingGroups = false
+    @State private var deletingGroup: ChannelGroupSummary?
 
     var body: some View {
         NavigationStack {
@@ -24,6 +30,8 @@ struct SettingsView: View {
                         LabeledContent("Signed in as", value: account.email)
                     }
                 }
+
+                groupsSection
 
                 Section {
                     Button {
@@ -65,6 +73,25 @@ struct SettingsView: View {
                 }
             }
             .sheet(isPresented: $showingNotifications) { NotificationSettingsView() }
+            .sheet(item: $editingGroup) { group in GroupEditor(groupID: group.id) }
+            .sheet(isPresented: $reorderingGroups) { ReorderGroupsView(groups: model.groups) }
+            .alert("New group", isPresented: $creatingGroup) {
+                TextField("Name", text: $newGroupName)
+                Button("Cancel", role: .cancel) {}
+                Button("Create") { createGroup() }
+            } message: {
+                Text("Group channels however you like. Groups stay on your devices — Zulip has no idea they exist.")
+            }
+            .confirmationDialog(
+                "Delete “\(deletingGroup?.name ?? "")”?",
+                isPresented: Binding(get: { deletingGroup != nil }, set: { if !$0 { deletingGroup = nil } }),
+                titleVisibility: .visible,
+                presenting: deletingGroup
+            ) { group in
+                Button("Delete Group", role: .destructive) { model.deleteGroup(id: group.id) }
+            } message: { _ in
+                Text("Its channels go back to Channels. Nothing changes on the server.")
+            }
             .sheet(isPresented: $showingHidden) { HiddenChannelsView() }
             .confirmationDialog(
                 "Mark every message as read?",
@@ -94,6 +121,75 @@ struct SettingsView: View {
                 Text("Your channel groups, renames and hidden channels on this device are removed with it.")
             }
         }
+    }
+
+    /// Groups are made, edited and ordered here as well as from the Groups tab's title,
+    /// where only the one on show can be reached.
+    private var groupsSection: some View {
+        Section {
+            ForEach(model.groups) { group in
+                Button {
+                    editingGroup = GroupID(id: group.id)
+                } label: {
+                    HStack(spacing: 12) {
+                        GroupAvatar(name: group.name, icon: group.icon, size: 32, active: true)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(group.name).foregroundStyle(.primary)
+                            Text(group.channelCount == 1 ? "1 channel" : "\(group.channelCount) channels")
+                                .font(.caption)
+                                .foregroundStyle(TextTone.secondary)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.footnote.weight(.semibold))
+                            .foregroundStyle(TextTone.tertiary)
+                    }
+                }
+                .swipeActions {
+                    Button("Delete", systemImage: "trash", role: .destructive) { deletingGroup = group }
+                }
+                .contextMenu {
+                    Button("Edit", systemImage: "pencil") { editingGroup = GroupID(id: group.id) }
+                    NotificationLevelMenu.group(group.id, model: model)
+                    Button("Delete", systemImage: "trash", role: .destructive) { deletingGroup = group }
+                }
+            }
+            Button {
+                newGroupName = ""
+                creatingGroup = true
+            } label: {
+                Label("New group", systemImage: "folder.badge.plus")
+            }
+            if model.groups.count > 1 {
+                Button {
+                    reorderingGroups = true
+                } label: {
+                    Label("Reorder groups", systemImage: "arrow.up.arrow.down")
+                }
+            }
+        } header: {
+            Text("Groups")
+        } footer: {
+            if !model.groups.isEmpty {
+                Text("Swipe a group to delete it. Its channels go back to Channels.")
+            }
+        }
+    }
+
+    /// Opens the new group's editor here, rather than letting the shell jump to it.
+    private func createGroup() {
+        let name = newGroupName.trimmingCharacters(in: .whitespaces)
+        guard !name.isEmpty else { return }
+        model.createGroup(named: name)
+        if let id = model.pendingGroupToEdit {
+            model.pendingGroupToEdit = nil
+            editingGroup = GroupID(id: id)
+        }
+    }
+
+    /// `sheet(item:)` needs something Identifiable, and a bare String is not.
+    private struct GroupID: Identifiable {
+        let id: String
     }
 
     private static var version: String {

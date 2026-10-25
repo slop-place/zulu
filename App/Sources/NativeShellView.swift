@@ -41,6 +41,12 @@ private struct HingeProbe: View {
 /// Each tab is one section of the drawer's rail and keeps its own conversation, the way
 /// each mailbox in Mail keeps its own message: switching to Direct Messages and back
 /// finds the channel conversation where it was left.
+///
+/// All groups share one tab, so the bar never grows past five: a tab bar holds no more
+/// on an ordinary iPhone, and a tab per group ran on for as long as groups were added.
+/// The tab shows one group at a time and is named after it; a button in its list's bar
+/// switches to another. A tab cannot open a menu itself: long-pressing one in the bar
+/// down a foldable's side shows its name enlarged instead.
 struct NativeShellView: View {
     @Environment(AppModel.self) private var model
     @Environment(NotificationServiceSettings.self) private var notifications
@@ -49,8 +55,13 @@ struct NativeShellView: View {
 
     enum ShellTab: Hashable {
         case section(ShellSection)
+        /// Whichever group the Groups tab is showing.
+        case groups
         case settings
     }
+
+    /// The group the Groups tab shows, kept across launches.
+    @AppStorage("shell.currentGroup") private var currentGroupID = ""
 
     @State private var selection: ShellTab = .section(.unfiled)
     /// The conversation each section was last showing.
@@ -66,9 +77,19 @@ struct NativeShellView: View {
     @State private var creatingGroup = false
     @State private var newGroupName = ""
     @State private var confirmingMarkAllRead = false
+    @State private var deletingGroup: ChannelGroupSummary?
+
+    /// The chosen group, or the first one when that has been deleted or none was chosen.
+    private var currentGroup: ChannelGroupSummary? {
+        model.groups.first { $0.id == currentGroupID } ?? model.groups.first
+    }
 
     private var currentSection: ShellSection? {
-        if case .section(let section) = selection { section } else { nil }
+        switch selection {
+        case .section(let section): section
+        case .groups: currentGroup.map { .group($0.id) }
+        case .settings: nil
+        }
     }
 
     var body: some View {
@@ -86,27 +107,20 @@ struct NativeShellView: View {
             // Every direct message is addressed to you, so each unread one counts.
             .badge(model.dms.reduce(0) { $0 + $1.unreadCount })
 
-            ForEach(model.groups) { group in
-                Tab(value: ShellTab.section(.group(group.id))) {
+            if let group = currentGroup {
+                Tab(value: ShellTab.groups) {
                     split(.group(group.id))
                 } label: {
+                    // Named after the group it shows, so the bar says where the tab leads.
                     Label {
                         Text(group.name)
                     } icon: {
                         Image(uiImage: GroupTabIcon.image(for: group))
                     }
                 }
-                .badge(group.mentionCount)
-                .contextMenu {
-                    Button("Edit group", systemImage: "pencil") { editingGroup = group.id }
-                    NotificationLevelMenu.group(group.id, model: model)
-                    Button("Reorder groups", systemImage: "arrow.up.arrow.down") { reorderingGroups = true }
-                        .disabled(model.groups.count < 2)
-                    Button("Delete group", systemImage: "trash", role: .destructive) {
-                        if selection == .section(.group(group.id)) { selection = .section(.unfiled) }
-                        model.deleteGroup(id: group.id)
-                    }
-                }
+                // Every group's mentions, the hidden ones' included: the tab is the only
+                // way to them.
+                .badge(model.groups.reduce(0) { $0 + $1.mentionCount })
             }
 
             Tab(model.groups.isEmpty ? "Channels" : "Unfiled", systemImage: "number", value: ShellTab.section(.unfiled)) {
@@ -124,10 +138,10 @@ struct NativeShellView: View {
                 opened[section] = destination
             }
         }
-        .onChange(of: selection) { _, selection in
-            // The model's destination is the conversation on screen: the shell's own
-            // tab's, or none while Settings is up.
-            guard case .section(let section) = selection else {
+        .onChange(of: currentSection) { _, section in
+            // The model's destination is the conversation on screen: the tab's own, or
+            // none while Settings is up.
+            guard let section else {
                 model.destination = nil
                 return
             }
@@ -143,10 +157,24 @@ struct NativeShellView: View {
             opened[section] = destination
             compactColumns[section] = .detail
         }
+        .confirmationDialog(
+            "Delete “\(deletingGroup?.name ?? "")”?",
+            isPresented: Binding(get: { deletingGroup != nil }, set: { if !$0 { deletingGroup = nil } }),
+            titleVisibility: .visible,
+            presenting: deletingGroup
+        ) { group in
+            Button("Delete Group", role: .destructive) { model.deleteGroup(id: group.id) }
+        } message: { _ in
+            Text("Its channels go back to Channels. Nothing changes on the server.")
+        }
+        // The last group gone, its tab goes too; whoever was on it lands on the channels.
+        .onChange(of: model.groups.isEmpty) { _, isEmpty in
+            if isEmpty, selection == .groups { selection = .section(.unfiled) }
+        }
         .onChange(of: model.pendingGroupToEdit) { _, id in
             guard let id else { return }
             editingGroup = id
-            selection = .section(.group(id))
+            show(group: id)
             model.pendingGroupToEdit = nil
         }
         .sheet(isPresented: $reorderingGroups) { ReorderGroupsView(groups: model.groups) }
@@ -232,6 +260,54 @@ struct NativeShellView: View {
         horizontalSizeClass == .compact && compactColumns[section] == .detail && opened[section] != nil
     }
 
+    /// Every group, to switch to, and what can be done to them.
+    @ViewBuilder
+    private var groupMenu: some View {
+        Picker("Group", selection: Binding(
+            get: { currentGroup?.id ?? "" },
+            set: { show(group: $0) }
+        )) {
+            ForEach(model.groups) { group in
+                // What is waiting in each, so the one to go to next is plain from here.
+                Label {
+                    Text(group.name)
+                    if group.mentionCount > 0 {
+                        Text(group.mentionCount == 1 ? "1 mention" : "\(group.mentionCount) mentions")
+                    } else if group.unreadCount > 0 {
+                        Text("Unread")
+                    }
+                } icon: {
+                    Image(uiImage: GroupTabIcon.image(for: group))
+                }
+                .tag(group.id)
+            }
+        }
+        .pickerStyle(.inline)
+        Section {
+            Button("New Group…", systemImage: "folder.badge.plus") {
+                newGroupName = ""
+                creatingGroup = true
+            }
+            if let group = currentGroup {
+                Button("Edit “\(group.name)”…", systemImage: "pencil") { editingGroup = group.id }
+            }
+            Button("Reorder Groups…", systemImage: "arrow.up.arrow.down") { reorderingGroups = true }
+                .disabled(model.groups.count < 2)
+        }
+        if let group = currentGroup {
+            Section {
+                Button("Delete “\(group.name)”…", systemImage: "trash", role: .destructive) {
+                    deletingGroup = group
+                }
+            }
+        }
+    }
+
+    private func show(group id: String) {
+        currentGroupID = id
+        selection = .groups
+    }
+
     private func path(for section: ShellSection) -> Binding<[ConversationView.Source]> {
         Binding(
             get: { paths[section] ?? [] },
@@ -267,8 +343,19 @@ struct NativeShellView: View {
 
     @ToolbarContentBuilder
     private func listMenu(for section: ShellSection) -> some ToolbarContent {
+        if case .group = section {
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu("Groups", systemImage: "square.stack") { groupMenu }
+            }
+        }
         ToolbarItem(placement: .topBarTrailing) {
             Menu("More", systemImage: "ellipsis") {
+                if case .group = section, let group = currentGroup {
+                    Button("Edit “\(group.name)”…", systemImage: "pencil") { editingGroup = group.id }
+                    Button("Delete “\(group.name)”…", systemImage: "trash", role: .destructive) {
+                        deletingGroup = group
+                    }
+                }
                 Button("New group…", systemImage: "folder.badge.plus") {
                     newGroupName = ""
                     creatingGroup = true

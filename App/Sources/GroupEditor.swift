@@ -14,6 +14,7 @@ struct GroupEditor: View {
     @State private var pickedIcon: PhotosPickerItem?
     @State private var showIconPicker = false
     @State private var loaded = false
+    @State private var confirmingDelete = false
 
     var body: some View {
         NavigationStack {
@@ -43,6 +44,14 @@ struct GroupEditor: View {
                         }
                     }
                     .padding(.vertical, 4)
+                }
+
+                Section {
+                    Button("Delete Group", systemImage: "trash", role: .destructive) {
+                        confirmingDelete = true
+                    }
+                } footer: {
+                    Text("Its channels go back to Channels. Nothing changes on the server.")
                 }
 
                 Section("Channels") {
@@ -77,6 +86,14 @@ struct GroupEditor: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") { save() }
                         .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+            }
+            .confirmationDialog(
+                "Delete “\(name)”?", isPresented: $confirmingDelete, titleVisibility: .visible
+            ) {
+                Button("Delete Group", role: .destructive) {
+                    model.deleteGroup(id: groupID)
+                    dismiss()
                 }
             }
             .photosPicker(isPresented: $showIconPicker, selection: $pickedIcon, matching: .images)
