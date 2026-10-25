@@ -332,6 +332,7 @@ struct MacShellView: View {
                     title: channel.name,
                     symbol: "bubble.left.and.text.bubble.right",
                     restricted: channel.isRestricted,
+                    pinned: channel.pinned,
                     unread: channel.rowUnreadCount,
                     mentions: channel.rowMentionCount
                 )
@@ -351,6 +352,7 @@ struct MacShellView: View {
                 title: channel.name,
                 symbol: "number",
                 restricted: channel.isRestricted,
+                pinned: channel.pinned,
                 unread: channel.unreadCount,
                 mentions: channel.rowMentionCount
             )
@@ -377,6 +379,9 @@ struct MacShellView: View {
             Button("New Topic…") { ui.newTopicChannel = ChannelSummaryBox(channel: channel) }
         }
         Divider()
+        Button(channel.pinned ? "Unpin" : "Pin to Top") {
+            Task { await model.setPinned(!channel.pinned, forChannel: channel.id) }
+        }
         Button("Rename for Me…") {
             aliasDraft = model.alias(forChannel: channel.id) ?? ""
             renamingChannel = channel
@@ -566,6 +571,7 @@ struct MacSidebarRow: View {
     var subtitle: String?
     var symbol: String?
     var restricted = false
+    var pinned = false
     var unread = 0
     var mentions = 0
 
@@ -602,6 +608,9 @@ struct MacSidebarRow: View {
                 }
             }
             Spacer(minLength: 4)
+            if pinned {
+                PinMark()
+            }
             // Only a mention is counted: it is addressed to you.
             if mentions > 0 {
                 Badge(count: mentions, mention: true)

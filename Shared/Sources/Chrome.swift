@@ -76,6 +76,17 @@ struct UnreadCount: View {
     }
 }
 
+/// Says why a channel sits above the others: it is pinned to the top.
+struct PinMark: View {
+    var body: some View {
+        Image(systemName: "pin.fill")
+            .font(.system(size: 9, weight: .semibold))
+            .foregroundStyle(TextTone.tertiary)
+            .rotationEffect(.degrees(45))
+            .accessibilityLabel("Pinned")
+    }
+}
+
 /// The small mark beside an unread sidebar row. Its slot is always there, so rows line up
 /// whether or not they have one.
 struct UnreadDot: View {

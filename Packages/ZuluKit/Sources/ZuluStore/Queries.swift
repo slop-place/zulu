@@ -76,7 +76,7 @@ extension ZuluStore {
                        c.position
                   FROM channel c
                  WHERE \(ChannelVisibility.clause)
-                 ORDER BY c.position IS NULL, c.position, c.pinned DESC, name COLLATE NOCASE
+                 ORDER BY c.pinned DESC, c.position IS NULL, c.position, name COLLATE NOCASE
                 """)
         }
     }

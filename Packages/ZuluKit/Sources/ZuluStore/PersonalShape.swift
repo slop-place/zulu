@@ -212,6 +212,16 @@ extension ZuluStore {
         }
     }
 
+    /// Zulip's own pin. The server's copy replaces this on the next sync, so a pin made on
+    /// the web shows up here too.
+    public func setPinned(_ pinned: Bool, forChannel id: Int) throws {
+        try writer.write { db in
+            try db.execute(
+                sql: "UPDATE channel SET pinned = ? WHERE id = ?", arguments: [pinned, id]
+            )
+        }
+    }
+
     public func setHidden(_ hidden: Bool, forChannel id: Int) throws {
         try writer.write { db in
             try db.execute(

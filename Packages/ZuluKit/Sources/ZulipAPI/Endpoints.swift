@@ -16,6 +16,7 @@ private enum SubscriptionProperty: String, Encodable {
     case isMuted = "is_muted"
     case pushNotifications = "push_notifications"
     case desktopNotifications = "desktop_notifications"
+    case pinToTop = "pin_to_top"
 }
 private struct SubscriptionPropertyChange: Encodable {
     let stream_id: Int
@@ -58,6 +59,14 @@ extension ZulipClient {
         ]
         _ = try await raw(.post, "users/me/subscriptions/properties", parameters: [
             "subscription_data": Self.json(changes),
+        ])
+    }
+
+    /// Zulip's own "Pin to top", so a channel pinned here is pinned in every Zulip client.
+    public func setPinned(_ pinned: Bool, inChannel channelID: Int) async throws {
+        let change = SubscriptionPropertyChange(stream_id: channelID, property: .pinToTop, value: pinned)
+        _ = try await raw(.post, "users/me/subscriptions/properties", parameters: [
+            "subscription_data": Self.json([change]),
         ])
     }
 

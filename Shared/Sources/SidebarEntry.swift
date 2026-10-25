@@ -51,16 +51,26 @@ enum SidebarEntry: Identifiable, Equatable {
         }
     }
 
+    var isPinned: Bool {
+        if case .channel(let channel) = self { channel.pinned } else { false }
+    }
+
     /// Merges the two queries into the order the sidebar draws.
     ///
-    /// Rows nobody has dragged go last in the order their own query chose — channels by
-    /// pin then name. Until the first drag every promoted topic is placed and no channel
-    /// is, which reproduces the old layout of promotions above channels.
+    /// Pinned channels come first, whatever has been dragged where, the way Zulip itself
+    /// keeps them at the top. Below them, rows nobody has dragged go last in the order
+    /// their own query chose. Until the first drag every promoted topic is placed and no
+    /// channel is, which reproduces the old layout of promotions above channels.
     static func merged(
         channels: [ChannelSummary], promoted: [PromotedTopicSummary]
     ) -> [SidebarEntry] {
-        let entries = promoted.map(SidebarEntry.promoted) + channels.map(SidebarEntry.channel)
-        return entries.enumerated()
+        let pinned = channels.filter(\.pinned).map(SidebarEntry.channel)
+        let rest = promoted.map(SidebarEntry.promoted) + channels.filter { !$0.pinned }.map(SidebarEntry.channel)
+        return ordered(pinned) + ordered(rest)
+    }
+
+    private static func ordered(_ entries: [SidebarEntry]) -> [SidebarEntry] {
+        entries.enumerated()
             .sorted { left, right in
                 switch (left.element.position, right.element.position) {
                 case let (l?, r?): l == r ? left.offset < right.offset : l < r

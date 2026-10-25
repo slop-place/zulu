@@ -814,6 +814,16 @@ extension AppModel {
 }
 
 extension AppModel {
+    /// Pinned locally first so the list moves at once; a refusal unpins it again.
+    func setPinned(_ pinned: Bool, forChannel id: Int) async {
+        try? store?.setPinned(pinned, forChannel: id)
+        do {
+            try await client?.setPinned(pinned, inChannel: id)
+        } catch {
+            try? store?.setPinned(!pinned, forChannel: id)
+        }
+    }
+
     func setHidden(_ hidden: Bool, forChannel id: Int) {
         try? store?.setHidden(hidden, forChannel: id)
     }
