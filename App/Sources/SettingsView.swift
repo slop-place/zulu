@@ -3,6 +3,9 @@ import SwiftUI
 /// Everything that is about the app rather than about one channel, in one place. The
 /// list header's menu keeps the actions that belong to the list on show.
 struct SettingsView: View {
+    /// A sheet has Done; a tab of its own has nowhere to be dismissed to.
+    var showsDone = true
+
     @Environment(AppModel.self) private var model
     @Environment(NotificationServiceSettings.self) private var notifications
     @Environment(\.dismiss) private var dismiss
@@ -57,7 +60,9 @@ struct SettingsView: View {
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
+                if showsDone {
+                    ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
+                }
             }
             .sheet(isPresented: $showingNotifications) { NotificationSettingsView() }
             .sheet(isPresented: $showingHidden) { HiddenChannelsView() }
