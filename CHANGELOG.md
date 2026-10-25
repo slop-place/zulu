@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.15.0](https://github.com/slop-place/zulu/compare/zulu-v1.14.0...zulu-v1.15.0) (2026-10-25)
+
+
+### Features
+
+* an All Channels tab on the iPhone Duo, with a setting for what it lists ([bfa7640](https://github.com/slop-place/zulu/commit/bfa764087856bb0a11ce89fa69d0a7888078a0de))
+* the tab bar layout on any iPhone, behind a toggle in Settings ([12eb629](https://github.com/slop-place/zulu/commit/12eb629da7cced122b9e05d83a862809a8373439))
+
 ## [1.14.0](https://github.com/slop-place/zulu/compare/zulu-v1.13.1...zulu-v1.14.0) (2026-10-25)
 
 
