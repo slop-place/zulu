@@ -13,6 +13,8 @@ struct ConversationView: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.isStandaloneConversation) private var isStandalone
     @Environment(\.pageSideInsets) private var pageSideInsets
+    /// The bars beside this conversation, measured on the conversation itself.
+    @State private var measuredSideInsets: HorizontalInsets?
     @Environment(\.isCoveredByList) private var isCoveredByList
 
     @State private var loader: MessageHistoryLoader?
@@ -20,6 +22,11 @@ struct ConversationView: View {
     @State private var isSlowToLoad = false
 
     private static let spinnerDelay = Duration.milliseconds(350)
+    private static let minimumMeasuredSize: CGFloat = 200
+
+    /// The conversation's own measurement once there is one; until then, its column's,
+    /// which is right from the first frame wherever it reaches.
+    private var sideInsets: HorizontalInsets { measuredSideInsets ?? pageSideInsets }
     @State private var suggestionBox = AutocompleteSlot()
 
     var body: some View {
@@ -29,7 +36,7 @@ struct ConversationView: View {
                 // changes on every sync, and in the same view each change rebuilt the list.
                 ConversationList(
                     source: source, title: title, loader: loader, readTracker: readTracker,
-                    sideInsets: pageSideInsets
+                    sideInsets: sideInsets
                 )
                     .id(ObjectIdentifier(loader))
             } else {
@@ -60,6 +67,17 @@ struct ConversationView: View {
         // custom title view: a custom one cannot sit in the bar down a foldable's side,
         // and it surfaced as an empty bubble under the composer every time a topic opened.
         .navigationSubtitle(subtitle)
+        // Measured here as well as handed down: a conversation pushed from a channel's
+        // topic list does not receive what its column measured, and laid out from the
+        // screen's edge, under the sidebar. Placeholder sizes from before the split view
+        // has sized its columns are not measurements.
+        .onGeometryChange(for: HorizontalInsets?.self) { proxy in
+            guard proxy.size.width >= Self.minimumMeasuredSize, proxy.size.height >= Self.minimumMeasuredSize
+            else { return nil }
+            return HorizontalInsets(leading: proxy.safeAreaInsets.leading, trailing: proxy.safeAreaInsets.trailing)
+        } action: { measured in
+            if let measured, measured != measuredSideInsets { measuredSideInsets = measured }
+        }
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             // While the list is still showing, closed, the toolbar is the list's: these

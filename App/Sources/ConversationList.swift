@@ -34,7 +34,9 @@ struct ConversationList: View {
     @Environment(AppModel.self) private var model
     @Environment(AttachmentPreviewer.self) private var previewer
     @Environment(\.openURL) private var openURL
-    @Environment(\.pageSideInsets) private var pageSideInsets
+    /// How far the bars beside the conversation reach over the list, as the conversation
+    /// last measured it.
+    let currentSideInsets: HorizontalInsets
     @State private var manager: ConversationListManager
     @State private var presenter = MessagePresenter()
     /// How far the bars beside the conversation reach over the list. Shared with the
@@ -51,6 +53,7 @@ struct ConversationList: View {
     ) {
         // Known from the first row on, so no row is measured at one width and drawn at
         // another.
+        currentSideInsets = sideInsets
         _sideInsets = State(initialValue: SideInsets(sideInsets))
         self.source = source
         self.title = title
@@ -70,7 +73,7 @@ struct ConversationList: View {
             }
         }
         // Folding or rotating moves the bars; the rows step in by the new amount.
-        .onChange(of: pageSideInsets) { _, insets in sideInsets.update(insets) }
+        .onChange(of: currentSideInsets) { _, insets in sideInsets.update(insets) }
         .overlay(alignment: .bottomTrailing) {
             Group {
                 if manager.showsJumpToNewest {
