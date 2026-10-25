@@ -61,6 +61,7 @@ struct EmojiPicker: View {
             }
         }
         .presentationDetents([.medium, .large])
+        .keepsSheetFullWidth()
         .presentationDragIndicator(.visible)
         .task { EmojiCatalogueLoader.shared.start(store: model.storeForReading) }
         // Ranking the whole catalogue is cheap, but not cheap enough to redo on every

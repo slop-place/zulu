@@ -1,6 +1,25 @@
 import UniformTypeIdentifiers
 import SwiftUI
 
+extension View {
+    /// A sheet with at most a title or a lone Done button keeps its bar across the top.
+    /// On a foldable's outer display a sheet otherwise moves its bar down the side, and
+    /// keeps that strip clear even when the bar has nothing in it, so the sheet's content
+    /// stopped well short of its edge.
+    @ViewBuilder
+    func keepsSheetFullWidth() -> some View {
+        #if os(iOS)
+        if #available(iOS 27.1, *) {
+            toolbarVerticalBehavior(.disabled)
+        } else {
+            self
+        }
+        #else
+        self
+        #endif
+    }
+}
+
 #if canImport(UIKit)
 import UIKit
 

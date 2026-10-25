@@ -227,6 +227,7 @@ struct ReactorSheet: View {
         }
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
+        .keepsSheetFullWidth()
     }
 }
 #endif

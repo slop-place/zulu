@@ -119,6 +119,7 @@ struct MessageActionsSheet: View {
         .presentationDetents([.height(model.isOwn(message) ? Self.ownHeight : Self.height)])
         .presentationDragIndicator(.visible)
         .presentationBackground(.thinMaterial)
+        .keepsSheetFullWidth()
         .task {
             let controller = MessageActionsController(message: message, model: model)
             self.controller = controller
