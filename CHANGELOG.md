@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.14.0](https://github.com/slop-place/zulu/compare/zulu-v1.13.1...zulu-v1.14.0) (2026-10-25)
+
+
+### Features
+
+* one Groups tab on the iPhone Duo, and group management in Settings ([9c43a24](https://github.com/slop-place/zulu/commit/9c43a248697c0edf0c5ad9f6b6e3143382e7a6e4))
+
+
+### Bug Fixes
+
+* lay out a topic opened from a channel's topic list beside the sidebar ([ce67712](https://github.com/slop-place/zulu/commit/ce67712f8eb5da2c1336faa01e0349e1ef99b706))
+
 ## [1.13.1](https://github.com/slop-place/zulu/compare/zulu-v1.13.0...zulu-v1.13.1) (2026-10-25)
 
 
