@@ -6,6 +6,10 @@ import ZuluStore
 struct SettingsView: View {
     /// A sheet has Done; a tab of its own has nowhere to be dismissed to.
     var showsDone = true
+    /// Only the tab bar layout has a channels tab to configure.
+    var showsChannelsTabOption = false
+
+    @AppStorage(ChannelsTabMode.storageKey) private var channelsTab = ChannelsTabMode.standard
 
     @Environment(AppModel.self) private var model
     @Environment(NotificationServiceSettings.self) private var notifications
@@ -165,6 +169,13 @@ struct SettingsView: View {
                     reorderingGroups = true
                 } label: {
                     Label("Reorder groups", systemImage: "arrow.up.arrow.down")
+                }
+            }
+            if showsChannelsTabOption {
+                Picker("Channels tab shows", selection: $channelsTab) {
+                    ForEach(ChannelsTabMode.allCases) { mode in
+                        Text(mode.title).tag(mode)
+                    }
                 }
             }
         } header: {

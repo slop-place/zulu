@@ -550,6 +550,24 @@ extension AppModel {
         store?.observeChannels(inGroup: id)
     }
 
+    func channelObservation(in scope: SidebarScope)
+        -> ValueObservation<ValueReducers.Fetch<[ChannelSummary]>>?
+    {
+        store?.observeChannels(in: scope)
+    }
+
+    func mentionedHiddenChannelObservation(in scope: SidebarScope)
+        -> ValueObservation<ValueReducers.Fetch<[ChannelSummary]>>?
+    {
+        store?.observeMentionedHiddenChannels(in: scope)
+    }
+
+    func promotedTopicObservation(in scope: SidebarScope)
+        -> ValueObservation<ValueReducers.Fetch<[PromotedTopicSummary]>>?
+    {
+        store?.observePromotedTopics(in: scope)
+    }
+
     func mentionedHiddenChannelObservation(inGroup id: String?)
         -> ValueObservation<ValueReducers.Fetch<[ChannelSummary]>>?
     {

@@ -102,7 +102,13 @@ extension ZuluStore {
     public func observeChannels(inGroup groupID: String?)
         -> ValueObservation<ValueReducers.Fetch<[ChannelSummary]>>
     {
-        let (membership, arguments) = Self.membership(inGroup: groupID)
+        observeChannels(in: SidebarScope(group: groupID))
+    }
+
+    public func observeChannels(in scope: SidebarScope)
+        -> ValueObservation<ValueReducers.Fetch<[ChannelSummary]>>
+    {
+        let (membership, arguments) = scope.channelMembership
         return ValueObservation.tracking { db in
             try ChannelSummary.fetchAll(db, sql: """
                 SELECT \(Self.sidebarRowColumns)
@@ -120,7 +126,13 @@ extension ZuluStore {
     public func observeMentionedHiddenChannels(inGroup groupID: String?)
         -> ValueObservation<ValueReducers.Fetch<[ChannelSummary]>>
     {
-        let (membership, arguments) = Self.membership(inGroup: groupID)
+        observeMentionedHiddenChannels(in: SidebarScope(group: groupID))
+    }
+
+    public func observeMentionedHiddenChannels(in scope: SidebarScope)
+        -> ValueObservation<ValueReducers.Fetch<[ChannelSummary]>>
+    {
+        let (membership, arguments) = scope.channelMembership
         return ValueObservation.tracking { db in
             try ChannelSummary.fetchAll(db, sql: """
                 SELECT * FROM (
@@ -135,12 +147,6 @@ extension ZuluStore {
         }
     }
 
-    private static func membership(inGroup groupID: String?) -> (String, StatementArguments) {
-        let membership = groupID == nil
-            ? "c.id NOT IN (SELECT channelID FROM channelGroupMember)"
-            : "c.id IN (SELECT channelID FROM channelGroupMember WHERE groupID = ?)"
-        return (membership, groupID.map { [$0] } ?? [])
-    }
 
     /// A sidebar row's columns, aliased as `c`. Unreads in promoted topics belong to the
     /// promoted row and are left out here.
@@ -230,6 +236,39 @@ extension ZuluStore {
                     groupID: groupID, channelID: channelID, position: index
                 ).insert(db)
             }
+        }
+    }
+}
+
+/// Which channels a sidebar list holds.
+public enum SidebarScope: Hashable, Sendable {
+    /// Every channel, filed in a group or not.
+    case everything
+    /// The channels no group has claimed, so a channel is never invisible just because it
+    /// has not been filed yet.
+    case ungrouped
+    case group(String)
+
+    /// A group, or — passing `nil` — the ungrouped channels.
+    public init(group id: String?) {
+        self = id.map(SidebarScope.group) ?? .ungrouped
+    }
+
+    /// The condition on `channel c` for being in the list.
+    var channelMembership: (String, StatementArguments) {
+        switch self {
+        case .everything: ("1", [])
+        case .ungrouped: ("c.id NOT IN (SELECT channelID FROM channelGroupMember)", [])
+        case .group(let id): ("c.id IN (SELECT channelID FROM channelGroupMember WHERE groupID = ?)", [id])
+        }
+    }
+
+    /// The condition on `promotedTopic p` for being in the list.
+    var promotedMembership: (String, StatementArguments) {
+        switch self {
+        case .everything: ("1", [])
+        case .ungrouped: ("p.groupID IS NULL", [])
+        case .group(let id): ("p.groupID = ?", [id])
         }
     }
 }

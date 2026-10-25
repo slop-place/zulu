@@ -11,9 +11,20 @@ enum ShellSection: Hashable {
     case group(String)
     /// Channels no group has claimed, so filing is optional rather than required.
     case unfiled
+    /// Every channel, in a group or not.
+    case all
 
     var groupID: String? {
         if case .group(let id) = self { id } else { nil }
+    }
+
+    /// The channels the section lists, for the sections that list channels.
+    var scope: SidebarScope {
+        switch self {
+        case .all: .everything
+        case .group(let id): .group(id)
+        default: .ungrouped
+        }
     }
 }
 
@@ -23,6 +34,7 @@ extension AppModel {
         case .recent: "Recent"
         case .dms: "Direct Messages"
         case .unfiled: "Channels"
+        case .all: "All Channels"
         case .group(let id): groups.first { $0.id == id }?.name ?? "Channels"
         }
     }
@@ -183,6 +195,7 @@ struct SectionList: View {
         switch section {
         case .recent: model.allChannels.isEmpty ? "Syncing your channels…" : "Nothing has happened yet."
         case .group: "No channels in this group yet. Edit the group to add some."
+        case .all: "No channels yet."
         default: "Every channel is filed into a group."
         }
     }
@@ -193,9 +206,9 @@ struct SectionList: View {
             await observeRecent()
             return
         }
-        let groupID = section.groupID
+        let scope = section.scope
         guard let writer = model.databaseWriter else { return }
-        if let promoted = model.promotedTopicObservation(inGroup: groupID) {
+        if let promoted = model.promotedTopicObservation(in: scope) {
             promotedTask?.cancel()
             promotedTask = Task {
                 do {
@@ -203,7 +216,7 @@ struct SectionList: View {
                 } catch {}
             }
         }
-        if let hidden = model.mentionedHiddenChannelObservation(inGroup: groupID) {
+        if let hidden = model.mentionedHiddenChannelObservation(in: scope) {
             mentionedHiddenTask?.cancel()
             mentionedHiddenTask = Task {
                 do {
@@ -211,7 +224,7 @@ struct SectionList: View {
                 } catch {}
             }
         }
-        guard let observation = model.channelObservation(inGroup: groupID) else { return }
+        guard let observation = model.channelObservation(in: scope) else { return }
         do {
             for try await rows in observation.removeDuplicates().values(in: writer) {
                 visibleChannels = rows

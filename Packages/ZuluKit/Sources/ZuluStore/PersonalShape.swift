@@ -163,8 +163,13 @@ extension ZuluStore {
     public func observePromotedTopics(inGroup groupID: String?)
         -> ValueObservation<ValueReducers.Fetch<[PromotedTopicSummary]>>
     {
-        let membership = groupID == nil ? "p.groupID IS NULL" : "p.groupID = ?"
-        let arguments: StatementArguments = groupID.map { [$0] } ?? []
+        observePromotedTopics(in: SidebarScope(group: groupID))
+    }
+
+    public func observePromotedTopics(in scope: SidebarScope)
+        -> ValueObservation<ValueReducers.Fetch<[PromotedTopicSummary]>>
+    {
+        let (membership, arguments) = scope.promotedMembership
 
         return ValueObservation.tracking { db in
             try PromotedTopicSummary.fetchAll(db, sql: """

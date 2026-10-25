@@ -57,13 +57,19 @@ struct NativeShellView: View {
         case section(ShellSection)
         /// Whichever group the Groups tab is showing.
         case groups
+        /// Every channel, or only those in no group, as Settings chooses.
+        case channels
         case settings
     }
+
+    @AppStorage(ChannelsTabMode.storageKey) private var channelsTab = ChannelsTabMode.standard
+
+    private var channelsSection: ShellSection { channelsTab == .all ? .all : .unfiled }
 
     /// The group the Groups tab shows, kept across launches.
     @AppStorage("shell.currentGroup") private var currentGroupID = ""
 
-    @State private var selection: ShellTab = .section(.unfiled)
+    @State private var selection: ShellTab = .channels
     /// The conversation each section was last showing.
     @State private var opened: [ShellSection: AppModel.Destination] = [:]
     /// Closed, whether each section is showing its list or its conversation.
@@ -88,6 +94,7 @@ struct NativeShellView: View {
         switch selection {
         case .section(let section): section
         case .groups: currentGroup.map { .group($0.id) }
+        case .channels: channelsSection
         case .settings: nil
         }
     }
@@ -123,13 +130,13 @@ struct NativeShellView: View {
                 .badge(model.groups.reduce(0) { $0 + $1.mentionCount })
             }
 
-            Tab(model.groups.isEmpty ? "Channels" : "Unfiled", systemImage: "number", value: ShellTab.section(.unfiled)) {
-                split(.unfiled)
+            Tab(title(of: channelsSection), systemImage: "number", value: ShellTab.channels) {
+                split(channelsSection)
             }
-            .badge(model.unfiledMentionCount)
+            .badge(channelsBadge)
 
             Tab("Settings", systemImage: "gearshape", value: ShellTab.settings) {
-                SettingsView(showsDone: false)
+                SettingsView(showsDone: false, showsChannelsTabOption: true)
             }
         }
         .onAppear {
@@ -169,7 +176,7 @@ struct NativeShellView: View {
         }
         // The last group gone, its tab goes too; whoever was on it lands on the channels.
         .onChange(of: model.groups.isEmpty) { _, isEmpty in
-            if isEmpty, selection == .groups { selection = .section(.unfiled) }
+            if isEmpty, selection == .groups { selection = .channels }
         }
         .onChange(of: model.pendingGroupToEdit) { _, id in
             guard let id else { return }
@@ -214,8 +221,11 @@ struct NativeShellView: View {
                 open: { open($0, in: section) },
                 showingReorder: $showingReorderChannels
             )
-            .navigationTitle(model.title(of: section))
+            .navigationTitle(title(of: section))
             .navigationSubtitle(syncSubtitle)
+            // The large title on the row the bar's buttons sit on, rather than a row of its
+            // own below them, which left a band of nothing above every list.
+            .toolbarTitleDisplayMode(.inlineLarge)
             .toolbar { listMenu(for: section) }
             // Black like the conversation beside it, rather than the system's grey
             // sidebar, with a hairline where one ends and the other begins.
@@ -300,6 +310,20 @@ struct NativeShellView: View {
                     deletingGroup = group
                 }
             }
+        }
+    }
+
+    /// Channels in no group are "Ungrouped" beside a Groups tab; with no groups, they are
+    /// simply the channels.
+    private func title(of section: ShellSection) -> String {
+        if section == .unfiled, !model.groups.isEmpty { return "Ungrouped" }
+        return model.title(of: section)
+    }
+
+    private var channelsBadge: Int {
+        switch channelsTab {
+        case .all: model.allChannels.reduce(0) { $0 + $1.mentionCount }
+        case .ungrouped: model.unfiledMentionCount
         }
     }
 
@@ -429,4 +453,24 @@ extension EnvironmentValues {
     /// True while a closed foldable shows the list in front of this conversation, whose
     /// toolbar items would otherwise show over the list.
     @Entry var isCoveredByList = false
+}
+
+/// What the channels tab lists, chosen in Settings.
+enum ChannelsTabMode: String, CaseIterable, Identifiable {
+    /// Every channel, grouped or not, so there is one place to browse them all.
+    case all
+    /// Only the channels no group has claimed, so each channel has one home.
+    case ungrouped
+
+    static let storageKey = "shell.channelsTab"
+    static let standard = ChannelsTabMode.all
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .all: "All channels"
+        case .ungrouped: "Channels in no group"
+        }
+    }
 }
