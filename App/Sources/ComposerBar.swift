@@ -30,7 +30,7 @@ struct ComposerBar: View {
     @State private var hasKeyboard = false
 
     /// Every icon control in the bar is the same circle, so the row reads as one piece.
-    private static let controlSize: CGFloat = 26
+    static let controlSize: CGFloat = 26
     /// What a glass button pads around its label. The emoji button sits that far in from
     /// the field's corner, so it centres on the same line as the buttons either side.
     private static let glassControlInset: CGFloat = 7

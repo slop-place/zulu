@@ -255,6 +255,7 @@ struct NativeShellView: View {
             }
             .modifier(MeasuresPageSideInsets())
             .environment(\.isCoveredByList, coversWithList(section))
+            .environment(\.hasScreenToItself, conversationCoversList(in: section))
             // Closed, a conversation has the screen to itself: the tabs belong to the
             // list it was opened from, and are a back swipe away. Only while it shows:
             // the collapsed split view carries the detail's bars onto the list as well.

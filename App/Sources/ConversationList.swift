@@ -82,15 +82,18 @@ struct ConversationList: View {
                     } label: {
                         Image(systemName: "chevron.down")
                             .font(.body.weight(.semibold))
-                            .frame(width: 24, height: 24)
+                            .frame(width: ComposerBar.controlSize, height: ComposerBar.controlSize)
                     }
                     .buttonStyle(.glass)
                     .buttonBorderShape(.circle)
-                    .padding(.trailing, 16)
+                    // Over the send button.
+                    .padding(.trailing, ComposerBar.horizontalPadding)
                     .padding(.bottom, 12)
                     .transition(.scale.combined(with: .opacity))
                 }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+            .reachesUnderSideBar()
             // Scoped to the button. On the whole list it also animated whatever else
             // changed in the same update, like a message landing.
             .animation(.snappy(duration: 0.2), value: manager.showsJumpToNewest)

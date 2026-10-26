@@ -16,6 +16,10 @@ struct ConversationView: View {
     /// The bars beside this conversation, measured on the conversation itself.
     @State private var measuredSideInsets: HorizontalInsets?
     @Environment(\.isCoveredByList) private var isCoveredByList
+    @Environment(\.hasScreenToItself) private var hasScreenToItself
+    /// The edge the bars run down, on a display that puts them at the side.
+    @State private var sideBarEdge: HorizontalEdge?
+    @State private var isTyping = false
 
     @State private var loader: MessageHistoryLoader?
     @State private var readTracker: ReadTracker?
@@ -57,6 +61,7 @@ struct ConversationView: View {
                 TypingIndicatorView(source: source)
                 ComposerBar(source: source, placeholder: placeholder, suggestionBox: suggestionBox)
             }
+            .reachesUnderSideBar()
         }
         .overlay(alignment: .top) {
             if ScrollDebugReadout.isEnabled { ScrollDebugLabel().padding(.top, 4) }
@@ -82,7 +87,7 @@ struct ConversationView: View {
         .toolbar {
             // While the list is still showing, closed, the toolbar is the list's: these
             // belong to the conversation, and "All topics" would replace it.
-            if let forum = forumChannel, !isCoveredByList {
+            if let forum = forumChannel, !isCoveredByList, !clearsSideBarForTyping {
                 if !isStandalone {
                     ToolbarItem(placement: .topBarTrailing) {
                         Button("All topics", systemImage: "list.bullet") {
@@ -94,6 +99,13 @@ struct ConversationView: View {
                 ToolbarItem(placement: .topBarTrailing) { NewTopicButton(channel: forum) }
                     .sideBarItem()
             }
+        }
+        .background { SideBarEdgeReader(edge: $sideBarEdge) }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
+            isTyping = true
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
+            isTyping = false
         }
         .task(id: source) {
             self.loader?.stop()
@@ -122,6 +134,12 @@ struct ConversationView: View {
             await flushing.value
             application.endBackgroundTask(assertion)
         }
+    }
+
+    /// Closed, the keyboard lifts the composer level with the buttons down the side; only
+    /// the way back stays while it is up.
+    private var clearsSideBarForTyping: Bool {
+        isTyping && hasScreenToItself && sideBarEdge != nil
     }
 
     private var forumChannel: ChannelSummary? {
@@ -165,5 +183,70 @@ private extension ToolbarContent {
         } else {
             self
         }
+    }
+}
+
+
+extension EnvironmentValues {
+    /// Closed, with the conversation over its list and the tab bar out of the way.
+    @Entry var hasScreenToItself = false
+}
+
+extension View {
+    /// Lets what sits at the bottom of a conversation reach across the bottom of the bars'
+    /// column to the screen's edge, when they run down the side of a conversation that has
+    /// the screen to itself. They sit at the top of it and leave the rest empty.
+    func reachesUnderSideBar() -> some View {
+        modifier(ReachesUnderSideBar())
+    }
+}
+
+private struct ReachesUnderSideBar: ViewModifier {
+    @Environment(\.hasScreenToItself) private var hasScreenToItself
+
+    func body(content: Content) -> some View {
+        if #available(iOS 27.1, *), hasScreenToItself {
+            content.modifier(ReachesToSideBarEdge())
+        } else {
+            content
+        }
+    }
+}
+
+@available(iOS 27.1, *)
+private struct ReachesToSideBarEdge: ViewModifier {
+    @Environment(\.toolbarVerticalEdge) private var edge
+
+    func body(content: Content) -> some View {
+        content.ignoresSafeArea(.container, edges: edges)
+    }
+
+    private var edges: Edge.Set {
+        switch edge {
+        case .leading: .leading
+        case .trailing: .trailing
+        case nil: []
+        }
+    }
+}
+
+/// Hands the edge the bars run down to a view that cannot read it itself before iOS 27.1.
+private struct SideBarEdgeReader: View {
+    @Binding var edge: HorizontalEdge?
+
+    var body: some View {
+        if #available(iOS 27.1, *) {
+            SideBarEdgeReader271(edge: $edge)
+        }
+    }
+}
+
+@available(iOS 27.1, *)
+private struct SideBarEdgeReader271: View {
+    @Binding var edge: HorizontalEdge?
+    @Environment(\.toolbarVerticalEdge) private var verticalEdge
+
+    var body: some View {
+        Color.clear.onChange(of: verticalEdge, initial: true) { edge = verticalEdge }
     }
 }
