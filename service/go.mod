@@ -40,7 +40,7 @@ require (
 	golang.org/x/crypto v0.57.0 // indirect
 	// Floor raised above sideshow/apns2's v0.33.0, which carries GO-2026-4918 in
 	// exactly the HTTP/2 client path apns2 uses.
-	golang.org/x/net v0.59.0 // indirect
+	golang.org/x/net v0.60.0 // indirect
 	golang.org/x/sys v0.48.0 // indirect
 	golang.org/x/text v0.42.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
