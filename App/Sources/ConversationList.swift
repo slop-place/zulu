@@ -43,6 +43,10 @@ struct ConversationList: View {
     /// rows through an observable rather than handed to them: the list builds each row's
     /// content once and never asks again.
     @State private var sideInsets: SideInsets
+    @Environment(\.jumpsFromSideBar) private var jumpsFromSideBar
+    /// The jump button in the side bar, changed in an animation so it grows in like the
+    /// floating one rather than appearing between two frames.
+    @State private var showsJumpInBar = false
 
     private static let listPadding: CGFloat = 12
     private static let loaderHeight: CGFloat = 44
@@ -76,7 +80,7 @@ struct ConversationList: View {
         .onChange(of: currentSideInsets) { _, insets in sideInsets.update(insets) }
         .overlay(alignment: .bottomTrailing) {
             Group {
-                if manager.showsJumpToNewest {
+                if manager.showsJumpToNewest, !jumpsFromSideBar {
                     Button {
                         manager.followNewest()
                     } label: {
@@ -92,11 +96,22 @@ struct ConversationList: View {
                     .transition(.scale.combined(with: .opacity))
                 }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
-            .reachesUnderSideBar()
             // Scoped to the button. On the whole list it also animated whatever else
             // changed in the same update, like a message landing.
             .animation(.snappy(duration: 0.2), value: manager.showsJumpToNewest)
+        }
+        .toolbar {
+            if jumpsFromSideBar, showsJumpInBar {
+                // A circle of its own, apart from the channel's buttons above it.
+                ToolbarSpacer(.fixed, placement: .topBarTrailing)
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Jump to Newest", systemImage: "chevron.down") { manager.followNewest() }
+                }
+                .sideBarItem()
+            }
+        }
+        .onChange(of: manager.showsJumpToNewest, initial: true) { _, shows in
+            withAnimation(.snappy(duration: 0.2)) { showsJumpInBar = shows }
         }
         .presentsMessageSheets(presenter)
         // Scrolling back down after reading history, and catching up on messages that

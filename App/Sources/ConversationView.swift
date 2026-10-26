@@ -43,6 +43,7 @@ struct ConversationView: View {
                     sideInsets: sideInsets
                 )
                     .id(ObjectIdentifier(loader))
+                    .environment(\.jumpsFromSideBar, hasScreenToItself && sideBarEdge != nil)
             } else {
                 // Most conversations are drawn within a few frames. A spinner shown for
                 // those few frames flashed on every switch, so it waits to be needed.
@@ -171,7 +172,7 @@ struct ConversationView: View {
     }
 }
 
-private extension ToolbarContent {
+extension ToolbarContent {
     /// Goes down the side with the back button wherever bars run vertically, as on a
     /// foldable's displays. Left to decide while a conversation was being pushed, the
     /// system laid these out as a bar along the bottom first, an empty bubble under the
@@ -190,6 +191,9 @@ private extension ToolbarContent {
 extension EnvironmentValues {
     /// Closed, with the conversation over its list and the tab bar out of the way.
     @Entry var hasScreenToItself = false
+    /// Jumping to the newest message is a button in the bar down the side, under the
+    /// way back, rather than one floating over the conversation.
+    @Entry var jumpsFromSideBar = false
 }
 
 extension View {
