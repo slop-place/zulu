@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.16.1](https://github.com/slop-place/zulu/compare/zulu-v1.16.0...zulu-v1.16.1) (2026-10-26)
+
+
+### Bug Fixes
+
+* Send works on a closed foldable again ([d42f87d](https://github.com/slop-place/zulu/commit/d42f87d202a8c600043915c7662ade7ddb32f43a))
+
 ## [1.16.0](https://github.com/slop-place/zulu/compare/zulu-v1.15.0...zulu-v1.16.0) (2026-10-26)
 
 
