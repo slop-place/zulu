@@ -160,6 +160,7 @@ final class MacConversationCell: NSTableCellView {
     init(identifier: NSUserInterfaceItemIdentifier) {
         super.init(frame: .zero)
         self.identifier = identifier
+        clipsToBounds = false
     }
 
     @available(*, unavailable)
@@ -179,6 +180,7 @@ final class MacConversationCell: NSTableCellView {
             // The table decides the cell's size; the hosting view must not ask for one.
             host.sizingOptions = []
             host.translatesAutoresizingMaskIntoConstraints = true
+            host.clipsToBounds = false
             addSubview(host)
             self.host = host
         }
@@ -898,4 +900,12 @@ final class MacConversationTableCoordinator: NSObject, NSTableViewDataSource, NS
     }
 
     func tableView(_ tableView: NSTableView, shouldSelectRow row: Int) -> Bool { false }
+
+    /// A message's hover bar rises into the row above, so each row draws past its top
+    /// and over the one before it.
+    func tableView(_ tableView: NSTableView, didAdd rowView: NSTableRowView, forRow row: Int) {
+        rowView.clipsToBounds = false
+        rowView.wantsLayer = true
+        rowView.layer?.zPosition = CGFloat(row)
+    }
 }
