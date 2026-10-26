@@ -19,6 +19,7 @@ struct ShellView: View {
     @State private var confirmingMarkAllRead = false
     @State private var showingHidden = false
     @State private var showingNotifications = false
+    @State private var showingNewMessage = false
     @State private var showingSettings = false
     @State private var showingReorder = false
     @State private var reorderingGroups = false
@@ -401,6 +402,17 @@ struct ShellView: View {
             Text(listTitle).font(.headline).lineLimit(1)
             Spacer(minLength: 4)
             SyncDot(status: model.status)
+            if section == .dms {
+                Button { showingNewMessage = true } label: {
+                    Image(systemName: "plus")
+                        .font(.footnote)
+                        .foregroundStyle(TextTone.secondary)
+                        .frame(width: 22, height: 22)
+                        .contentShape(.rect)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("New message")
+            }
             Menu {
                 Button("Settings", systemImage: "gearshape") { showingSettings = true }
                 Divider()
@@ -470,6 +482,9 @@ struct ShellView: View {
         }
         .sheet(isPresented: $showingHidden) { HiddenChannelsView() }
         .sheet(isPresented: $showingNotifications) { NotificationSettingsView() }
+        .sheet(isPresented: $showingNewMessage) {
+            NewMessageView { openFromDrawer(.dm($0)) }
+        }
         .sheet(isPresented: $showingSettings) { SettingsView() }
         .sheet(isPresented: $reorderingGroups) { ReorderGroupsView(groups: model.groups) }
         .sheet(item: Binding(get: { editingGroup.map(Identified.init) },

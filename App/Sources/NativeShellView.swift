@@ -79,6 +79,7 @@ struct NativeShellView: View {
     @State private var paths: [ShellSection: [ConversationView.Source]] = [:]
 
     @State private var showingReorderChannels = false
+    @State private var showingNewMessage = false
     @State private var reorderingGroups = false
     @State private var editingGroup: String?
     @State private var creatingGroup = false
@@ -184,6 +185,9 @@ struct NativeShellView: View {
             editingGroup = id
             show(group: id)
             model.pendingGroupToEdit = nil
+        }
+        .sheet(isPresented: $showingNewMessage) {
+            NewMessageView { open(.dm($0), in: .dms) }
         }
         .sheet(isPresented: $reorderingGroups) { ReorderGroupsView(groups: model.groups) }
         .sheet(item: Binding(get: { editingGroup.map(IdentifiedGroup.init) },
@@ -372,6 +376,11 @@ struct NativeShellView: View {
         if case .group = section {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu("Groups", systemImage: "square.stack") { groupMenu }
+            }
+        }
+        if section == .dms {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button("New message", systemImage: "square.and.pencil") { showingNewMessage = true }
             }
         }
         ToolbarItem(placement: .topBarTrailing) {
