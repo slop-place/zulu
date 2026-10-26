@@ -498,6 +498,7 @@ struct MacSettingsView: View {
     @AppStorage(MacMessageActionStyle.storageKey) private var messageActionStyle = MacMessageActionStyle.standard
     @AppStorage(MacSidebarSettings.showsRecentKey) private var showsRecent = true
     @AppStorage(MacSidebarSettings.pinsUnreadDMsKey) private var pinsUnreadDMs = true
+    @AppStorage(MacSidebarLayout.storageKey) private var sidebarLayout = MacSidebarLayout.standard
 
     var body: some View {
         Form {
@@ -519,12 +520,17 @@ struct MacSettingsView: View {
                 }
             }
             Section {
+                Picker("Layout", selection: $sidebarLayout) {
+                    ForEach(MacSidebarLayout.allCases) { layout in
+                        Text(layout.title).tag(layout)
+                    }
+                }
                 Toggle("Show Recent", isOn: $showsRecent)
                 Toggle("Pin unread direct messages above channels", isOn: $pinsUnreadDMs)
             } header: {
                 Text("Sidebar")
             } footer: {
-                Text("With pinning off, direct messages are listed only under Direct Messages.")
+                Text("Sections puts Recent, Direct Messages, your groups and the channels in a sidebar of their own, as on iPhone Duo. With pinning off, direct messages are listed only under Direct Messages.")
             }
             Section {
                 Toggle("Direct messages", isOn: $notifyDirectMessages)

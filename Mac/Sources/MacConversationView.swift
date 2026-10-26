@@ -10,6 +10,7 @@ struct MacConversationView: View {
 
     @Environment(AppModel.self) private var model
     @Environment(MacUIState.self) private var ui
+    @AppStorage(MacSidebarLayout.storageKey) private var sidebarLayout = MacSidebarLayout.standard
 
     @State private var loader: MessageHistoryLoader?
     @State private var readTracker: ReadTracker?
@@ -67,6 +68,15 @@ struct MacConversationView: View {
         // Without a background the title sits directly on top of the newest message.
         .toolbarBackground(.visible, for: .windowToolbar)
         .toolbar {
+            // With three columns the window's title is the list's; the conversation
+            // names itself above its own column instead.
+            if sidebarLayout == .sections {
+                ToolbarItem(placement: .automatic) {
+                    MacColumnTitle(title: title, subtitle: subtitle)
+                }
+                .sharedBackgroundVisibility(.hidden)
+                ToolbarSpacer(.flexible)
+            }
             if let forum = forumChannel {
                 ToolbarItem(placement: .automatic) {
                     Button {

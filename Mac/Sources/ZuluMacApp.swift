@@ -90,6 +90,26 @@ enum MacSidebarSettings {
     static let pinsUnreadDMsKey = "sidebar.pinsUnreadDirectMessages"
 }
 
+/// How the sidebar is laid out, chosen in Settings.
+enum MacSidebarLayout: String, CaseIterable, Identifiable {
+    /// The groups as icons on a rail beside one list.
+    case rail
+    /// The sections in a sidebar of their own beside the list, as on the foldable.
+    case sections
+
+    static let storageKey = "sidebar.layout"
+    static let standard = MacSidebarLayout.rail
+
+    var id: Self { self }
+
+    var title: String {
+        switch self {
+        case .rail: "Rail"
+        case .sections: "Sections"
+        }
+    }
+}
+
 /// Everything the menu bar and the shell have to agree on: which sheets are up, which
 /// section is showing, and the requests a command makes of whatever view is in front.
 ///

@@ -118,6 +118,7 @@ struct MacTopicListView: View {
 
     @Environment(AppModel.self) private var model
     @Environment(MacUIState.self) private var ui
+    @AppStorage(MacSidebarLayout.storageKey) private var sidebarLayout = MacSidebarLayout.standard
     @State private var topics: [TopicSummary] = []
     @State private var loaded = false
     @State private var filter = ""
@@ -139,6 +140,13 @@ struct MacTopicListView: View {
         .navigationTitle("#\(channel.name)")
         .navigationSubtitle(subtitle)
         .toolbar {
+            if sidebarLayout == .sections {
+                ToolbarItem(placement: .automatic) {
+                    MacColumnTitle(title: "#\(channel.name)", subtitle: subtitle)
+                }
+                .sharedBackgroundVisibility(.hidden)
+                ToolbarSpacer(.flexible)
+            }
             ToolbarItem(placement: .primaryAction) {
                 Button {
                     ui.newTopicChannel = ChannelSummaryBox(channel: channel)
@@ -247,5 +255,22 @@ struct MacTopicListView: View {
                 loaded = true
             }
         } catch {}
+    }
+}
+
+/// A column's own title and subtitle in the toolbar above it, for when the window's
+/// title belongs to another column.
+struct MacColumnTitle: View {
+    let title: String
+    let subtitle: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(title).font(.headline).lineLimit(1)
+            if !subtitle.isEmpty {
+                Text(subtitle).font(.caption).foregroundStyle(TextTone.secondary).lineLimit(1)
+            }
+        }
+        .padding(.horizontal, 6)
     }
 }

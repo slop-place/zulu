@@ -4,7 +4,8 @@ import SwiftUI
 import ZuluStore
 
 /// The Mac shell: a group rail and a channel list in one sidebar, a conversation beside
-/// them.
+/// them. Or, chosen in Settings, laid out the way the foldable's is: a sidebar of the
+/// sections, each section's list beside it, and the conversation.
 ///
 /// The iOS drawer exists because a phone has room for one column at a time. A Mac window
 /// does not have that problem, so the same information is laid out rather than stacked —
@@ -33,6 +34,7 @@ struct MacShellView: View {
 
     @AppStorage(MacSidebarSettings.showsRecentKey) private var showsRecent = true
     @AppStorage(MacSidebarSettings.pinsUnreadDMsKey) private var pinsUnreadDMs = true
+    @AppStorage(MacSidebarLayout.storageKey) private var layout = MacSidebarLayout.standard
 
     var body: some View {
         alerts(sheets(split))
@@ -43,11 +45,46 @@ struct MacShellView: View {
     /// checker will take in a single expression.
     private var split: some View {
         @Bindable var ui = ui
-        return NavigationSplitView(columnVisibility: $columns) {
-            sidebar
-                .navigationSplitViewColumnWidth(min: 300, ideal: 330, max: 480)
-        } detail: {
-            MacDetailView()
+        return Group {
+            switch layout {
+            case .rail:
+                NavigationSplitView(columnVisibility: $columns) {
+                    sidebar
+                        .navigationSplitViewColumnWidth(min: 300, ideal: 330, max: 480)
+                } detail: {
+                    MacDetailView()
+                }
+            case .sections:
+                NavigationSplitView(columnVisibility: $columns) {
+                    sections
+                        .navigationSplitViewColumnWidth(min: 180, ideal: 210, max: 280)
+                } content: {
+                    // The window's title, with three columns: what the section is and
+                    // whether the queue is live, as the foldable titles its list.
+                    list
+                        .navigationTitle(listTitle)
+                        .navigationSubtitle(listSubtitle)
+                        .navigationSplitViewColumnWidth(min: 260, ideal: 300, max: 440)
+                        .modifier(BlackColumn())
+                } detail: {
+                    MacDetailView()
+                }
+            }
+        }
+        .onChange(of: model.destination) { _, destination in
+            guard let destination else { return }
+            ui.remember(destination, in: section(for: destination))
+            // Recent lists conversations from every section, so what was opened from
+            // it is remembered there as well as where it lives.
+            if ui.section == .recent { ui.remember(destination, in: .recent) }
+        }
+        .onChange(of: ui.section) { _, section in
+            if section == .recent {
+                if let last = ui.lastDestination(in: .recent) { model.destination = last }
+                return
+            }
+            guard model.destination.map(self.section(for:)) != section else { return }
+            model.destination = ui.lastDestination(in: section)
         }
         .task(id: ui.section) { await observe() }
         // The remembered destination comes back before the groups do, so the section
@@ -183,28 +220,81 @@ struct MacShellView: View {
                 MacSidebarFooter()
             }
         }
-        // Under the title bar too: the column's own vibrancy would otherwise show
-        // through as grey.
-        .background(Platform.canvas.ignoresSafeArea())
-        // The canvas behind both columns hides the split view's own divider.
-        .overlay(alignment: .trailing) {
-            HStack(spacing: 0) { Divider() }.ignoresSafeArea()
-        }
-        .onChange(of: model.destination) { _, destination in
-            guard let destination else { return }
-            ui.remember(destination, in: section(for: destination))
-            // Recent lists conversations from every section, so what was opened from
-            // it is remembered there as well as where it lives.
-            if ui.section == .recent { ui.remember(destination, in: .recent) }
-        }
-        .onChange(of: ui.section) { _, section in
-            if section == .recent {
-                if let last = ui.lastDestination(in: .recent) { model.destination = last }
-                return
+        .modifier(BlackColumn())
+    }
+
+    /// The foldable's tabs, as a Mac draws a tab bar given the room: a sidebar of them,
+    /// each with what needs an answer counted beside it, and the account at its foot
+    /// where the foldable keeps Settings.
+    private var sections: some View {
+        List(selection: sectionBinding) {
+            if showsRecent {
+                Label("Recent", systemImage: "clock")
+                    .tag(SidebarSection.recent)
+                    .contextMenu {
+                        Button("Mark All as Read…") { ui.confirmingMarkAllRead = true }
+                    }
             }
-            guard model.destination.map(self.section(for:)) != section else { return }
-            model.destination = ui.lastDestination(in: section)
+            Label("Direct Messages", systemImage: "bubble.left.and.bubble.right")
+                // Every direct message is addressed to you, so each unread one counts.
+                .badge(model.dms.reduce(0) { $0 + $1.unreadCount })
+                .tag(SidebarSection.dms)
+            Section("Groups") {
+                ForEach(model.groups) { group in
+                    Label {
+                        Text(group.name)
+                    } icon: {
+                        MacGroupAvatar(name: group.name, icon: group.icon, size: 18, active: true)
+                    }
+                    .badge(group.mentionCount)
+                    .tag(SidebarSection.group(group.id))
+                    .contextMenu {
+                        Button("Edit Group…") { ui.editingGroup = MacUIState.GroupBox(id: group.id) }
+                        NotificationLevelMenu.group(group.id, model: model)
+                        Button("Delete Group", role: .destructive) {
+                            if ui.section == .group(group.id) { ui.section = .unfiled }
+                            model.deleteGroup(id: group.id)
+                        }
+                    }
+                }
+                .onMove { source, destination in
+                    var ids = model.groups.map(\.id)
+                    ids.move(fromOffsets: source, toOffset: destination)
+                    model.reorderGroups(ids)
+                }
+                Button {
+                    ui.showingNewGroup = true
+                } label: {
+                    Label("New Group", systemImage: "plus")
+                        .foregroundStyle(TextTone.secondary)
+                }
+                .buttonStyle(.plain)
+                .selectionDisabled()
+            }
+            Section("Channels") {
+                Label(model.groups.isEmpty ? "Channels" : "Unfiled", systemImage: "number")
+                    .badge(model.unfiledMentionCount)
+                    .tag(SidebarSection.unfiled)
+            }
         }
+        .listStyle(.sidebar)
+        .scrollContentBackground(.hidden)
+        .modifier(BlackColumn())
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            VStack(spacing: 0) {
+                Divider()
+                MacSidebarFooter()
+            }
+            .background(Platform.canvas)
+        }
+    }
+
+    /// Clicking blank sidebar leaves the section as it was.
+    private var sectionBinding: Binding<SidebarSection?> {
+        Binding(
+            get: { ui.section },
+            set: { if let section = $0 { ui.section = section } }
+        )
     }
 
     /// Rows carry a `tag`, not a `NavigationLink`. In a `List(selection:)` driving a
@@ -473,6 +563,16 @@ struct MacShellView: View {
         case .dms: "Direct Messages"
         case .unfiled: model.groups.isEmpty ? "Channels" : "Unfiled"
         case .group(let id): model.groups.first { $0.id == id }?.name ?? "Channels"
+        }
+    }
+
+    /// What the foldable's list says under its title: whether the queue is live.
+    private var listSubtitle: String {
+        switch model.status {
+        case .live: ""
+        case .connecting: "Connecting…"
+        case .failed: "Offline"
+        case .idle: "Not connected"
         }
     }
 
@@ -1031,5 +1131,19 @@ struct MacSidebarFooter: View {
         case .failed(let message): message
         case .idle: "Not connected"
         }
+    }
+}
+
+/// A sidebar column in black like the conversation, with a hairline where it ends.
+private struct BlackColumn: ViewModifier {
+    func body(content: Content) -> some View {
+        content
+            // Under the title bar too: the column's own vibrancy would otherwise show
+            // through as grey.
+            .background(Platform.canvas.ignoresSafeArea())
+            // The canvas behind the columns hides the split view's own divider.
+            .overlay(alignment: .trailing) {
+                HStack(spacing: 0) { Divider() }.ignoresSafeArea()
+            }
     }
 }
