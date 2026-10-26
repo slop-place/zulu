@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.2](https://github.com/slop-place/zulu/compare/notifyd-v1.1.1...notifyd-v1.1.2) (2026-10-26)
+
+
+### Bug Fixes
+
+* **service:** bump golang.org/x/net to v0.60.0 for HTTP/2 vulns ([60d64c4](https://github.com/slop-place/zulu/commit/60d64c43add7bcd6d2cf447619315317885cfcb1))
+
 ## [1.1.1](https://github.com/slop-place/zulu/compare/notifyd-v1.1.0...notifyd-v1.1.1) (2026-09-28)
 
 
