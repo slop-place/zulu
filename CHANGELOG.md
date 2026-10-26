@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.17.0](https://github.com/slop-place/zulu/compare/zulu-v1.16.1...zulu-v1.17.0) (2026-10-26)
+
+
+### Features
+
+* a Mac sidebar laid out like iPhone Duo, as a setting ([c526154](https://github.com/slop-place/zulu/commit/c5261547b84bd50a060d98d1044aa56a10b8dff7))
+
 ## [1.16.1](https://github.com/slop-place/zulu/compare/zulu-v1.16.0...zulu-v1.16.1) (2026-10-26)
 
 
