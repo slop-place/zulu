@@ -56,14 +56,21 @@ struct ConversationView: View {
                     }
             }
         }
-        .overlay(alignment: .bottom) { AutocompleteOverlay(slot: suggestionBox) }
+        // Suggestions rise level with the side bar's buttons, so they stay out of the
+        // column the bar below reaches into.
+        .overlay(alignment: .bottom) {
+            AutocompleteOverlay(slot: suggestionBox).keepsOutOfSideBar(sideInsets)
+        }
         .safeAreaBar(edge: .bottom) {
             VStack(spacing: 0) {
                 TypingIndicatorView(source: source)
                 ComposerBar(source: source, placeholder: placeholder, suggestionBox: suggestionBox)
             }
-            .reachesUnderSideBar()
         }
+        // Outside the bar rather than on what it holds: the bar takes touches only within
+        // the safe area it is laid out in, and a composer drawn past it across the column
+        // passed every tap there, Send's included, to the list behind.
+        .reachesUnderSideBar()
         .overlay(alignment: .top) {
             if ScrollDebugReadout.isEnabled { ScrollDebugLabel().padding(.top, 4) }
         }
@@ -202,6 +209,36 @@ extension View {
     /// the screen to itself. They sit at the top of it and leave the rest empty.
     func reachesUnderSideBar() -> some View {
         modifier(ReachesUnderSideBar())
+    }
+
+    /// Steps back out of the bars' column, by `insets`, inside a view that reaches under it.
+    func keepsOutOfSideBar(_ insets: HorizontalInsets) -> some View {
+        modifier(KeepsOutOfSideBar(insets: insets))
+    }
+}
+
+private struct KeepsOutOfSideBar: ViewModifier {
+    let insets: HorizontalInsets
+    @Environment(\.hasScreenToItself) private var hasScreenToItself
+
+    func body(content: Content) -> some View {
+        if #available(iOS 27.1, *), hasScreenToItself {
+            content.modifier(KeepsOutOfSideBarEdge(insets: insets))
+        } else {
+            content
+        }
+    }
+}
+
+@available(iOS 27.1, *)
+private struct KeepsOutOfSideBarEdge: ViewModifier {
+    let insets: HorizontalInsets
+    @Environment(\.toolbarVerticalEdge) private var edge
+
+    func body(content: Content) -> some View {
+        content
+            .padding(.leading, edge == .leading ? insets.leading : 0)
+            .padding(.trailing, edge == .trailing ? insets.trailing : 0)
     }
 }
 
