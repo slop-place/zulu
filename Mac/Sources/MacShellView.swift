@@ -312,8 +312,21 @@ struct MacShellView: View {
             }
             // The column's navigation title does not render on macOS 26, so the section
             // says what it is at the top of the list, the way Mail's sidebar does.
-            Section(listTitle) {
+            Section {
                 sectionRows
+            } header: {
+                HStack {
+                    Text(listTitle)
+                    Spacer()
+                    if ui.section == .dms {
+                        Button("New Message", systemImage: "square.and.pencil") {
+                            ui.showingNewMessage = true
+                        }
+                        .labelStyle(.iconOnly)
+                        .buttonStyle(.borderless)
+                        .help("New Message (⌘N)")
+                    }
+                }
             }
             // A hidden channel someone mentioned you in, listed until the mention is read.
             if ui.section != .dms, ui.section != .recent, !mentionedHidden.isEmpty {
