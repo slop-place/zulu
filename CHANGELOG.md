@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.16.0](https://github.com/slop-place/zulu/compare/zulu-v1.15.0...zulu-v1.16.0) (2026-10-26)
+
+
+### Features
+
+* the composer spans a closed foldable's whole width ([bd348a4](https://github.com/slop-place/zulu/commit/bd348a4684afa7bec2fb77f3a02ec3f468a47a30))
+* the jump to newest button joins the side bar on a closed foldable ([1c1eae6](https://github.com/slop-place/zulu/commit/1c1eae645e9d6dffe5aad9f4c7a99ab07358da2c))
+
 ## [1.15.0](https://github.com/slop-place/zulu/compare/zulu-v1.14.0...zulu-v1.15.0) (2026-10-25)
 
 
