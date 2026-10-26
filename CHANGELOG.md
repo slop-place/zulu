@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.18.0](https://github.com/slop-place/zulu/compare/zulu-v1.17.0...zulu-v1.18.0) (2026-10-26)
+
+
+### Features
+
+* start a direct message from the iOS DM list ([4eb831d](https://github.com/slop-place/zulu/commit/4eb831d07f059aa1a01f943c5e61c9a0343dbdcb))
+
+
+### Bug Fixes
+
+* stop the Mac hover bar being cut off by the row above ([c290834](https://github.com/slop-place/zulu/commit/c2908344b2838238da93cb2d4b11e8e12cef62cf))
+
 ## [1.17.0](https://github.com/slop-place/zulu/compare/zulu-v1.16.1...zulu-v1.17.0) (2026-10-26)
 
 
