@@ -51,6 +51,7 @@ struct MacNewMessageSheet: View {
                             if let first = people.first { toggle(first.id) }
                         }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
             .padding(.horizontal, 16)
             .padding(.bottom, 10)
