@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.19.0](https://github.com/slop-place/zulu/compare/zulu-v1.18.0...zulu-v1.19.0) (2026-10-26)
+
+
+### Features
+
+* a New Message button in the Mac DM list ([f400db5](https://github.com/slop-place/zulu/commit/f400db5fe7197f4b72f38a1f36400c15829b6e2d))
+* move the Mac New Message button into the sidebar toolbar ([7fc63b8](https://github.com/slop-place/zulu/commit/7fc63b8347f95508b6f05f5e610e6aef94f072ef))
+
+
+### Bug Fixes
+
+* left-align the recipient field in the Mac New Message sheet ([141b85b](https://github.com/slop-place/zulu/commit/141b85bd501e7d1717c9e9c5f5d8fb8f779cb954))
+
 ## [1.18.0](https://github.com/slop-place/zulu/compare/zulu-v1.17.0...zulu-v1.18.0) (2026-10-26)
 
 
