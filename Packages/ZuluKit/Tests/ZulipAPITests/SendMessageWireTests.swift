@@ -71,7 +71,7 @@ struct SendMessageWireTests {
         #expect(StubProtocol.lastPath.hasSuffix("/api/v1/messages"))
         #expect(StubProtocol.lastBody == [
             "type": "stream", "to": "7", "topic": "lunch plans", "content": "a & b = c",
-            "queue_id": "1234:5", "local_id": "8F2C-uuid",
+            "queue_id": "1234:5", "local_id": "8F2C-uuid", "read_by_sender": "true",
         ])
     }
 

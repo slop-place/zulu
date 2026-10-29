@@ -12,7 +12,7 @@ struct LocalEchoTests {
         )
         #expect(parameters == [
             "type": "stream", "to": "7", "topic": "lunch", "content": "hi",
-            "queue_id": "q-1", "local_id": "L-1",
+            "queue_id": "q-1", "local_id": "L-1", "read_by_sender": "true",
         ])
     }
 
@@ -39,7 +39,16 @@ struct LocalEchoTests {
             channelID: 7, topic: "t", content: "real", echo: LocalEcho(queueID: "q", localID: "l")
         )
         #expect(parameters["content"] == "real")
-        #expect(parameters.count == 6)
+        #expect(parameters.count == 7)
+    }
+
+    /// The server leaves a message unread for its sender unless the client is an official app.
+    @Test func everySendIsReadBySender() {
+        let channel = ZulipClient.channelMessageParameters(channelID: 7, topic: "t", content: "c", echo: nil)
+        let direct = ZulipClient.directMessageParameters(userIDs: [3], content: "c", echo: echo)
+        for parameters in [channel, direct] {
+            #expect(parameters["read_by_sender"] == "true")
+        }
     }
 
     // MARK: the echo coming back

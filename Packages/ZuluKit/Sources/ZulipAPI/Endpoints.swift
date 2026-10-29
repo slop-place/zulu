@@ -115,12 +115,19 @@ extension ZulipClient {
         channelID: Int, topic: String, content: String, echo: LocalEcho?
     ) -> [String: String] {
         ["type": "stream", "to": String(channelID), "topic": topic, "content": content]
-            .merging(echo?.parameters ?? [:]) { current, _ in current }
+            .merging(Self.sendParameters(echo: echo)) { current, _ in current }
     }
 
     static func directMessageParameters(userIDs: [Int], content: String, echo: LocalEcho?) -> [String: String] {
         ["type": "private", "to": Self.json(userIDs), "content": content]
-            .merging(echo?.parameters ?? [:]) { current, _ in current }
+            .merging(Self.sendParameters(echo: echo)) { current, _ in current }
+    }
+
+    /// The server only marks a sender's message read when it recognises the client as an
+    /// official app, so Zulu has to ask. Otherwise your own messages arrive unread on your
+    /// other devices.
+    private static func sendParameters(echo: LocalEcho?) -> [String: String] {
+        ["read_by_sender": "true"].merging(echo?.parameters ?? [:]) { current, _ in current }
     }
 
     /// Appends one event to a message's widget log — a vote, a new option, a new question.
