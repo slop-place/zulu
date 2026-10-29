@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.19.1](https://github.com/slop-place/zulu/compare/zulu-v1.19.0...zulu-v1.19.1) (2026-10-29)
+
+
+### Bug Fixes
+
+* make unread sidebar rows stand out from read ones ([5eff86c](https://github.com/slop-place/zulu/commit/5eff86c2e995e16fa1ec25ee1fdd9be735b208c3))
+* mark sent messages read for the sender ([2996873](https://github.com/slop-place/zulu/commit/2996873925b6a8743fca965fe41a40f05b68bd31))
+* report macOS in the Mac app's user agent ([654d9f3](https://github.com/slop-place/zulu/commit/654d9f3e8a716a225947287d0bdf3b1048c8e69d))
+
 ## [1.19.0](https://github.com/slop-place/zulu/compare/zulu-v1.18.0...zulu-v1.19.0) (2026-10-26)
 
 
