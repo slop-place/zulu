@@ -261,11 +261,11 @@ struct SectionList: View {
                 ChannelIcon(
                     isForum: channel.rendersAsForum, restricted: channel.isRestricted, size: 15
                 )
-                .foregroundStyle(channel.rowUnreadCount > 0 ? Color.primary : SidebarTone.readIcon)
+                .foregroundStyle(channel.rowUnreadCount > 0 ? SidebarTone.unread : SidebarTone.readIcon)
                 .frame(width: 22, alignment: .leading)
                 Text(channel.name)
                     .font(.subheadline.weight(channel.rowUnreadCount > 0 ? .semibold : .medium))
-                    .foregroundStyle(channel.rowUnreadCount > 0 ? Color.primary : SidebarTone.readTitle)
+                    .foregroundStyle(channel.rowUnreadCount > 0 ? SidebarTone.unread : SidebarTone.readTitle)
                     .lineLimit(1)
                 Spacer(minLength: 4)
                 if channel.pinned {
@@ -365,7 +365,7 @@ struct SectionList: View {
                 UnreadDot(visible: topic.unreadCount > 0)
                 Text(topic.name.isEmpty ? "general chat" : topic.name)
                     .font(.subheadline.weight(topic.unreadCount > 0 ? .semibold : .regular))
-                    .foregroundStyle(topic.unreadCount > 0 ? Color.primary : SidebarTone.readTitle)
+                    .foregroundStyle(topic.unreadCount > 0 ? SidebarTone.unread : SidebarTone.readTitle)
                     .lineLimit(1)
                 Spacer(minLength: 4)
             }
@@ -408,11 +408,11 @@ struct SectionList: View {
                 // A promoted topic is one conversation, not a list of them, so it takes
                 // the plain channel icon — and the lock if its parent channel is private.
                 ChannelIcon(isForum: false, restricted: promoted.isRestricted, size: 15)
-                    .foregroundStyle(promoted.unreadCount > 0 ? Color.primary : SidebarTone.readIcon)
+                    .foregroundStyle(promoted.unreadCount > 0 ? SidebarTone.unread : SidebarTone.readIcon)
                     .frame(width: 22, alignment: .leading)
                 Text(promoted.displayName)
                     .font(.subheadline.weight(promoted.unreadCount > 0 ? .semibold : .medium))
-                    .foregroundStyle(promoted.unreadCount > 0 ? Color.primary : SidebarTone.readTitle)
+                    .foregroundStyle(promoted.unreadCount > 0 ? SidebarTone.unread : SidebarTone.readTitle)
                     .lineLimit(1)
                 Spacer(minLength: 4)
                 Badge(count: promoted.mentionCount, mention: true)

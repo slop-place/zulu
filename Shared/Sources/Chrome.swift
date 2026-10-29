@@ -92,24 +92,25 @@ struct PinMark: View {
 struct UnreadDot: View {
     let visible: Bool
 
-    private static let size: CGFloat = 5
+    private static let size: CGFloat = 7
 
     var body: some View {
         Circle()
-            .fill(.primary)
+            .fill(SidebarTone.unread)
             .frame(width: Self.size, height: Self.size)
             .opacity(visible ? 1 : 0)
     }
 }
 
-/// How a read sidebar row is drawn. A step brighter than `.secondary`, which made read
-/// rows look disabled, and brighter again in the dark, where the window is black.
+/// How sidebar rows are drawn. Unread is solid black or white rather than `.primary`,
+/// which the Mac sidebar tints gray and left unread rows no brighter than read ones.
 enum SidebarTone {
+    static let unread = Platform.dynamic(light: .black, dark: .white)
     static let readTitle = Platform.dynamic(
-        light: Platform.label.withAlphaComponent(0.72), dark: .white.withAlphaComponent(0.88)
+        light: Platform.label.withAlphaComponent(0.6), dark: .white.withAlphaComponent(0.6)
     )
     static let readIcon = Platform.dynamic(
-        light: Platform.label.withAlphaComponent(0.5), dark: .white.withAlphaComponent(0.7)
+        light: Platform.label.withAlphaComponent(0.45), dark: .white.withAlphaComponent(0.5)
     )
 }
 

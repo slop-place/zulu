@@ -26,7 +26,7 @@ struct MacRecentRow: View, Equatable {
                 HStack(alignment: .firstTextBaseline, spacing: 4) {
                     Text(entry.title)
                         .font(.body.weight(isUnread ? .semibold : .regular))
-                        .foregroundStyle(isUnread ? Color.primary : SidebarTone.readTitle)
+                        .foregroundStyle(isUnread ? SidebarTone.unread : SidebarTone.readTitle)
                         .lineLimit(1)
                     if entry.isRestricted {
                         Image(systemName: "lock.fill")

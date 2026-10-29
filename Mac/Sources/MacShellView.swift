@@ -695,14 +695,14 @@ struct MacSidebarRow: View {
             if let symbol {
                 Image(systemName: symbol)
                     .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(isUnread ? Color.primary : SidebarTone.readIcon)
+                    .foregroundStyle(isUnread ? SidebarTone.unread : SidebarTone.readIcon)
                     .frame(width: 16)
             }
             VStack(alignment: .leading, spacing: 1) {
                 HStack(spacing: 4) {
                     Text(title)
                         .font(.body.weight(isUnread ? .semibold : .regular))
-                        .foregroundStyle(isUnread ? Color.primary : SidebarTone.readTitle)
+                        .foregroundStyle(isUnread ? SidebarTone.unread : SidebarTone.readTitle)
                         .lineLimit(1)
                     if restricted {
                         Image(systemName: "lock.fill")
@@ -713,7 +713,7 @@ struct MacSidebarRow: View {
                 if let subtitle, !subtitle.isEmpty {
                     Text(subtitle)
                         .font(.caption)
-                        .foregroundStyle(TextTone.secondary)
+                        .foregroundStyle(SidebarTone.readIcon)
                         .lineLimit(1)
                 }
             }
