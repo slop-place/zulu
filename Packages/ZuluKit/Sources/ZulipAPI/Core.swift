@@ -151,7 +151,13 @@ public struct ZulipClient: Sendable {
 
     /// A Zulip-specific UA. Sending one that looks like the Zulip desktop app diverts the
     /// SSO flow to a paste-your-token page meant for Electron.
-    public static let userAgent = "Zulu/0.1 (iOS)"
+    public static let userAgent = "Zulu/0.1 (\(platform))"
+
+    #if os(macOS)
+    private static let platform = "macOS"
+    #else
+    private static let platform = "iOS"
+    #endif
 
     static let decoder: JSONDecoder = {
         let decoder = JSONDecoder()
