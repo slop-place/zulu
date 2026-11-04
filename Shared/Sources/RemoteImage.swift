@@ -13,23 +13,35 @@ struct RemoteImage: View {
 
     @Environment(AppModel.self) private var model
     @Environment(AttachmentPreviewer.self) private var previewer
-    @State private var image: Image?
+    @State private var loaded: (path: String, image: Image)?
     /// The frame showing now, while a picture with more than one is playing.
-    @State private var frame: Image?
-    @State private var failed = false
+    @State private var frame: (path: String, image: Image)?
+    @State private var failedPath: String?
 
     init(path: String, fullSize: String? = nil, alt: String? = nil, aspectRatio: Double? = nil) {
         self.path = path
         self.fullSize = fullSize
         self.alt = alt
         self.aspectRatio = aspectRatio
-        _image = State(initialValue: DecodedImages.image(at: path))
     }
+
+    /// A reused row keeps its state, so a picture only counts if it was loaded for this path.
+    private var image: Image? {
+        if let loaded, loaded.path == path { return loaded.image }
+        return DecodedImages.image(at: path)
+    }
+
+    private var currentFrame: Image? {
+        guard let frame, frame.path == path else { return nil }
+        return frame.image
+    }
+
+    private var failed: Bool { failedPath == path }
 
     var body: some View {
         Group {
             if let image {
-                (frame ?? image)
+                (currentFrame ?? image)
                     .resizable()
                     .scaledToFit()
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -63,18 +75,19 @@ struct RemoteImage: View {
             guard image != nil else { return }
             previewer.preview(previewPaths, imagesOnly: true, model: model)
         }
+        .id(path)
         .task(id: path) {
-            frame = nil
+            let path = path
             if image == nil {
                 guard let data = await model.imageData(at: path), let decoded = Platform.image(from: data) else {
                     // Scrolled away mid-fetch is not a failure; the next appearance fetches again.
-                    if !Task.isCancelled { failed = true }
+                    if !Task.isCancelled { failedPath = path }
                     return
                 }
                 DecodedImages.store(decoded, at: path)
-                image = decoded
+                loaded = (path, decoded)
             }
-            await play()
+            await play(path)
         }
     }
 
@@ -83,10 +96,10 @@ struct RemoteImage: View {
     private static let maxFramePixels = 640
 
     /// Runs for as long as the picture is on screen, and only if it moves.
-    private func play() async {
+    private func play(_ path: String) async {
         guard let data = await model.imageData(at: path), AnimatedPicture.isAnimated(data) else { return }
         for await next in AnimatedPicture.frames(of: data, maxPixelSize: Self.maxFramePixels) {
-            frame = Image(decorative: next, scale: 1)
+            frame = (path, Image(decorative: next, scale: 1))
         }
     }
 }
