@@ -57,6 +57,8 @@ struct SectionList: View {
     /// Resolved once per change rather than per render: each row's preview is a parse of
     /// rendered HTML.
     @State private var recentEntries: [RecentEntry] = []
+    /// Tall enough for a topic's three lines, so rows with fewer keep the list on an even rhythm.
+    @ScaledMetric(relativeTo: .callout) private var recentRowHeight: CGFloat = 56
     /// Hidden channels with a mention waiting, surfaced so the rail's count can be answered.
     @State private var mentionedHidden: [ChannelSummary] = []
     @State private var promotedTask: Task<Void, Never>?
@@ -259,14 +261,15 @@ struct SectionList: View {
             HStack(spacing: 7) {
                 UnreadDot(visible: channel.rowUnreadCount > 0)
                 ChannelIcon(
-                    isForum: channel.rendersAsForum, restricted: channel.isRestricted, size: 15
+                    isForum: channel.rendersAsForum, size: 15
                 )
                 .foregroundStyle(channel.rowUnreadCount > 0 ? SidebarTone.unread : SidebarTone.readIcon)
-                .frame(width: 22, alignment: .leading)
+                .frame(width: 22, alignment: .center)
                 Text(channel.name)
-                    .font(.subheadline.weight(channel.rowUnreadCount > 0 ? .semibold : .medium))
+                    .font(.callout.weight(channel.rowUnreadCount > 0 ? .semibold : .medium))
                     .foregroundStyle(channel.rowUnreadCount > 0 ? SidebarTone.unread : SidebarTone.readTitle)
                     .lineLimit(1)
+                if channel.isRestricted { LockMark() }
                 Spacer(minLength: 4)
                 if channel.pinned {
                     PinMark()
@@ -274,7 +277,7 @@ struct SectionList: View {
                 Badge(count: channel.rowMentionCount, mention: true)
             }
             .padding(.horizontal, 8)
-            .frame(height: 34)
+            .frame(minHeight: Self.rowMinHeight)
             .background(
                 model.destination == destination ? Color(.tertiarySystemFill) : .clear,
                 in: RoundedRectangle(cornerRadius: 7)
@@ -345,11 +348,32 @@ struct SectionList: View {
                     ForEach(topics) { topic in
                         topicRow(topic, in: channel)
                     }
+                    Button {
+                        open(.channel(channel.id))
+                    } label: {
+                        Text("All topics…")
+                            .font(.subheadline)
+                            .foregroundStyle(Color.accentColor)
+                            .padding(.leading, Self.topicTitleInset)
+                            .frame(maxWidth: .infinity, minHeight: Self.rowMinHeight, alignment: .leading)
+                            .contentShape(.rect)
+                    }
+                    .buttonStyle(.plain)
                 }
             }
             .padding(.trailing, 8)
         }
     }
+
+    /// The system's smallest comfortable tap target, for every row in the channel list.
+    private static let rowMinHeight: CGFloat = 44
+    private static let topicRowPadding: CGFloat = 8
+    private static let topicDotSpacing: CGFloat = 6
+    private static let topicRowVerticalPadding: CGFloat = 6
+    /// Centres the unread dot on the first line's lowercase letters rather than its baseline.
+    private static let dotBaselineDrop: CGFloat = 4
+    /// Where a topic row's title starts, past its padding and the unread dot's slot.
+    private static let topicTitleInset = topicRowPadding + UnreadDot.size + topicDotSpacing
 
     private func topicRow(_ topic: TopicSummary, in channel: ChannelSummary) -> some View {
         let destination = AppModel.Destination.topic(
@@ -361,16 +385,18 @@ struct SectionList: View {
             // meant the back gesture landed on a topic list nobody asked for.
             open(destination)
         } label: {
-            HStack(spacing: 6) {
+            HStack(alignment: .firstTextBaseline, spacing: Self.topicDotSpacing) {
                 UnreadDot(visible: topic.unreadCount > 0)
+                    .alignmentGuide(.firstTextBaseline) { $0[VerticalAlignment.center] + Self.dotBaselineDrop }
                 Text(topic.name.isEmpty ? "general chat" : topic.name)
                     .font(.subheadline.weight(topic.unreadCount > 0 ? .semibold : .regular))
-                    .foregroundStyle(topic.unreadCount > 0 ? SidebarTone.unread : SidebarTone.readTitle)
-                    .lineLimit(1)
+                    .foregroundStyle(topic.unreadCount > 0 ? SidebarTone.unread : TextTone.secondary)
+                    .lineLimit(2)
                 Spacer(minLength: 4)
             }
-            .padding(.horizontal, 8)
-            .frame(height: 32)
+            .padding(.horizontal, Self.topicRowPadding)
+            .padding(.vertical, Self.topicRowVerticalPadding)
+            .frame(minHeight: Self.rowMinHeight)
             .background(
                 isOpen ? Color(.tertiarySystemFill) : .clear,
                 in: RoundedRectangle(cornerRadius: 6)
@@ -406,19 +432,20 @@ struct SectionList: View {
             HStack(spacing: 7) {
                 UnreadDot(visible: promoted.unreadCount > 0)
                 // A promoted topic is one conversation, not a list of them, so it takes
-                // the plain channel icon — and the lock if its parent channel is private.
-                ChannelIcon(isForum: false, restricted: promoted.isRestricted, size: 15)
+                // the plain channel icon, and the lock if its parent channel is private.
+                ChannelIcon(isForum: false, size: 15)
                     .foregroundStyle(promoted.unreadCount > 0 ? SidebarTone.unread : SidebarTone.readIcon)
-                    .frame(width: 22, alignment: .leading)
+                    .frame(width: 22, alignment: .center)
                 Text(promoted.displayName)
-                    .font(.subheadline.weight(promoted.unreadCount > 0 ? .semibold : .medium))
+                    .font(.callout.weight(promoted.unreadCount > 0 ? .semibold : .medium))
                     .foregroundStyle(promoted.unreadCount > 0 ? SidebarTone.unread : SidebarTone.readTitle)
                     .lineLimit(1)
+                if promoted.isRestricted { LockMark() }
                 Spacer(minLength: 4)
                 Badge(count: promoted.mentionCount, mention: true)
             }
             .padding(.horizontal, 8)
-            .frame(height: 34)
+            .frame(minHeight: Self.rowMinHeight)
             .background(
                 model.destination == destination ? Color(.tertiarySystemFill) : .clear,
                 in: RoundedRectangle(cornerRadius: 7)
@@ -456,7 +483,7 @@ struct SectionList: View {
             open(entry.destination)
         } label: {
             // A row whose entry has not changed is not laid out again.
-            RecentRow(entry: entry, isOpen: model.destination == entry.destination)
+            RecentRow(entry: entry, isOpen: model.destination == entry.destination, minHeight: recentRowHeight)
                 .equatable()
         }
         .buttonStyle(.plain)
@@ -480,27 +507,39 @@ struct SectionList: View {
         Button {
             open(.dm(dm.dmKey))
         } label: {
-            HStack(spacing: 9) {
-                SenderAvatar(
-                    name: model.title(forDM: dm.dmKey),
-                    userID: model.soleParticipant(inDM: dm.dmKey),
-                    size: 34
-                )
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(model.title(forDM: dm.dmKey))
-                        .font(.subheadline.weight(dm.unreadCount > 0 ? .semibold : .regular))
-                        .lineLimit(1)
-                    if let preview = model.preview(forDM: dm) {
-                        Text(preview)
-                            .font(.caption)
-                            .foregroundStyle(TextTone.secondary)
-                            .lineLimit(1)
+            HStack(spacing: ConversationUnreadDot.spacing) {
+                ConversationUnreadDot(visible: dm.unreadCount > 0)
+                HStack(spacing: 9) {
+                    SenderAvatar(
+                        name: model.title(forDM: dm.dmKey),
+                        userID: model.soleParticipant(inDM: dm.dmKey),
+                        size: 34
+                    )
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(alignment: .firstTextBaseline, spacing: 4) {
+                            Text(model.title(forDM: dm.dmKey))
+                                .font(.callout.weight(dm.unreadCount > 0 ? .semibold : .medium))
+                                .foregroundStyle(dm.unreadCount > 0 ? SidebarTone.unread : SidebarTone.readTitle)
+                                .lineLimit(1)
+                            Spacer(minLength: 4)
+                            Badge(count: dm.unreadCount, mention: true)
+                        }
+                        // The date rides with the preview, so a group's names have the whole line.
+                        HStack(alignment: .firstTextBaseline, spacing: 4) {
+                            Text(model.preview(forDM: dm) ?? " ")
+                                .foregroundStyle(dm.unreadCount > 0 ? TextTone.secondary : TextTone.tertiary)
+                                .lineLimit(1)
+                            Spacer(minLength: 4)
+                            if let date = dm.date {
+                                ConversationTime(date: date, isUnread: dm.unreadCount > 0)
+                            }
+                        }
+                        .font(.footnote)
                     }
                 }
-                Spacer(minLength: 4)
-                Badge(count: dm.unreadCount, mention: true)
             }
-            .padding(.horizontal, 8)
+            .padding(.leading, 4)
+            .padding(.trailing, 8)
             .padding(.vertical, 6)
             .background(
                 model.destination == .dm(dm.dmKey) ? Color(.tertiarySystemFill) : .clear,

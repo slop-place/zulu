@@ -13,7 +13,7 @@ struct MessageBody: View {
     /// the picture in place rather than the `:name:` fallback.
     @State private var emoji: [String: EmojiFrames]
 
-    static let blockSpacing: CGFloat = 6
+    static let blockSpacing: CGFloat = 4
 
     /// Fast enough that nothing looks like a slideshow, slow enough that a message full
     /// of emoji is not redrawn at display rate.
@@ -139,17 +139,18 @@ struct TextRunView: View {
     let emoji: [String: EmojiFrames]
     var time: TimeInterval = 0
     var emojiOnly = false
+    @Environment(\.textScale) private var scale
 
     var body: some View {
         merged
-            .font(emojiOnly ? .largeTitle : nil)
+            .font(.scaled(emojiOnly ? .largeTitle : .body, by: scale))
             .inlineHover()
             .textSelection(.enabled)
             .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var merged: Text {
-        let styler = InlineStyler(emoji: emoji, time: time, emojiOnly: emojiOnly)
+        let styler = InlineStyler(emoji: emoji, time: time, emojiOnly: emojiOnly, scale: scale)
         var result = Text("")
         for (index, block) in blocks.enumerated() {
             if index > 0 {
@@ -183,6 +184,9 @@ struct InlineStyler {
     let emoji: [String: EmojiFrames]
     let time: TimeInterval
     let emojiOnly: Bool
+    let scale: CGFloat
+
+    private var body: Font { .scaled(.body, by: scale) }
 
     func styled(_ spans: [InlineSpan]) -> Text {
         spans.reduce(Text("")) { result, span in
@@ -204,15 +208,15 @@ struct InlineStyler {
 
     private func text(for span: InlineSpan) -> Text {
         var attributed = AttributedString(span.text)
-        if span.bold { attributed.font = .body.bold() }
-        if span.italic { attributed.font = (span.bold ? Font.body.bold() : Font.body).italic() }
+        if span.bold { attributed.font = body.bold() }
+        if span.italic { attributed.font = (span.bold ? body.bold() : body).italic() }
         if span.code {
-            attributed.font = .system(.callout, design: .monospaced)
+            attributed.font = .scaled(.callout, by: scale, design: .monospaced)
             attributed.backgroundColor = .secondary.opacity(0.18)
         }
         if span.strikethrough { attributed.strikethroughStyle = .single }
         if span.mention {
-            attributed.font = .body.weight(.semibold)
+            attributed.font = body.weight(.semibold)
             attributed.foregroundColor = .accentColor
         }
         if let link = span.link, let url = URL(string: link, relativeTo: RealmContext.realmURL) {
@@ -229,12 +233,13 @@ struct BlockView: View {
     /// Which moment of an animated emoji to draw. Constant for messages that have none.
     var time: TimeInterval = 0
     var emojiOnly = false
+    @Environment(\.textScale) private var scale
 
     var body: some View {
         switch block {
         case .paragraph(let spans):
             styled(spans)
-                .font(emojiOnly ? .largeTitle : nil)
+                .font(.scaled(emojiOnly ? .largeTitle : .body, by: scale))
                 .inlineHover()
                 .textSelection(.enabled)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -252,11 +257,11 @@ struct BlockView: View {
         case .codeBlock(let language, let code):
             VStack(alignment: .leading, spacing: 4) {
                 if let language {
-                    Text(language).font(.caption2).foregroundStyle(TextTone.secondary)
+                    Text(language).font(.scaled(.caption2, by: scale)).foregroundStyle(TextTone.secondary)
                 }
                 ScrollView(.horizontal) {
                     Text(code)
-                        .font(.system(.footnote, design: .monospaced))
+                        .font(.scaled(.footnote, by: scale, design: .monospaced))
                         .textSelection(.enabled)
                         .padding(10)
                 }
@@ -301,7 +306,7 @@ struct BlockView: View {
     /// Built by concatenating `Text`, which is the only way to put an image in the middle
     /// of a wrapping paragraph.
     private func styled(_ spans: [InlineSpan]) -> Text {
-        InlineStyler(emoji: emoji, time: time, emojiOnly: emojiOnly).styled(spans)
+        InlineStyler(emoji: emoji, time: time, emojiOnly: emojiOnly, scale: scale).styled(spans)
     }
 }
 
@@ -323,6 +328,7 @@ private struct QuotedReplyView: View {
     let time: TimeInterval
 
     @State private var expanded = false
+    @Environment(\.textScale) private var scale
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -330,17 +336,17 @@ private struct QuotedReplyView: View {
                 withAnimation(.snappy(duration: 0.2)) { expanded.toggle() }
             } label: {
                 HStack(spacing: 6) {
-                    Image(systemName: "arrowshape.turn.up.left.fill")
-                        .font(.system(size: 10))
+                    Image(systemName: "arrowshape.turn.up.left")
+                        .font(.scaled(.footnote, by: scale))
                         .foregroundStyle(TextTone.tertiary)
-                    SenderAvatar(name: author, userID: authorID, size: 16)
+                    SenderAvatar(name: author, userID: authorID, size: 18)
                     Text(author)
-                        .font(.caption.weight(.semibold))
+                        .font(.scaled(.footnote, by: scale).weight(.semibold))
                         .foregroundStyle(TextTone.secondary)
                     if !expanded {
                         Text(preview)
-                            .font(.caption)
-                            .foregroundStyle(TextTone.tertiary)
+                            .font(.scaled(.footnote, by: scale))
+                            .foregroundStyle(TextTone.secondary)
                             .lineLimit(1)
                     }
                     Spacer(minLength: 0)

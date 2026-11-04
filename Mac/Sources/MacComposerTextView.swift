@@ -35,9 +35,10 @@ struct MacComposerTextView: NSViewRepresentable {
     func makeNSView(context: Context) -> NSScrollView {
         let textView = ComposerTextView()
         textView.delegate = context.coordinator
-        textView.font = Self.font
+        let font = Self.font(scale: context.environment.textScale)
+        textView.font = font
         textView.textColor = .labelColor
-        textView.typingAttributes = [.font: Self.font, .foregroundColor: NSColor.labelColor]
+        textView.typingAttributes = [.font: font, .foregroundColor: NSColor.labelColor]
         textView.isRichText = false
         textView.importsGraphics = false
         textView.usesFontPanel = false
@@ -78,6 +79,12 @@ struct MacComposerTextView: NSViewRepresentable {
         let coordinator = context.coordinator
         coordinator.parent = self
         textView.placeholder = placeholder
+        let font = Self.font(scale: context.environment.textScale)
+        if textView.font != font {
+            textView.font = font
+            textView.typingAttributes[.font] = font
+            textView.needsDisplay = true
+        }
         textView.onKey = { [weak coordinator] key in coordinator?.parent.onKey(key) ?? false }
         textView.onFiles = { [weak coordinator] urls in coordinator?.parent.onFiles(urls) }
         textView.onImage = { [weak coordinator] data, type in coordinator?.parent.onImage(data, type) }
@@ -119,6 +126,7 @@ struct MacComposerTextView: NSViewRepresentable {
         else { return nil }
 
         let inset = textView.textContainerInset
+        let lineHeight = Self.lineHeight(of: textView.font ?? Self.font(scale: context.environment.textScale))
         textView.textContainer?.containerSize = NSSize(
             width: width - inset.width * 2, height: CGFloat.greatestFiniteMagnitude
         )
@@ -130,15 +138,21 @@ struct MacComposerTextView: NSViewRepresentable {
             layout.ensureLayout(for: container)
             content = layout.usedRect(for: container).height
         } else {
-            content = Self.lineHeight
+            content = lineHeight
         }
-        let minimum = Self.lineHeight + inset.height * 2
-        let maximum = Self.lineHeight * CGFloat(Self.maxLines) + inset.height * 2
+        let minimum = lineHeight + inset.height * 2
+        let maximum = lineHeight * CGFloat(Self.maxLines) + inset.height * 2
         return CGSize(width: width, height: min(max(ceil(content) + inset.height * 2, minimum), maximum))
     }
 
-    static let font = NSFont.preferredFont(forTextStyle: .body)
-    static let lineHeight = ceil(font.ascender - font.descender + font.leading)
+    /// The body size at the reader's text scale, so a draft reads at the size messages do.
+    static func font(scale: CGFloat) -> NSFont {
+        let base = NSFont.preferredFont(forTextStyle: .body)
+        return base.withSize(base.pointSize * scale)
+    }
+    static func lineHeight(of font: NSFont) -> CGFloat {
+        ceil(font.ascender - font.descender + font.leading)
+    }
 
     final class Coordinator: NSObject, NSTextViewDelegate {
         var parent: MacComposerTextView
@@ -221,7 +235,7 @@ final class ComposerTextView: NSTextView {
         super.draw(dirtyRect)
         guard string.isEmpty, !placeholder.isEmpty else { return }
         let attributes: [NSAttributedString.Key: Any] = [
-            .font: font ?? MacComposerTextView.font,
+            .font: font ?? MacComposerTextView.font(scale: TextScale.current),
             .foregroundColor: NSColor.placeholderTextColor,
         ]
         let origin = NSPoint(

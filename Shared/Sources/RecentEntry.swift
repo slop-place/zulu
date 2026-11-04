@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 import ZuluStore
 
 /// One row of the Recent list, resolved against the model: where it opens, what it is
@@ -8,6 +9,8 @@ struct RecentEntry: Identifiable, Equatable {
     let id: String
     let destination: AppModel.Destination
     let title: String
+    /// The channel a topic lives in, given its own line so the preview is not cut to make room.
+    let channel: String?
     let preview: String?
     let date: Date?
     let isRestricted: Bool
@@ -28,6 +31,7 @@ struct RecentEntry: Identifiable, Equatable {
         if let dmKey = row.dmKey {
             destination = .dm(dmKey)
             title = model.title(forDM: dmKey)
+            channel = nil
             preview = lastMessage
             avatarName = title
             avatarUserID = model.soleParticipant(inDM: dmKey)
@@ -40,10 +44,12 @@ struct RecentEntry: Identifiable, Equatable {
                 // so the name has the whole line.
                 destination = .topic(channelID: channelID, name: topic, channelName: channelName)
                 title = topic.isEmpty ? "general chat" : topic
-                preview = ["#\(channelName)", lastMessage].compactMap { $0 }.joined(separator: " · ")
+                channel = "#\(channelName)"
+                preview = lastMessage
             } else {
                 destination = .channel(channelID)
                 title = "#\(channelName)"
+                channel = nil
                 preview = lastMessage
             }
             avatarName = row.lastSender ?? channelName
@@ -105,5 +111,40 @@ enum RecentTime {
             return date.formatted(.dateTime.month(.abbreviated).day())
         }
         return date.formatted(.dateTime.year().month(.abbreviated).day())
+    }
+}
+
+/// Where a recent conversation lives, with the lock for a private channel. Draws nothing
+/// for a direct message or a chat channel, whose title already says where it is.
+struct RecentChannelLine: View {
+    let channel: String?
+    let isRestricted: Bool
+
+    var body: some View {
+        if let channel {
+            HStack(spacing: 3) {
+                Text(channel).lineLimit(1)
+                if isRestricted {
+                    Image(systemName: "lock.fill").imageScale(.small)
+                }
+            }
+            .fontWeight(.medium)
+            .foregroundStyle(TextTone.secondary)
+        }
+    }
+}
+
+/// When a conversation last moved: in the accent colour while it has something unread,
+/// otherwise as quiet as the preview beside it.
+struct ConversationTime: View {
+    let date: Date
+    let isUnread: Bool
+
+    var body: some View {
+        Text(RecentTime.label(for: date))
+            .fontWeight(isUnread ? .semibold : .regular)
+            .foregroundStyle(isUnread ? Color.accentColor : TextTone.tertiary)
+            .monospacedDigit()
+            .fixedSize()
     }
 }

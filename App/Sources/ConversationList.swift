@@ -242,8 +242,8 @@ private struct ConversationCell: @MainActor TiledCellContent {
     let host: ConversationCellHost
 
     private static let horizontalPadding: CGFloat = 16
-    private static let groupSpacing: CGFloat = 14
-    private static let continuationSpacing: CGFloat = 2
+    private static let groupSpacing: CGFloat = 18
+    private static let continuationSpacing: CGFloat = 11
     private static let unreadSpacing: CGFloat = 10
 
     func body(context: CellContext<Void>) -> some View {

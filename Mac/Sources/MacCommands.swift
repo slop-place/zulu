@@ -8,9 +8,22 @@ struct MacCommands: Commands {
     let ui: MacUIState
 
     @AppStorage(MacSidebarSettings.showsRecentKey) private var showsRecent = true
+    @AppStorage(TextScale.storageKey) private var textScale = TextScale.standard
 
     var body: some Commands {
         SidebarCommands()
+
+        CommandGroup(before: .toolbar) {
+            Button("Actual Size") { textScale = TextScale.standard }
+                .disabled(textScale == TextScale.standard)
+            Button("Bigger") { TextScale.bigger(than: textScale).map { textScale = $0 } }
+                .keyboardShortcut("+")
+                .disabled(TextScale.bigger(than: textScale) == nil)
+            Button("Smaller") { TextScale.smaller(than: textScale).map { textScale = $0 } }
+                .keyboardShortcut("-")
+                .disabled(TextScale.smaller(than: textScale) == nil)
+            Divider()
+        }
 
         CommandGroup(replacing: .newItem) {
             Button("New Message…") { ui.showingNewMessage = true }

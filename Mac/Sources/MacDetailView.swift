@@ -14,7 +14,7 @@ struct MacDetailView: View {
     var body: some View {
         content
             .background(Platform.canvas.ignoresSafeArea())
-            .toolbarBackground(Platform.canvas, for: .windowToolbar)
+            .toolbarBackgroundVisibility(.hidden, for: .windowToolbar)
     }
 
     @ViewBuilder

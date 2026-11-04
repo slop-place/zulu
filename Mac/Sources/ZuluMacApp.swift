@@ -49,6 +49,7 @@ final class ZuluMacAppDelegate: NSObject, NSApplicationDelegate {
 
 struct MacRootView: View {
     @Environment(AppModel.self) private var model
+    @AppStorage(TextScale.storageKey) private var textScale = TextScale.standard
 
     var body: some View {
         switch model.phase {
@@ -57,7 +58,9 @@ struct MacRootView: View {
         case .signedOut:
             MacSignInView()
         case .signedIn:
-            MacShellView().attachmentPreviews()
+            MacShellView()
+                .attachmentPreviews()
+                .environment(\.textScale, CGFloat(textScale))
         }
     }
 }

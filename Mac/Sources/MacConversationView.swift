@@ -266,6 +266,7 @@ private struct MacConversationHistory: View {
     @Environment(AttachmentPreviewer.self) private var previewer
     @Environment(\.openURL) private var openURL
     @Environment(\.macQuickReactions) private var quickReactions
+    @Environment(\.textScale) private var textScale
     @State private var scroll = MacConversationScroll()
 
     var body: some View {
@@ -273,7 +274,7 @@ private struct MacConversationHistory: View {
             rows: rows,
             context: MacConversationCellContext(
                 model: model, ui: ui, previewer: previewer, openURL: openURL,
-                quickReactions: quickReactions, source: source
+                quickReactions: quickReactions, source: source, textScale: textScale
             ),
             scroll: scroll,
             loader: loader,

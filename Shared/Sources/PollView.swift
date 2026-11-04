@@ -16,7 +16,7 @@ struct MessageContent: View {
         if message.isWidget {
             PollView(messageID: message.id, model: model)
         } else {
-            MessageBody(html: message.renderedContent)
+            MessageBody(html: message.renderedContent).foregroundStyle(TextTone.body)
         }
     }
 }

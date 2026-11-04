@@ -67,6 +67,7 @@ struct MacConversationCellContext {
     let openURL: OpenURLAction
     let quickReactions: [QuickReaction]
     let source: ConversationSource
+    let textScale: CGFloat
 }
 
 /// A row, as SwiftUI draws it.
@@ -76,6 +77,8 @@ struct MacConversationCellContent: View {
 
     static let horizontalPadding: CGFloat = 12
     static let topMargin: CGFloat = 12
+    static let groupSpacing: CGFloat = 16
+    static let continuationSpacing: CGFloat = 10
 
     var body: some View {
         content
@@ -86,6 +89,8 @@ struct MacConversationCellContent: View {
             .environment(context.previewer)
             .environment(\.openURL, context.openURL)
             .environment(\.macQuickReactions, context.quickReactions)
+            .environment(\.textScale, context.textScale)
+            .font(.scaled(.body, by: context.textScale))
     }
 
     @ViewBuilder
@@ -111,13 +116,13 @@ struct MacConversationCellContent: View {
                     UnreadDivider().padding(.top, 10)
                 }
                 MessageRow(message: entry.message, startsGroup: entry.startsGroup, reactions: reactions)
-                    .padding(.top, entry.startsGroup ? 12 : 1)
+                    .padding(.top, entry.startsGroup ? Self.groupSpacing : Self.continuationSpacing)
                     .padding(.bottom, 1)
                     .macMessageActions(entry.message, in: context.source)
             }
         case .pending(let pending):
             PendingMessageRow(message: pending.entry, startsGroup: pending.startsGroup)
-                .padding(.top, pending.startsGroup ? 12 : 1)
+                .padding(.top, pending.startsGroup ? Self.groupSpacing : Self.continuationSpacing)
                 .padding(.bottom, 1)
         }
     }
@@ -513,8 +518,10 @@ final class MacConversationTableCoordinator: NSObject, NSTableViewDataSource, NS
     /// viewer reacts; every row on screen shows them.
     func update(context: MacConversationCellContext) {
         let reactionsChanged = context.quickReactions != self.context.quickReactions
+        let scaleChanged = context.textScale != self.context.textScale
         self.context = context
-        if reactionsChanged { refreshVisibleCells(force: true) }
+        if reactionsChanged || scaleChanged { refreshVisibleCells(force: true) }
+        if scaleChanged { remeasureAll() }
     }
 
     private func configure(_ cell: MacConversationCell, for row: MacConversationRow) {
@@ -540,7 +547,7 @@ final class MacConversationTableCoordinator: NSObject, NSTableViewDataSource, NS
             let characters = CGFloat(html.count) * 0.65
             let charactersPerLine = max(20, (tableWidth - 90) / 7.5)
             var height = max(1, (characters / charactersPerLine).rounded(.up)) * 20
-            if entry.startsGroup { height += 12 + 20 }
+            if entry.startsGroup { height += MacConversationCellContent.groupSpacing + 20 }
             if entry.startsDay { height += 30 }
             if isFirstUnread { height += 24 }
             if !reactions.isEmpty { height += 30 }
@@ -804,20 +811,26 @@ final class MacConversationTableCoordinator: NSObject, NSTableViewDataSource, NS
         }
     }
 
+    /// Every wrap changes with the width or the text size; what was measured is now an
+    /// estimate.
+    private func remeasureAll() {
+        guard let tableView, hasOpened else { return }
+        stale.formUnion(heights.keys)
+        let anchor = readingAnchor()
+        withoutAnimation { tableView.noteHeightOfRows(withIndexesChanged: IndexSet(integersIn: 0..<rows.count)) }
+        measureNearViewport()
+        hold(anchor)
+    }
+
     private func viewportResized() {
-        guard let tableView else { return }
+        guard tableView != nil else { return }
         guard hasOpened else {
             settleOpening()
             return
         }
         if abs(tableWidth - measuredWidth) > 0.5 {
             measuredWidth = tableWidth
-            // Every wrap changes with the width; what was measured is now an estimate.
-            stale.formUnion(heights.keys)
-            let anchor = readingAnchor()
-            withoutAnimation { tableView.noteHeightOfRows(withIndexesChanged: IndexSet(integersIn: 0..<rows.count)) }
-            measureNearViewport()
-            hold(anchor)
+            remeasureAll()
         } else if follow.isPinned, !isUserScrolling {
             scrollToBottom(animated: false)
         }
