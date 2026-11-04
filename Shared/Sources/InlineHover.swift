@@ -1,4 +1,5 @@
 import SwiftUI
+import ZuluEmoji
 
 /// Marks the runs of a `Text` that are links, so the Mac can find them under the pointer.
 struct LinkAttribute: TextAttribute {}
@@ -6,6 +7,7 @@ struct LinkAttribute: TextAttribute {}
 /// Marks an emoji's run of a `Text` with its `:name:`, so pointing at it can say what it is.
 struct EmojiNameAttribute: TextAttribute {
     let name: String
+    let display: EmojiDisplay
 }
 
 extension View {
@@ -26,7 +28,7 @@ private final class InlineFrames: @unchecked Sendable {
 
 struct EmojiFrame: Equatable {
     let rect: CGRect
-    let name: String
+    let emoji: EmojiNameAttribute
 }
 
 /// Draws the text unchanged, noting where each link and emoji landed along the way.
@@ -40,8 +42,8 @@ private struct InlineFrameRecorder: TextRenderer {
             for run in line {
                 let rect = run.typographicBounds.rect
                 if run[LinkAttribute.self] != nil { links.append(rect) }
-                if let name = run[EmojiNameAttribute.self]?.name {
-                    emoji.append(EmojiFrame(rect: rect, name: name))
+                if let attribute = run[EmojiNameAttribute.self] {
+                    emoji.append(EmojiFrame(rect: rect, emoji: attribute))
                 }
                 context.draw(run)
             }
@@ -133,7 +135,7 @@ private struct InlineHover: ViewModifier {
 
     @ViewBuilder private var bubble: some View {
         if let shown = emojiName.shown {
-            EmojiNameBubble(name: shown.name)
+            EmojiNameBubble(emoji: shown.emoji)
                 .onGeometryChange(for: CGFloat.self, of: { $0.size.height }) {
                     emojiName.bubbleHeight = $0
                 }
@@ -150,15 +152,19 @@ private struct InlineHover: ViewModifier {
     }
 }
 
-/// The `:name:` of an emoji in a message, in the same bubble a reaction's hover uses.
+/// An emoji in a message drawn larger with its `:name:`, in the same bubble a
+/// reaction's hover uses.
 private struct EmojiNameBubble: View {
-    let name: String
+    let emoji: EmojiNameAttribute
 
     var body: some View {
-        Text(":\(name):")
-            .font(.callout.weight(.semibold))
-            .lineLimit(1)
-            .hoverBubbleChrome()
+        HStack(spacing: 8) {
+            EmojiDisplayView(display: emoji.display, size: 22)
+            Text(":\(emoji.name):")
+                .font(.callout.weight(.semibold))
+                .lineLimit(1)
+        }
+        .hoverBubbleChrome()
     }
 }
 

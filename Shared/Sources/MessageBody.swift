@@ -1,4 +1,5 @@
 import SwiftUI
+import ZuluEmoji
 import ZuluMarkup
 
 /// Renders the blocks parsed out of Zulip's `rendered_content`.
@@ -186,7 +187,9 @@ struct InlineStyler {
     func styled(_ spans: [InlineSpan]) -> Text {
         spans.reduce(Text("")) { result, span in
             guard let name = span.emojiName else { return result + drawn(span) }
-            return result + drawn(span).customAttribute(EmojiNameAttribute(name: name))
+            let display: EmojiDisplay = span.emojiURL.map { .image(url: $0, still: nil) }
+                ?? .glyph(span.text)
+            return result + drawn(span).customAttribute(EmojiNameAttribute(name: name, display: display))
         }
     }
 
