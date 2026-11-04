@@ -186,13 +186,7 @@ private struct ReactorBubble: View {
             }
         }
         .frame(maxWidth: Self.maxWidth, alignment: .leading)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .background(.thickMaterial, in: RoundedRectangle(cornerRadius: 8))
-        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(.quaternary))
-        .shadow(color: .black.opacity(0.18), radius: 8, y: 2)
-        .fixedSize()
-        .allowsHitTesting(false)
+        .hoverBubbleChrome()
     }
 }
 #endif

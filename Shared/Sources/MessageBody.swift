@@ -142,7 +142,7 @@ struct TextRunView: View {
     var body: some View {
         merged
             .font(emojiOnly ? .largeTitle : nil)
-            .linkPointer()
+            .inlineHover()
             .textSelection(.enabled)
             .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -185,15 +185,18 @@ struct InlineStyler {
 
     func styled(_ spans: [InlineSpan]) -> Text {
         spans.reduce(Text("")) { result, span in
-            if let url = span.emojiURL {
-                if let frames = emoji[url] {
-                    return result + Text(frames.frame(at: time))
-                        .baselineOffset(MessageBody.line(emojiOnly: emojiOnly).descender)
-                }
-                return result + Text(span.text).foregroundColor(TextTone.secondary)
-            }
-            return result + text(for: span)
+            guard let name = span.emojiName else { return result + drawn(span) }
+            return result + drawn(span).customAttribute(EmojiNameAttribute(name: name))
         }
+    }
+
+    private func drawn(_ span: InlineSpan) -> Text {
+        guard let url = span.emojiURL else { return text(for: span) }
+        if let frames = emoji[url] {
+            return Text(frames.frame(at: time))
+                .baselineOffset(MessageBody.line(emojiOnly: emojiOnly).descender)
+        }
+        return Text(span.text).foregroundColor(TextTone.secondary)
     }
 
     private func text(for span: InlineSpan) -> Text {
@@ -229,7 +232,7 @@ struct BlockView: View {
         case .paragraph(let spans):
             styled(spans)
                 .font(emojiOnly ? .largeTitle : nil)
-                .linkPointer()
+                .inlineHover()
                 .textSelection(.enabled)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -264,7 +267,7 @@ struct BlockView: View {
                 ForEach(Array(items.enumerated()), id: \.offset) { _, spans in
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
                         Text("•")
-                        styled(spans).linkPointer()
+                        styled(spans).inlineHover()
                     }
                 }
             }
@@ -274,7 +277,7 @@ struct BlockView: View {
                 ForEach(Array(items.enumerated()), id: \.offset) { index, spans in
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
                         Text("\(index + 1).").monospacedDigit()
-                        styled(spans).linkPointer()
+                        styled(spans).inlineHover()
                     }
                 }
             }
