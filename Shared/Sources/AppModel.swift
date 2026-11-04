@@ -424,15 +424,19 @@ extension AppModel {
 
 extension AppModel {
     enum UploadOutcome {
-        case success(String)
+        case success(UploadedFile)
         case failure(String)
     }
 
-    func upload(_ data: Data, filename: String, contentType: String) async -> UploadOutcome {
+    func upload(
+        _ data: Data, filename: String, contentType: String,
+        progress: (@Sendable (Double) -> Void)? = nil
+    ) async -> UploadOutcome {
         guard let client else { return .failure("Not signed in.") }
         do {
-            let file = try await client.upload(data, filename: filename, contentType: contentType)
-            return .success(file.markdown(isImage: contentType.hasPrefix("image/")))
+            return .success(try await client.upload(
+                data, filename: filename, contentType: contentType, progress: progress
+            ))
         } catch {
             return .failure(Self.describe(error))
         }

@@ -18,7 +18,7 @@ struct ComposerBar: View {
 
     @State private var draft = ""
     @State private var replyingTo: ReplyDraft?
-    @State private var uploading = false
+    @State private var uploads = ComposerUploads()
     @State private var sendError: String?
     @State private var showEmoji = false
     @State private var attachment: AttachmentSource?
@@ -40,19 +40,21 @@ struct ComposerBar: View {
 
     private var isEditing: Bool { editMode?.isEditing == true }
 
+    /// What Send would post, with every finished upload linked after the typed text.
+    private var outgoing: String { uploads.pending.message(with: draft) }
+
+    /// A message waits for its uploads, so none of them is left out of it.
+    private var canSend: Bool {
+        !outgoing.isEmpty && !uploads.pending.isUploading && editMode?.isSaving != true
+    }
+
     var body: some View {
         VStack(spacing: 6) {
             if let sendError {
                 Text(sendError).font(.caption).foregroundStyle(.red)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
-            if uploading {
-                HStack(spacing: 6) {
-                    ProgressView().controlSize(.small)
-                    Text("Uploading…").font(.caption).foregroundStyle(TextTone.secondary)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
+            ComposerUploadStrip(uploads: uploads)
             if isEditing {
                 editBanner
             } else if let replyingTo {
@@ -103,7 +105,7 @@ struct ComposerBar: View {
                 }
                 .buttonStyle(.glassProminent)
                 .buttonBorderShape(.circle)
-                .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || editMode?.isSaving == true)
+                .disabled(!canSend)
             }
         }
         .padding(.horizontal, Self.horizontalPadding)
@@ -128,10 +130,8 @@ struct ComposerBar: View {
         .task(id: EmojiCatalogueLoader.shared.catalogue.candidates.count) {
             await autocomplete?.prepare()
         }
-        .onChange(of: draft) {
-            autocomplete?.update(draft: draft)
-            saveDraft()
-        }
+        .onChange(of: draft) { autocomplete?.update(draft: draft) }
+        .onChange(of: outgoing) { saveDraft() }
         .onChange(of: replyingTo) { saveDraft() }
         .onDisappear { typingSender?.stop() }
         .onChange(of: ComposerInbox.shared.deliveries) { takeDelivery() }
@@ -145,12 +145,12 @@ struct ComposerBar: View {
             isPresented: binding(for: .files), allowedContentTypes: [.item],
             allowsMultipleSelection: true
         ) { result in
-            if case .success(let urls) = result { Task { await upload(urls: urls) } }
+            if case .success(let urls) = result { uploads.upload(files: urls, model: model) }
         }
         .fullScreenCover(isPresented: binding(for: .camera)) {
             CameraPicker { data in
                 guard let data else { return }
-                Task { await upload(data: data, filename: "photo.jpg", contentType: "image/jpeg") }
+                uploads.upload(data, filename: "photo.jpg", contentType: UTType.jpeg.preferredMIME, model: model)
             }
             .ignoresSafeArea()
         }
@@ -235,7 +235,7 @@ struct ComposerBar: View {
                     withAnimation(.snappy(duration: 0.2)) { hasKeyboard = focused }
                 },
                 onImage: { data, type in
-                    Task { await upload(data: data, filename: Self.pastedName(type), contentType: type.preferredMIME) }
+                    uploads.upload(data, filename: Self.pastedName(type), contentType: type.preferredMIME, model: model)
                 }
             )
 
@@ -283,13 +283,13 @@ struct ComposerBar: View {
     /// While editing, the draft on disk stays whatever was being typed before.
     private func saveDraft() {
         guard !isEditing else { return }
-        model.saveDraft(draft, replyingTo: replyingTo, in: source)
+        model.saveDraft(outgoing, replyingTo: replyingTo, in: source)
     }
 
     // MARK: editing
 
     private func beginEdit(_ edit: EditDraft) {
-        editMode?.begin(edit, settingAside: draft, reply: replyingTo)
+        editMode?.begin(edit, settingAside: uploads.setAside(with: draft), reply: replyingTo)
         sendError = nil
         withAnimation(.snappy(duration: 0.2)) { replyingTo = nil }
         draft = edit.original
@@ -302,11 +302,12 @@ struct ComposerBar: View {
     }
 
     private func saveEdit() {
-        guard let editMode else { return }
+        guard let editMode, canSend else { return }
         Task {
-            switch await editMode.save(draft) {
+            switch await editMode.save(outgoing) {
             case .success(let setAside):
                 sendError = nil
+                uploads.removeAll()
                 restore(setAside)
             case .failure(let error):
                 sendError = error.message
@@ -316,26 +317,28 @@ struct ComposerBar: View {
 
     private func restore(_ setAside: ComposerEditMode.SetAside) {
         withAnimation(.snappy(duration: 0.2)) { replyingTo = setAside.reply }
-        draft = setAside.text
+        draft = uploads.restore(from: setAside.text)
     }
 
     /// Only into an empty composer, so coming back to the conversation never replaces
     /// something already typed.
     private func restoreDraft() {
-        guard draft.isEmpty, replyingTo == nil, let saved = model.savedDraft(in: source) else { return }
-        draft = saved.text
+        guard draft.isEmpty, uploads.pending.isEmpty, replyingTo == nil,
+              let saved = model.savedDraft(in: source)
+        else { return }
+        draft = uploads.restore(from: saved.text)
         replyingTo = saved.reply
     }
 
     /// Hands the message to the outbox and clears at once; a failure shows on the
     /// message itself, with a resend.
     private func send() {
-        let typed = draft.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !typed.isEmpty else { return }
-        model.enqueue(typed, replyingTo: replyingTo, in: source)
+        guard canSend else { return }
+        model.enqueue(outgoing, replyingTo: replyingTo, in: source)
         typingSender?.stop()
         sendError = nil
         draft = ""
+        uploads.removeAll()
         withAnimation(.snappy(duration: 0.2)) { replyingTo = nil }
     }
 
@@ -348,52 +351,20 @@ struct ComposerBar: View {
         )
     }
 
-    /// Clearing the selection would cancel a task keyed on it, so the uploads run in a
-    /// task of their own.
     private func takePickedPhotos() {
         guard !pickedPhotos.isEmpty else { return }
-        let items = pickedPhotos
-        pickedPhotos = []
-        Task { await upload(photos: items) }
-    }
-
-    private func upload(photos items: [PhotosPickerItem]) async {
-        for item in items {
-            guard let data = try? await item.loadTransferable(type: Data.self) else { continue }
+        for item in pickedPhotos {
             let type = item.supportedContentTypes.first ?? .data
             let name = "\(UUID().uuidString.prefix(8)).\(type.preferredFilenameExtension ?? "dat")"
-            await upload(data: data, filename: name, contentType: type.preferredMIME)
+            uploads.upload(filename: name, contentType: type.preferredMIME, model: model) {
+                try? await item.loadTransferable(type: Data.self)
+            }
         }
+        pickedPhotos = []
     }
 
     private static func pastedName(_ type: UTType) -> String {
         "pasted-\(UUID().uuidString.prefix(8)).\(type.preferredFilenameExtension ?? "png")"
-    }
-
-    private func upload(urls: [URL]) async {
-        for url in urls {
-            let scoped = url.startAccessingSecurityScopedResource()
-            defer { if scoped { url.stopAccessingSecurityScopedResource() } }
-            guard let data = try? Data(contentsOf: url) else { continue }
-            let type = UTType(filenameExtension: url.pathExtension) ?? .data
-            await upload(data: data, filename: url.lastPathComponent, contentType: type.preferredMIME)
-        }
-    }
-
-    /// Zulip uploads first and embeds the result as ordinary markdown, so an attachment
-    /// lands in the draft as a link the person can still edit or caption before sending.
-    private func upload(data: Data, filename: String, contentType: String) async {
-        uploading = true
-        sendError = nil
-        defer { uploading = false }
-
-        switch await model.upload(data, filename: filename, contentType: contentType) {
-        case .success(let markdown):
-            if !draft.isEmpty, !draft.hasSuffix("\n") { draft += "\n" }
-            draft += markdown + "\n"
-        case .failure(let message):
-            sendError = message
-        }
     }
 }
 

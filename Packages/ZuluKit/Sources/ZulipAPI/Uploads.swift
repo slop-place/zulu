@@ -4,11 +4,25 @@ public struct UploadedFile: Sendable, Equatable {
     /// Realm-relative, e.g. `/user_uploads/2/ab/xyz/photo.jpg`.
     public let path: String
     public let filename: String
+}
 
-    /// Zulip embeds uploads as ordinary markdown. Images get the image form, which only
-    /// works for files already uploaded to the realm.
-    public func markdown(isImage: Bool) -> String {
-        "\(isImage ? "!" : "")[\(filename)](\(path))"
+/// Reports how much of a request body has gone out, as a fraction from 0 to 1.
+private final class UploadProgressDelegate: NSObject, URLSessionTaskDelegate, Sendable {
+    private let report: @Sendable (Double) -> Void
+
+    init(report: @escaping @Sendable (Double) -> Void) {
+        self.report = report
+    }
+
+    func urlSession(
+        _ session: URLSession,
+        task: URLSessionTask,
+        didSendBodyData bytesSent: Int64,
+        totalBytesSent: Int64,
+        totalBytesExpectedToSend: Int64
+    ) {
+        guard totalBytesExpectedToSend > 0 else { return }
+        report(Double(totalBytesSent) / Double(totalBytesExpectedToSend))
     }
 }
 
@@ -25,7 +39,8 @@ extension ZulipClient {
     public func upload(
         _ data: Data,
         filename: String,
-        contentType: String
+        contentType: String,
+        progress: (@Sendable (Double) -> Void)? = nil
     ) async throws -> UploadedFile {
         let boundary = "zulu.\(UUID().uuidString)"
         var body = Data()
@@ -51,7 +66,9 @@ extension ZulipClient {
 
         let responseData: Data
         do {
-            (responseData, _) = try await URLSession.shared.upload(for: request, from: body)
+            (responseData, _) = try await URLSession.shared.upload(
+                for: request, from: body, delegate: progress.map(UploadProgressDelegate.init)
+            )
         } catch {
             throw ZulipError(kind: .transport, message: error.localizedDescription)
         }

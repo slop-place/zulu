@@ -435,6 +435,7 @@ final class ComposerInbox {
     private var pending: [String: String] = [:]
     private var replies: [String: ReplyDraft] = [:]
     private var edits: [String: EditDraft] = [:]
+    private var files: [String: [URL]] = [:]
 
     func deliver(_ text: String, to conversation: String) {
         pending[conversation, default: ""] += text
@@ -454,6 +455,15 @@ final class ComposerInbox {
 
     func takeReply(for conversation: String) -> ReplyDraft? {
         replies.removeValue(forKey: conversation)
+    }
+
+    func deliver(files: [URL], to conversation: String) {
+        self.files[conversation, default: []] += files
+        deliveries += 1
+    }
+
+    func takeFiles(for conversation: String) -> [URL]? {
+        self.files.removeValue(forKey: conversation)
     }
 
     func deliver(edit: EditDraft, to conversation: String) {
