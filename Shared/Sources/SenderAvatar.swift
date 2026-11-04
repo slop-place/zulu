@@ -39,9 +39,6 @@ struct SenderAvatar: View {
                 Avatar(name: name, size: size)
             }
         }
-        // The Mac's conversation table reuses a row's view for another sender, and the
-        // drawn picture outlived the source check above. A new source is a new view.
-        .id(source)
         .task(id: source) { await load() }
     }
 

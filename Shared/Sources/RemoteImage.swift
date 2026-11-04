@@ -75,7 +75,6 @@ struct RemoteImage: View {
             guard image != nil else { return }
             previewer.preview(previewPaths, imagesOnly: true, model: model)
         }
-        .id(path)
         .task(id: path) {
             let path = path
             if image == nil {
