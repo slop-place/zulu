@@ -14,17 +14,22 @@ struct SenderAvatar: View {
     var size: CGFloat = 36
 
     @Environment(AppModel.self) private var model
-    @State private var image: Image?
+    @State private var loaded: (source: String, image: Image)?
 
     private var source: String? {
         userID.flatMap { model.users[$0]?.avatarURL } ?? url
     }
 
+    /// A reused row keeps its state, so a picture only counts if it was loaded for this source.
+    private var image: Image? {
+        guard let source else { return nil }
+        if let loaded, loaded.source == source { return loaded.image }
+        return DecodedImages.image(at: source)
+    }
+
     var body: some View {
         Group {
-            // Read from the cache as well as state, so an avatar scrolled back into view
-            // does not flash its initials first.
-            if let image = image ?? source.flatMap(DecodedImages.image(at:)) {
+            if let image {
                 image
                     .resizable()
                     .scaledToFill()
@@ -34,13 +39,16 @@ struct SenderAvatar: View {
                 Avatar(name: name, size: size)
             }
         }
+        // The Mac's conversation table reuses a row's view for another sender, and the
+        // drawn picture outlived the source check above. A new source is a new view.
+        .id(source)
         .task(id: source) { await load() }
     }
 
     private func load() async {
         guard let source, !source.isEmpty else { return }
         if let cached = DecodedImages.image(at: source) {
-            image = cached
+            loaded = (source, cached)
             return
         }
         // Gravatar and the realm's own uploads both arrive here; `imageData` decides
@@ -49,6 +57,6 @@ struct SenderAvatar: View {
               let decoded = Platform.image(from: data)
         else { return }
         DecodedImages.store(decoded, at: source)
-        image = decoded
+        loaded = (source, decoded)
     }
 }
