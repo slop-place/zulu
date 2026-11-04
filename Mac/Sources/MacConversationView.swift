@@ -60,7 +60,7 @@ struct MacConversationView: View {
         .dropDestination(for: URL.self) { urls, _ in
             let files = urls.filter(\.isFileURL)
             guard !files.isEmpty else { return false }
-            Task { await model.uploadAndDeliver(files: files, to: ConversationKey.of(source)) }
+            ComposerInbox.shared.deliver(files: files, to: ConversationKey.of(source))
             return true
         } isTargeted: { dropTargeted = $0 }
         .navigationTitle(title)
@@ -249,26 +249,6 @@ extension EnvironmentValues {
     var macQuickReactions: [QuickReaction] {
         get { self[MacQuickReactionsKey.self] }
         set { self[MacQuickReactionsKey.self] = newValue }
-    }
-}
-
-// MARK: - Uploads from outside the composer
-
-extension AppModel {
-    /// Uploads files dropped anywhere on a conversation and hands the resulting markdown
-    /// to that conversation's composer, which appends it like any other delivery.
-    func uploadAndDeliver(files: [URL], to conversation: String) async {
-        for url in files {
-            let scoped = url.startAccessingSecurityScopedResource()
-            defer { if scoped { url.stopAccessingSecurityScopedResource() } }
-            guard let data = try? Data(contentsOf: url) else { continue }
-            let type = UTType(filenameExtension: url.pathExtension) ?? .data
-            if case .success(let markdown) = await upload(
-                data, filename: url.lastPathComponent, contentType: type.preferredMIME
-            ) {
-                ComposerInbox.shared.deliver(markdown + "\n", to: conversation)
-            }
-        }
     }
 }
 
