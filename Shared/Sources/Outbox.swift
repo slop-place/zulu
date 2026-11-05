@@ -3,6 +3,7 @@ import Observation
 import SwiftUI
 import ZulipAPI
 import ZuluCompose
+import ZuluMarkup
 import ZuluStore
 
 /// What the app needs to redraw and resend a message it has not seen land yet.
@@ -142,14 +143,8 @@ struct PendingMessageRow: View {
                 if startsGroup {
                     MessageHeader(name: senderName, date: message.createdAt, edited: false)
                 }
-                VStack(alignment: .leading, spacing: MessageBody.blockSpacing) {
-                    ForEach(Array(Self.paragraphs(of: message.payload.text).enumerated()), id: \.offset) { _, paragraph in
-                        Text(paragraph)
-                            .foregroundStyle(failure == nil ? AnyShapeStyle(.primary) : AnyShapeStyle(.red))
-                            .textSelection(.enabled)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                }
+                content
+                    .foregroundStyle(failure == nil ? AnyShapeStyle(TextTone.body) : AnyShapeStyle(.red))
                 if let failure {
                     HStack(spacing: 10) {
                         Label(failure, systemImage: "exclamationmark.circle.fill")
@@ -171,16 +166,22 @@ struct PendingMessageRow: View {
         model.selfUserID.map(model.name(forUser:)) ?? ""
     }
 
-    /// Split on blank lines, the way the server will split it, so the spacing between
-    /// paragraphs does not change when the real message replaces this one. Inline
-    /// markdown only; the server renders the rest.
-    private static func paragraphs(of text: String) -> [AttributedString] {
-        let options = AttributedString.MarkdownParsingOptions(
-            interpretedSyntax: .inlineOnlyPreservingWhitespace
+    private var content: MessageBody {
+        let catalogue = EmojiCatalogueLoader.shared.catalogue
+        let blocks = PendingMarkup.blocks(
+            of: message.payload.text,
+            replyingTo: message.payload.reply.map(PendingMarkup.Reply.init),
+            emoji: catalogue.resolve(name:)
         )
-        return text.split(separator: /\n[ \t]*\n\s*/).map { paragraph in
-            let raw = String(paragraph)
-            return (try? AttributedString(markdown: raw, options: options)) ?? AttributedString(raw)
-        }
+        // Keyed on the blocks, so a custom emoji the catalogue resolves late is still loaded.
+        return MessageBody(blocks: blocks, contentKey: String(describing: blocks))
+    }
+}
+
+private extension PendingMarkup.Reply {
+    init(_ draft: ReplyDraft) {
+        let quoted = draft.renderedContent.map(MessageMarkup.blocks(from:))
+            ?? [.paragraph([InlineSpan(text: draft.preview)])]
+        self.init(author: draft.author, authorID: draft.authorID, messageID: draft.messageID, quoted: quoted)
     }
 }

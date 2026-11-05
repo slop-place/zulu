@@ -2,9 +2,11 @@ import SwiftUI
 import ZuluEmoji
 import ZuluMarkup
 
-/// Renders the blocks parsed out of Zulip's `rendered_content`.
+/// Renders the blocks parsed out of Zulip's `rendered_content`, or built locally for a
+/// message the server has not rendered yet.
 struct MessageBody: View {
-    let html: String
+    /// Changes whenever the blocks do, so the emoji they need are loaded again.
+    private let contentKey: String
     private let blocks: [MessageBlock]
     private let emojiOnly: Bool
     @Environment(AppModel.self) private var model
@@ -20,8 +22,11 @@ struct MessageBody: View {
     private static let tick: TimeInterval = 1.0 / 15
 
     init(html: String) {
-        self.html = html
-        let blocks = ParsedMessages.blocks(from: html)
+        self.init(blocks: ParsedMessages.blocks(from: html), contentKey: html)
+    }
+
+    init(blocks: [MessageBlock], contentKey: String) {
+        self.contentKey = contentKey
         self.blocks = blocks
         let emojiOnly = MessageMarkup.isEmojiOnly(blocks)
         self.emojiOnly = emojiOnly
@@ -47,7 +52,7 @@ struct MessageBody: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .task(id: html) { await loadEmoji() }
+        .task(id: contentKey) { await loadEmoji() }
     }
 
     private func stack(at time: TimeInterval) -> some View {

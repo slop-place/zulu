@@ -22,7 +22,7 @@ private final class MemoryStorage: DraftStorage, @unchecked Sendable {
 struct DraftStoreTests {
     private static let lunch = "c:7/lunch"
     private static let other = "d:3,5"
-    private static let reply = SavedReply(messageID: 42, author: "Ana", authorID: 9, preview: "see you at noon")
+    private static let reply = SavedReply(messageID: 42, author: "Ana", authorID: 9, preview: "see you at noon", renderedContent: "<p>see you at noon</p>")
 
     @Test func aConversationWithNothingTypedHasNoDraft() {
         #expect(DraftStore(storage: MemoryStorage()).draft(for: Self.lunch) == nil)
