@@ -52,7 +52,7 @@ In **Keychain Access**, login keychain, My Certificates:
   `Developer ID Application: Brandon Wees (65AMD2STXG)` (cmd-click) — the rows with
   a disclosure triangle hiding a private key. A row without one is useless here.
 - Right click → Export 3 items… → Personal Information Exchange (.p12).
-- Set a password. You need it again in step 5.
+- Set a password. You need it again in step 6.
 
 Then base64 it for the secret:
 
@@ -86,15 +86,36 @@ Base64 the key:
 base64 -i AuthKey_ABC123DEF4.p8 | pbcopy
 ```
 
-## 5. Set the GitHub secrets
+## 5. Make the Developer ID profile
 
-Repo → Settings → Secrets and variables → Actions → New repository secret. All four
+The API key cannot create a Developer ID profile, so Xcode makes it once with your
+Apple ID. Archive `ZuluMac` locally, then export it:
+
+```sh
+xcodebuild -exportArchive -archivePath ZuluMac.xcarchive -exportPath out \
+  -exportOptionsPlist App/ExportOptionsMac.plist -allowProvisioningUpdates
+```
+
+That writes `Mac Team Direct Provisioning Profile: com.bwees.zulu` into
+`~/Library/Developer/Xcode/UserData/Provisioning Profiles`. It is valid until the
+Developer ID certificate expires. Find it and base64 it:
+
+```sh
+cd ~/Library/Developer/Xcode/UserData/Provisioning\ Profiles
+grep -l "Mac Team Direct Provisioning Profile: com.bwees.zulu" *.provisionprofile
+base64 -i <that file> | pbcopy
+```
+
+## 6. Set the GitHub secrets
+
+Repo → Settings → Secrets and variables → Actions → New repository secret. All six
 are required, spelled exactly as below.
 
 | Secret | Value |
 | --- | --- |
-| `APPLE_SIGNING_CERTIFICATES_P12` | base64 of the two-identity `.p12` from step 3 |
+| `APPLE_SIGNING_CERTIFICATES_P12` | base64 of the three-identity `.p12` from step 3 |
 | `APPLE_SIGNING_CERTIFICATES_PASSWORD` | the password you set when exporting that `.p12` |
+| `APPLE_MAC_DEVELOPER_ID_PROFILE` | base64 of the profile from step 5 |
 | `APP_STORE_CONNECT_KEY_ID` | Key ID from step 4, plain text, e.g. `ABC123DEF4` |
 | `APP_STORE_CONNECT_ISSUER_ID` | Issuer ID from step 4, plain text UUID |
 | `APP_STORE_CONNECT_PRIVATE_KEY` | base64 of the `.p8` from step 4 |
@@ -102,7 +123,7 @@ are required, spelled exactly as below.
 The team ID is not a secret and lives in `env.APPLE_TEAM_ID` in the workflow and in
 `App/ExportOptions.plist`.
 
-## 6. Add yourself as an internal tester
+## 7. Add yourself as an internal tester
 
 App Store Connect → Zulu → TestFlight → Internal Testing → create a group, add your
 Apple ID. Internal testing needs no Beta App Review, so a build is installable within
