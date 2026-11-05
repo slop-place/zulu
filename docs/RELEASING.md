@@ -5,7 +5,7 @@ component, built from conventional commits:
 
 | Component | Paths | Tag | Merging its release PR runs |
 | --- | --- | --- | --- |
-| `zulu` | everything but `service/` | `zulu-v1.2.3` | `release.yml`: tests ZuluKit, uploads to TestFlight, attaches a notarized Mac DMG |
+| `zulu` | everything but `service/` | `zulu-v1.2.3` | `release.yml`: tests ZuluKit, uploads to TestFlight, attaches a notarized Mac DMG, publishes the Sparkle appcast |
 | `notifyd` | `service/` | `notifyd-v0.1.0` | `notifyd-release.yml`: pushes `ghcr.io/bwees/zulu-notifyd:v0.1.0` |
 
 `release.yml` can also be run by hand from the Actions tab. Nothing below happens
@@ -106,9 +106,25 @@ grep -l "Mac Team Direct Provisioning Profile: com.bwees.zulu" *.provisionprofil
 base64 -i <that file> | pbcopy
 ```
 
-## 6. Set the GitHub secrets
+## 6. Export the Sparkle key
 
-Repo → Settings → Secrets and variables → Actions → New repository secret. All six
+The Mac app updates itself with [Sparkle](https://sparkle-project.org). Each appcast is
+signed with an EdDSA key whose public half is `SUPublicEDKey` in `App/project.yml`. The
+private half lives in the login keychain of whoever ran `generate_keys`, under the
+account `com.bwees.zulu`. Export it with the tools from the Sparkle release that matches
+`SPARKLE_VERSION` in `release.yml`:
+
+```sh
+./bin/generate_keys --account com.bwees.zulu -x sparkle-private-key
+pbcopy < sparkle-private-key && rm sparkle-private-key
+```
+
+Losing this key strands every installed copy: they reject any appcast signed with a
+new one. Keep a copy in a password manager.
+
+## 7. Set the GitHub secrets
+
+Repo → Settings → Secrets and variables → Actions → New repository secret. All seven
 are required, spelled exactly as below.
 
 | Secret | Value |
@@ -119,11 +135,19 @@ are required, spelled exactly as below.
 | `APP_STORE_CONNECT_KEY_ID` | Key ID from step 4, plain text, e.g. `ABC123DEF4` |
 | `APP_STORE_CONNECT_ISSUER_ID` | Issuer ID from step 4, plain text UUID |
 | `APP_STORE_CONNECT_PRIVATE_KEY` | base64 of the `.p8` from step 4 |
+| `SPARKLE_PRIVATE_KEY` | the exported key from step 6, as is |
 
 The team ID is not a secret and lives in `env.APPLE_TEAM_ID` in the workflow and in
 `App/ExportOptions.plist`.
 
-## 7. Add yourself as an internal tester
+## 8. Enable GitHub Pages
+
+Repo → Settings → Pages → Source: **GitHub Actions**. `release.yml` deploys
+`appcast.xml` there, and the Mac app reads it from
+`https://slop-place.github.io/zulu/appcast.xml`. The appcast holds the latest release
+only, with its GitHub release notes and a link to the DMG on the release.
+
+## 9. Add yourself as an internal tester
 
 App Store Connect → Zulu → TestFlight → Internal Testing → create a group, add your
 Apple ID. Internal testing needs no Beta App Review, so a build is installable within
@@ -215,5 +239,9 @@ manually chosen identity and fails the archive with "conflicting provisioning se
   out rather than prompt.
 - **Mac export fails with no Developer ID identity.** The `.p12` from step 3 lacks
   the Developer ID Application certificate.
+- **The Mac app never offers an update.** Debug builds do not check. Otherwise open
+  the appcast URL: Sparkle compares `sparkle:version` (the build number) to the
+  installed `CFBundleVersion`, and drops an item whose signature does not match
+  `SUPublicEDKey`.
 - **Notarization returns Invalid.** Run `xcrun notarytool log <submission id>` with
   the same key; it lists each rejected binary.

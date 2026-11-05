@@ -6,12 +6,18 @@ import ZuluStore
 struct MacCommands: Commands {
     let model: AppModel
     let ui: MacUIState
+    let updater: MacUpdater
 
     @AppStorage(MacSidebarSettings.showsRecentKey) private var showsRecent = true
     @AppStorage(TextScale.storageKey) private var textScale = TextScale.standard
 
     var body: some Commands {
         SidebarCommands()
+
+        CommandGroup(after: .appInfo) {
+            Button("Check for Updates…") { updater.checkForUpdates() }
+                .disabled(!updater.canCheckForUpdates)
+        }
 
         CommandGroup(before: .toolbar) {
             Button("Actual Size") { textScale = TextScale.standard }

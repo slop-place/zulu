@@ -27,6 +27,8 @@ concurrency:
 env:
   # Team IDs are not secret; they appear in every shipped binary.
   APPLE_TEAM_ID: 65AMD2STXG
+  # Matches the Sparkle package version in App/project.yml.
+  SPARKLE_VERSION: 2.10.1
 
 jobs:
   apple:
@@ -237,6 +239,41 @@ jobs:
           TAG: ${{ inputs.tag }}
         run: gh release upload "$TAG" "$RUNNER_TEMP/Zulu.dmg" --clobber
 
+      # Runs after stapling, since the signature covers the DMG's final bytes.
+      # Zulu.md beside the DMG becomes the update's release notes.
+      - name: Generate appcast
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          tools="$RUNNER_TEMP/sparkle"
+          mkdir -p "$tools"
+          gh release download "$SPARKLE_VERSION" -R sparkle-project/Sparkle \
+            -p "Sparkle-$SPARKLE_VERSION.tar.xz" -O "$tools/sparkle.tar.xz"
+          tar -xf "$tools/sparkle.tar.xz" -C "$tools"
+
+          updates="$RUNNER_TEMP/updates"
+          mkdir -p "$updates"
+          cp "$RUNNER_TEMP/Zulu.dmg" "$updates/Zulu.dmg"
+          gh release view "$TAG" --json body --jq .body > "$updates/Zulu.md"
+
+          site="$RUNNER_TEMP/site"
+          mkdir -p "$site"
+          echo "$SPARKLE_PRIVATE_KEY" | "$tools/bin/generate_appcast" \
+            --ed-key-file - \
+            --download-url-prefix "https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/" \
+            --link "https://github.com/$GITHUB_REPOSITORY/releases" \
+            --embed-release-notes \
+            -o "$site/appcast.xml" \
+            "$updates"
+
+      - name: Stage appcast for Pages
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ${{ runner.temp }}/site
+
       - name: Keep the ipa and symbols
         if: always()
         uses: actions/upload-artifact@v4
@@ -253,3 +290,17 @@ jobs:
         run: |
           security delete-keychain "$SIGNING_KEYCHAIN" || true
           rm -rf "$HOME/.appstoreconnect/private_keys"
+
+  appcast:
+    name: Publish appcast
+    needs: apple
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}appcast.xml
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v4

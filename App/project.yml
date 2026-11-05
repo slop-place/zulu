@@ -11,6 +11,10 @@ packages:
   MessagingUI:
     url: https://github.com/FluidGroup/swiftui-messaging-ui
     exactVersion: "2.0.0"
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    # release.yml downloads the same version's tools to sign the appcast.
+    exactVersion: "2.10.1"
 targets:
   Zulu:
     type: application
@@ -133,6 +137,8 @@ targets:
         product: ZuluPolls
       - package: ZuluKit
         product: ZuluScroll
+      - package: Sparkle
+        product: Sparkle
     info:
       path: ZuluMac-Info.plist
       properties:
@@ -140,6 +146,12 @@ targets:
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         ITSAppUsesNonExemptEncryption: false
+        SUFeedURL: https://slop-place.github.io/zulu/appcast.xml
+        # The private half is the SPARKLE_PRIVATE_KEY secret. See docs/RELEASING.md.
+        SUPublicEDKey: hmDc4jCsURo9q2eVlwM0HLyn2BXuf8ndF+3r5WvVj3I=
+        SUEnableAutomaticChecks: true
+        # A sandboxed app cannot replace itself. Sparkle's installer service does it.
+        SUEnableInstallerLauncherService: true
         # The Zulip server hardcodes a zulip:// redirect for the SSO flow, so the
         # scheme is not ours to choose.
         CFBundleURLTypes:
@@ -153,6 +165,10 @@ targets:
         com.apple.security.files.user-selected.read-only: true
         com.apple.security.files.downloads.read-write: true
         com.apple.developer.ubiquity-kvstore-identifier: $(TeamIdentifierPrefix)com.bwees.zulu
+        # Lets the sandboxed app reach Sparkle's installer service.
+        com.apple.security.temporary-exception.mach-lookup.global-name:
+          - $(PRODUCT_BUNDLE_IDENTIFIER)-spks
+          - $(PRODUCT_BUNDLE_IDENTIFIER)-spki
     settings:
       base:
         PRODUCT_NAME: Zulu

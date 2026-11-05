@@ -33,5 +33,13 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
+	<key>SUEnableInstallerLauncherService</key>
+	<true/>
+	<key>SUFeedURL</key>
+	<string>https://slop-place.github.io/zulu/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>hmDc4jCsURo9q2eVlwM0HLyn2BXuf8ndF+3r5WvVj3I=</string>
 </dict>
 </plist>

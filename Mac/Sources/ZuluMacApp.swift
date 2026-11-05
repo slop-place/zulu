@@ -9,6 +9,7 @@ struct ZuluMacApp: App {
     @State private var ui = MacUIState()
     @State private var notifier = MacNotifier()
     @State private var dockBadge = DockBadgeUpdater()
+    @State private var updater = MacUpdater()
     @NSApplicationDelegateAdaptor private var appDelegate: ZuluMacAppDelegate
 
     var body: some Scene {
@@ -31,7 +32,7 @@ struct ZuluMacApp: App {
         }
         .windowToolbarStyle(.unified)
         .defaultSize(width: 1180, height: 760)
-        .commands { MacCommands(model: model, ui: ui) }
+        .commands { MacCommands(model: model, ui: ui, updater: updater) }
 
         Settings {
             MacSettingsView()
