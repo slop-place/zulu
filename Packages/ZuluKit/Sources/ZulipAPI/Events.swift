@@ -16,6 +16,19 @@ public struct RegisterResponse: Decodable, Sendable {
     public let realm_emoji: [String: RealmEmoji]?
     public let realm_user_groups: [RealmUserGroup]?
     public let user_topics: [UserTopic]?
+    public let recent_private_conversations: [RecentDirectConversation]?
+}
+
+/// A DM conversation the server knows about, whether or not any of its messages have
+/// been fetched. `user_ids` leaves out the viewer, so it is empty for a DM to oneself.
+public struct RecentDirectConversation: Decodable, Sendable {
+    public let max_message_id: Int
+    public let user_ids: [Int]
+
+    public init(max_message_id: Int, user_ids: [Int]) {
+        self.max_message_id = max_message_id
+        self.user_ids = user_ids
+    }
 }
 
 /// Only the events Zulu acts on today. Anything else decodes to `.other` and is skipped,
@@ -190,7 +203,7 @@ extension ZulipClient {
             // `realm` is also what carries server_emoji_data_url.
             "fetch_event_types": Self.json([
                 "subscription", "realm_user", "realm", "message", "update_message_flags",
-                "realm_emoji", "realm_user_groups", "user_topic",
+                "realm_emoji", "realm_user_groups", "user_topic", "recent_private_conversations",
             ]),
             // Subscriber lists are what let the `@` box put the people in this channel
             // first, which is the ranking rule both official clients agree on.

@@ -159,6 +159,7 @@ public final class ZuluStore: Sendable {
         registerMutedTopicMigration(&migrator)
         registerChannelNotificationMigration(&migrator)
         registerReactionHistoryMigration(&migrator)
+        registerDirectConversationMigration(&migrator)
 
         return migrator
     }
@@ -256,6 +257,12 @@ public final class ZuluStore: Sendable {
             if existing == nil || existing!.maxMessageID < message.id {
                 try TopicRecord(channelID: channelID, name: message.subject, maxMessageID: message.id).save(db)
             }
+        } else {
+            try noteDirectConversation(
+                MessageRecord.dmKey(for: message.dmParticipants.map(\.id), selfUserID: selfUserID),
+                messageID: message.id,
+                in: db
+            )
         }
     }
 
@@ -273,7 +280,7 @@ public final class ZuluStore: Sendable {
         try writer.write { db in
             for table in [
                 "promotedTopic", "channelGroupMember", "channelGroup",
-                "submessage", "reaction", "message", "topic", "channel", "user", "syncState", "unread",
+                "submessage", "reaction", "message", "topic", "dmConversation", "channel", "user", "syncState", "unread",
                 "realmEmoji", "serverEmojiData", "userGroup", "channelSubscriber", "mutedTopic", "topicPolicy",
             ] {
                 try db.execute(sql: "DELETE FROM \(table)")
