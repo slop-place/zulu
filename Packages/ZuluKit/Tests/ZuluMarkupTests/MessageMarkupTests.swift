@@ -41,19 +41,30 @@ struct MessageMarkupTests {
     @Test func emojiSpanBecomesTheCharacter() {
         let html = #"<p>Crossing 14,000 <span aria-label="taking a picture" class="emoji emoji-1f4f8" role="img" title="taking a picture">:taking_a_picture:</span></p>"#
         #expect(MessageMarkup.blocks(from: html)
-            == [.paragraph([InlineSpan(text: "Crossing 14,000 \u{1F4F8}")])])
+            == [.paragraph([
+                InlineSpan(text: "Crossing 14,000 "),
+                InlineSpan(text: "\u{1F4F8}", emojiName: "taking_a_picture"),
+            ])])
+    }
+
+    @Test func neighbouringEmojiKeepTheirOwnNames() {
+        let html = #"<p><span class="emoji emoji-1f600">:grinning:</span><span class="emoji emoji-2764">:heart:</span></p>"#
+        #expect(MessageMarkup.blocks(from: html) == [.paragraph([
+            InlineSpan(text: "\u{1F600}", emojiName: "grinning"),
+            InlineSpan(text: "\u{2764}\u{FE0F}", emojiName: "heart"),
+        ])])
     }
 
     @Test func multiCodepointEmoji() {
         let html = #"<p><span class="emoji emoji-1f1fa-1f1f8">:us:</span></p>"#
         #expect(MessageMarkup.blocks(from: html)
-            == [.paragraph([InlineSpan(text: "\u{1F1FA}\u{1F1F8}")])])
+            == [.paragraph([InlineSpan(text: "\u{1F1FA}\u{1F1F8}", emojiName: "us")])])
     }
 
     @Test func textDefaultEmojiSpanIsDrawnAsEmoji() {
         let html = #"<p><span class="emoji emoji-2764">:heart:</span></p>"#
         #expect(MessageMarkup.blocks(from: html)
-            == [.paragraph([InlineSpan(text: "\u{2764}\u{FE0F}")])])
+            == [.paragraph([InlineSpan(text: "\u{2764}\u{FE0F}", emojiName: "heart")])])
     }
 
     @Test func blockquoteKeepsItsOwnBlocks() {
@@ -127,7 +138,11 @@ struct RealWorldMarkupTests {
         let html = #"<p>light mode <img alt=":baguettebonk:" class="emoji" src="/user_avatars/2/emoji/images/eb0bc477.gif" title="baguettebonk"></p>"#
         #expect(MessageMarkup.blocks(from: html) == [.paragraph([
             InlineSpan(text: "light mode "),
-            InlineSpan(text: ":baguettebonk:", emojiURL: "/user_avatars/2/emoji/images/eb0bc477.gif"),
+            InlineSpan(
+                text: ":baguettebonk:",
+                emojiURL: "/user_avatars/2/emoji/images/eb0bc477.gif",
+                emojiName: "baguettebonk"
+            ),
         ])])
     }
 

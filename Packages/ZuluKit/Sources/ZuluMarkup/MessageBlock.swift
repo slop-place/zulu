@@ -12,6 +12,8 @@ public struct InlineSpan: Sendable, Equatable {
     public var link: String?
     /// A realm custom emoji, which Zulip sends as a small image rather than a character.
     public var emojiURL: String?
+    /// The `:name:` of an emoji, unicode or custom, without the colons.
+    public var emojiName: String?
     /// An @-mention of a person or group.
     public var mention = false
     /// The person an @-mention names, when Zulip told us who they are. Lets a reply
@@ -21,7 +23,7 @@ public struct InlineSpan: Sendable, Equatable {
     public init(
         text: String, bold: Bool = false, italic: Bool = false, code: Bool = false,
         strikethrough: Bool = false, link: String? = nil, emojiURL: String? = nil,
-        mention: Bool = false, mentionedUserID: Int? = nil
+        emojiName: String? = nil, mention: Bool = false, mentionedUserID: Int? = nil
     ) {
         self.text = text
         self.bold = bold
@@ -30,6 +32,7 @@ public struct InlineSpan: Sendable, Equatable {
         self.strikethrough = strikethrough
         self.link = link
         self.emojiURL = emojiURL
+        self.emojiName = emojiName
         self.mention = mention
         self.mentionedUserID = mentionedUserID
     }
@@ -366,6 +369,7 @@ public enum MessageMarkup {
                     if let emoji = emoji(from: element) {
                         var span = inherited
                         span.text = emoji
+                        span.emojiName = emojiName(inner: element.children, title: element.attribute("title"))
                         spans.append(span)
                         continue
                     }
@@ -382,6 +386,8 @@ public enum MessageMarkup {
                         span.text = element.attribute("title").map { ":\($0):" }
                             ?? element.attribute("alt") ?? ""
                         span.emojiURL = element.attribute("src")
+                        span.emojiName = element.attribute("alt").flatMap(Self.withoutColons)
+                            ?? element.attribute("title")
                         if !span.text.isEmpty { spans.append(span) }
                     }
                     continue
@@ -401,6 +407,21 @@ public enum MessageMarkup {
             .dropFirst("emoji-".count)
         else { return nil }
         return EmojiCode.glyph(for: String(codes))
+    }
+
+    /// The span's text is the `:name:` the sender typed. The title spells it with spaces.
+    private static func emojiName(inner: [HTMLNode], title: String?) -> String? {
+        let text = inner.compactMap { node -> String? in
+            if case .text(let text) = node { return text }
+            return nil
+        }.joined()
+        return withoutColons(text) ?? title
+    }
+
+    private static func withoutColons(_ text: String) -> String? {
+        let trimmed = text.trimmingCharacters(in: .whitespaces)
+        guard trimmed.count > 2, trimmed.hasPrefix(":"), trimmed.hasSuffix(":") else { return nil }
+        return String(trimmed.dropFirst().dropLast())
     }
 
     private static func merge(_ spans: [InlineSpan]) -> [InlineSpan] {

@@ -90,7 +90,7 @@ public struct RealmEmojiItem: Sendable, Equatable {
 
 /// How to draw an emoji the catalogue was asked about. Every failure lands on `.text`,
 /// which is what the server's own markdown does with a name it cannot resolve.
-public enum EmojiDisplay: Sendable, Equatable {
+public enum EmojiDisplay: Sendable, Hashable {
     case glyph(String)
     case image(url: String, still: String?)
     case text(String)
