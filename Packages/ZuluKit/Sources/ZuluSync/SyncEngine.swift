@@ -172,6 +172,9 @@ public actor SyncEngine {
         if let unread = registration.unread_msgs {
             try store.replaceUnread(unread, selfUserID: selfUserID)
         }
+        if let conversations = registration.recent_private_conversations {
+            try store.saveDirectConversations(conversations, selfUserID: selfUserID)
+        }
         if let users = registration.realm_users {
             try store.saveUsers(users)
         }
@@ -298,9 +301,8 @@ extension SyncEngine {
         try? store.saveServerEmojiData(url: url.absoluteString, etag: fetched.etag, json: json)
     }
 
-    /// DM conversations are derived from the messages themselves — there is no endpoint
-    /// that lists them. Without this initial fetch the DM list stays empty forever,
-    /// because a conversation has to be listed before it can be opened and loaded.
+    /// The register snapshot lists DM conversations but not their messages, so this gives
+    /// the newest of them a preview line.
     public func loadRecentDirectMessages(limit: Int = 300) async {
         guard let page = try? await client.messages(
             narrow: [.directMessages], anchor: .newest, before: limit

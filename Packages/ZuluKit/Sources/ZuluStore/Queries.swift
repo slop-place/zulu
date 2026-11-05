@@ -109,20 +109,18 @@ extension ZuluStore {
     public func observeDMs() -> ValueObservation<ValueReducers.Fetch<[DMSummary]>> {
         ValueObservation.tracking { db in
             try DMSummary.fetchAll(db, sql: """
-                SELECT m.dmKey,
-                       (SELECT COUNT(*) FROM unread u WHERE u.dmKey = m.dmKey) AS unreadCount,
-                       MAX(m.id) AS lastMessageID,
-                       (SELECT s.senderName FROM message s WHERE s.dmKey = m.dmKey
+                SELECT d.dmKey,
+                       (SELECT COUNT(*) FROM unread u WHERE u.dmKey = d.dmKey) AS unreadCount,
+                       d.maxMessageID AS lastMessageID,
+                       (SELECT s.senderName FROM message s WHERE s.dmKey = d.dmKey
                          ORDER BY s.id DESC LIMIT 1) AS lastSender,
-                       (SELECT s.senderID FROM message s WHERE s.dmKey = m.dmKey
+                       (SELECT s.senderID FROM message s WHERE s.dmKey = d.dmKey
                          ORDER BY s.id DESC LIMIT 1) AS lastSenderID,
-                       (SELECT s.renderedContent FROM message s WHERE s.dmKey = m.dmKey
+                       (SELECT s.renderedContent FROM message s WHERE s.dmKey = d.dmKey
                          ORDER BY s.id DESC LIMIT 1) AS lastContent,
-                       (SELECT s.timestamp FROM message s WHERE s.dmKey = m.dmKey
+                       (SELECT s.timestamp FROM message s WHERE s.dmKey = d.dmKey
                          ORDER BY s.id DESC LIMIT 1) AS lastTimestamp
-                  FROM message m
-                 WHERE m.dmKey IS NOT NULL
-                 GROUP BY m.dmKey
+                  FROM dmConversation d
                  ORDER BY lastMessageID DESC
                 """)
         }
@@ -413,21 +411,19 @@ extension ZuluStore {
                        AND \(TopicMuting.isNotMuted(channel: "t.channelID", topic: "t.name"))
                     UNION ALL
                     SELECT NULL, NULL, NULL, NULL, NULL,
-                           m.dmKey,
-                           MAX(m.id) AS lastMessageID,
-                           (SELECT s.senderID FROM message s WHERE s.dmKey = m.dmKey
+                           d.dmKey,
+                           d.maxMessageID AS lastMessageID,
+                           (SELECT s.senderID FROM message s WHERE s.dmKey = d.dmKey
                              ORDER BY s.id DESC LIMIT 1),
-                           (SELECT s.senderName FROM message s WHERE s.dmKey = m.dmKey
+                           (SELECT s.senderName FROM message s WHERE s.dmKey = d.dmKey
                              ORDER BY s.id DESC LIMIT 1),
-                           (SELECT s.renderedContent FROM message s WHERE s.dmKey = m.dmKey
+                           (SELECT s.renderedContent FROM message s WHERE s.dmKey = d.dmKey
                              ORDER BY s.id DESC LIMIT 1),
-                           (SELECT s.timestamp FROM message s WHERE s.dmKey = m.dmKey
+                           (SELECT s.timestamp FROM message s WHERE s.dmKey = d.dmKey
                              ORDER BY s.id DESC LIMIT 1),
-                           (SELECT COUNT(*) FROM unread u WHERE u.dmKey = m.dmKey),
-                           (SELECT COUNT(*) FROM unread u WHERE u.dmKey = m.dmKey AND u.isMention = 1)
-                      FROM message m
-                     WHERE m.dmKey IS NOT NULL
-                     GROUP BY m.dmKey
+                           (SELECT COUNT(*) FROM unread u WHERE u.dmKey = d.dmKey),
+                           (SELECT COUNT(*) FROM unread u WHERE u.dmKey = d.dmKey AND u.isMention = 1)
+                      FROM dmConversation d
                 )
                 ORDER BY lastMessageID DESC
                 LIMIT ?
