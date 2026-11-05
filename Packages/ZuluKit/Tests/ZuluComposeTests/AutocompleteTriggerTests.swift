@@ -52,11 +52,15 @@ struct AutocompleteTriggerTests {
         #expect(query("@Ada Lovelace")?.query == "Ada Lovelace")
     }
 
-    /// Emoticons are not emoji searches. Zulip's rule is that the first character after
-    /// the colon must be `+` or lowercase, which rejects `:P`, `:)` and `:-p` at once.
-    @Test(arguments: [":", ":)", ":P", ":-p", ":1", ": smile"])
+    /// Emoticons are not emoji searches: `:P`, `:)`, `:-p` and `:3` stay closed.
+    @Test(arguments: [":", ":)", ":P", ":-p", ":1", ":3", ": smile"])
     func emoticonsDoNotOpenTheEmojiBox(text: String) {
         #expect(query(text) == nil)
+    }
+
+    @Test(arguments: [":10", ":100", ":1234", "nice :10"])
+    func numberedEmojiNamesOpenTheEmojiBox(text: String) {
+        #expect(query(text)?.trigger == ":")
     }
 
     @Test func aDoubleColonIsNotAQuery() {
@@ -124,5 +128,17 @@ struct AutocompleteTriggerTests {
         let active = engine.activeQuery(in: text, cursor: text.endIndex)!
         let suggestion = engine.suggestions(for: active, in: ComposeContext()).first!
         #expect(engine.apply(suggestion, to: text, replacing: active).text == "nice :party_parrot:")
+    }
+
+    @Test func typingTheStartOfOneHundredSuggestsIt() {
+        let source = EmojiAutocompleteSource(catalogue: EmojiCatalogue(
+            unicode: ServerEmojiData(codeToNames: ["1f4af": ["100"], "1f522": ["1234"]])
+        ))
+        let engine = AutocompleteEngine(sources: [source])
+        let text = "nice :10"
+        let active = engine.activeQuery(in: text, cursor: text.endIndex)!
+        let suggestions = engine.suggestions(for: active, in: ComposeContext())
+        #expect(suggestions.map(\.title) == [":100:"])
+        #expect(engine.apply(suggestions[0], to: text, replacing: active).text == "nice :100:")
     }
 }
