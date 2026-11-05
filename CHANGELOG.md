@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.20.0](https://github.com/slop-place/zulu/compare/zulu-v1.19.1...zulu-v1.20.0) (2026-11-05)
+
+
+### Features
+
+* improve dark mode readability and add a Mac text size control ([#39](https://github.com/slop-place/zulu/issues/39)) ([6e705db](https://github.com/slop-place/zulu/commit/6e705db8bb9d87da27e52fce4f58b57545db8c53))
+* show an emoji's name on hover or tap ([#38](https://github.com/slop-place/zulu/issues/38)) ([bcc53fe](https://github.com/slop-place/zulu/commit/bcc53fe541ccd8e3af33bde3128a67beaf1085e0))
+* show composer attachments as cards with upload progress ([#35](https://github.com/slop-place/zulu/issues/35)) ([9040547](https://github.com/slop-place/zulu/commit/90405477df976369c70dba473870e6a431afee45))
+
+
+### Bug Fixes
+
+* stop reused rows showing another sender's avatar or image ([#37](https://github.com/slop-place/zulu/issues/37)) ([59fe4f1](https://github.com/slop-place/zulu/commit/59fe4f14e553a120e6397b28614829d444945256))
+
 ## [1.19.1](https://github.com/slop-place/zulu/compare/zulu-v1.19.0...zulu-v1.19.1) (2026-10-29)
 
 
