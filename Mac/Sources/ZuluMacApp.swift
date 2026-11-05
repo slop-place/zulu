@@ -8,6 +8,7 @@ struct ZuluMacApp: App {
     @State private var model = AppModel()
     @State private var ui = MacUIState()
     @State private var notifier = MacNotifier()
+    @State private var dockBadge = DockBadgeUpdater()
     @NSApplicationDelegateAdaptor private var appDelegate: ZuluMacAppDelegate
 
     var body: some Scene {
@@ -20,6 +21,7 @@ struct ZuluMacApp: App {
                 .environment(ui)
                 .task {
                     notifier.attach(model: model, ui: ui)
+                    dockBadge.attach(model: model)
                     await model.bootstrap()
                 }
                 .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didWakeNotification)) { _ in

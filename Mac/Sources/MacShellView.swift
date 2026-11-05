@@ -113,9 +113,6 @@ struct MacShellView: View {
             ui.editingGroup = MacUIState.GroupBox(id: id)
             model.pendingGroupToEdit = nil
         }
-        .onChange(of: dockBadge, initial: true) { _, badge in
-            NSApp.dockTile.badgeLabel = badge.label
-        }
         .onChange(of: showsRecent, initial: true) {
             if !showsRecent, ui.section == .recent { ui.section = .unfiled }
         }
@@ -204,17 +201,6 @@ struct MacShellView: View {
             } message: {
                 Text("Your channel groups, renames and hidden channels on this Mac are removed with it.")
             }
-    }
-
-    private var dockBadge: DockBadge {
-        DockBadge(
-            addressed: model.dms.reduce(0) { $0 + $1.unreadCount }
-                + model.groups.reduce(0) { $0 + $1.mentionCount }
-                + model.unfiledMentionCount,
-            hasUnread: model.dms.contains { $0.unreadCount > 0 }
-                || model.groups.contains { $0.unreadCount > 0 }
-                || model.unfiledHasUnread
-        )
     }
 
     // MARK: sidebar
