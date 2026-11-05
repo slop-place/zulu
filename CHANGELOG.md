@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.20.1](https://github.com/slop-place/zulu/compare/zulu-v1.20.0...zulu-v1.20.1) (2026-11-05)
+
+
+### Bug Fixes
+
+* sign the Mac DMG with Developer ID so it shares state with local builds ([dcb162a](https://github.com/slop-place/zulu/commit/dcb162aafd26514a271e9cbd058997ce0ecb9ea4))
+* update the Mac dock badge while the window is in the background ([#40](https://github.com/slop-place/zulu/issues/40)) ([b673cab](https://github.com/slop-place/zulu/commit/b673cab2c60fa629b47ca7ddec6dd99ff29961a0))
+
 ## [1.20.0](https://github.com/slop-place/zulu/compare/zulu-v1.19.1...zulu-v1.20.0) (2026-11-05)
 
 
