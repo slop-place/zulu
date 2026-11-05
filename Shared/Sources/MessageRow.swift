@@ -2,17 +2,20 @@ import SwiftUI
 import ZuluStore
 
 struct UnreadDivider: View {
+    @Environment(\.textScale) private var scale
+
     var body: some View {
         HStack(spacing: 8) {
-            Rectangle().fill(.red.opacity(0.6)).frame(height: 1)
-            Text("Unread").font(.caption2.weight(.semibold)).foregroundStyle(.red)
-            Rectangle().fill(.red.opacity(0.6)).frame(height: 1)
+            Rectangle().fill(.red.opacity(0.5)).frame(height: 1)
+            Text("Unread").font(.scaled(.caption, by: scale).weight(.semibold)).foregroundStyle(.red).fixedSize()
+            Rectangle().fill(.red.opacity(0.5)).frame(height: 1)
         }
     }
 }
 
 struct DayDivider: View {
     let date: Date
+    @Environment(\.textScale) private var scale
 
     private var label: String {
         let calendar = Calendar.current
@@ -27,7 +30,7 @@ struct DayDivider: View {
     var body: some View {
         HStack(spacing: 8) {
             Rectangle().fill(.separator).frame(height: 1)
-            Text(label).font(.caption2.weight(.semibold)).foregroundStyle(TextTone.secondary).fixedSize()
+            Text(label).font(.scaled(.caption, by: scale).weight(.semibold)).foregroundStyle(TextTone.secondary).fixedSize()
             Rectangle().fill(.separator).frame(height: 1)
         }
     }
@@ -78,15 +81,16 @@ struct MessageHeader<Trailing: View>: View {
     let date: Date
     let edited: Bool
     @ViewBuilder let trailing: () -> Trailing
+    @Environment(\.textScale) private var scale
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 6) {
-            Text(name).font(.subheadline.weight(.semibold)).lineLimit(1)
+            Text(name).font(.scaled(.subheadline, by: scale).weight(.semibold)).lineLimit(1)
             Text(date, format: .dateTime.hour().minute())
-                .font(.caption).foregroundStyle(TextTone.secondary)
+                .font(.scaled(.caption, by: scale)).foregroundStyle(TextTone.tertiary)
                 .fixedSize()
             if edited {
-                Text("edited").font(.caption2).foregroundStyle(TextTone.tertiary).fixedSize()
+                Text("edited").font(.scaled(.caption2, by: scale)).foregroundStyle(TextTone.tertiary).fixedSize()
             }
             trailing()
         }

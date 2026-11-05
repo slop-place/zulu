@@ -39,8 +39,8 @@ struct ShellView: View {
     /// Where the page's navigation bar ends, from the top of the screen.
     @State private var pageBarBottom: CGFloat = 0
 
-    private let railW: CGFloat = 80
-    private let listW: CGFloat = 236
+    private let railW: CGFloat = 68
+    private let listW: CGFloat = 262
     private var drawerW: CGFloat { railW + listW }
 
     /// How far the page has slid off the drawer. Always zero while docked, where the page
@@ -81,6 +81,9 @@ struct ShellView: View {
     private static let minimumHeaderHeight: CGFloat = 44
     private static let fallbackHeaderHeight: CGFloat = 52
     private static let railButtonSize: CGFloat = 46
+    /// How much of the page stays in view beside an open drawer, to tap it closed. Narrow
+    /// enough that the page's own toolbar buttons are not left half on screen.
+    private static let pagePeek: CGFloat = 20
 
     /// Narrower than this, a conversation beside the sidebar wraps like a phone held
     /// sideways, and the drawer serves better.
@@ -112,6 +115,8 @@ struct ShellView: View {
     /// so the fold divides them instead of running through the middle of the messages.
     private var sidebarWidth: CGFloat {
         if drawerFillsScreen, space.width > drawerW { return space.width }
+        // A phone's drawer takes all but a strip of the page, so names are not cut short.
+        if !docked { return max(drawerW, space.width - Self.pagePeek) }
         return bookFold?.lowerBound ?? drawerW
     }
 

@@ -9,29 +9,25 @@ import SwiftUI
 struct RecentRow: View, Equatable {
     let entry: RecentEntry
     let isOpen: Bool
+    let minHeight: CGFloat
 
     private var isUnread: Bool { entry.unreadCount > 0 }
 
-    private static let dotSize: CGFloat = 8
-
     var body: some View {
-        HStack(spacing: 6) {
-            Circle()
-                .fill(Color.accentColor)
-                .frame(width: Self.dotSize, height: Self.dotSize)
-                .opacity(isUnread ? 1 : 0)
+        HStack(spacing: ConversationUnreadDot.spacing) {
+            ConversationUnreadDot(visible: isUnread)
             HStack(spacing: 9) {
                 SenderAvatar(name: entry.avatarName, userID: entry.avatarUserID, size: 34)
-                    .opacity(isUnread ? 1 : 0.55)
+                    .opacity(isUnread ? 1 : 0.8)
                     // An initial read out before the name says nothing.
                     .accessibilityHidden(true)
-                VStack(alignment: .leading, spacing: 1) {
+                VStack(alignment: .leading, spacing: 2) {
                     HStack(alignment: .firstTextBaseline, spacing: 4) {
                         Text(entry.title)
-                            .font(.subheadline.weight(isUnread ? .semibold : .regular))
+                            .font(.callout.weight(isUnread ? .semibold : .medium))
                             .foregroundStyle(isUnread ? SidebarTone.unread : SidebarTone.readTitle)
                             .lineLimit(1)
-                        if entry.isRestricted {
+                        if entry.channel == nil, entry.isRestricted {
                             Image(systemName: "lock.fill")
                                 .font(.system(size: 9))
                                 .foregroundStyle(TextTone.tertiary)
@@ -39,16 +35,18 @@ struct RecentRow: View, Equatable {
                         Spacer(minLength: 4)
                         if let date = entry.date {
                             Text(RecentTime.label(for: date))
-                                .font(.caption2.weight(isUnread ? .semibold : .regular))
-                                .foregroundStyle(isUnread ? Color.accentColor : TextTone.secondary)
+                                .font(.caption.weight(isUnread ? .semibold : .regular))
+                                .foregroundStyle(isUnread ? Color.accentColor : TextTone.tertiary)
                                 .monospacedDigit()
                                 .fixedSize()
                         }
                     }
+                    RecentChannelLine(channel: entry.channel, isRestricted: entry.isRestricted)
+                        .font(.footnote)
                     HStack(spacing: 4) {
                         Text(entry.preview ?? " ")
-                            .font(.caption)
-                            .foregroundStyle(isUnread ? Color.primary : TextTone.secondary)
+                            .font(.footnote)
+                            .foregroundStyle(isUnread ? TextTone.secondary : TextTone.tertiary)
                             .lineLimit(1)
                         Spacer(minLength: 4)
                         if entry.mentionCount > 0 {
@@ -60,6 +58,7 @@ struct RecentRow: View, Equatable {
                 }
             }
         }
+        .frame(minHeight: minHeight)
         .padding(.leading, 4)
         .padding(.trailing, 8)
         .padding(.vertical, 6)
@@ -69,5 +68,21 @@ struct RecentRow: View, Equatable {
         )
         .contentShape(.rect)
         .accessibilityValue(isUnread ? "\(entry.unreadCount) unread" : "")
+    }
+}
+
+/// The accent dot before an unread conversation in the drawer's lists. Its slot is always
+/// there, so read and unread rows line up.
+struct ConversationUnreadDot: View {
+    let visible: Bool
+
+    static let size: CGFloat = 8
+    static let spacing: CGFloat = 6
+
+    var body: some View {
+        Circle()
+            .fill(Color.accentColor)
+            .frame(width: Self.size, height: Self.size)
+            .opacity(visible ? 1 : 0)
     }
 }

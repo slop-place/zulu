@@ -91,7 +91,7 @@ final class PastingTextView: UITextView {
         let label = UILabel()
         label.font = .preferredFont(forTextStyle: .body)
         label.adjustsFontForContentSizeCategory = true
-        label.textColor = .placeholderText
+        label.textColor = .secondaryLabel
         return label
     }()
 

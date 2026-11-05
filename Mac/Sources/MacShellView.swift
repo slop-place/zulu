@@ -35,6 +35,11 @@ struct MacShellView: View {
     @AppStorage(MacSidebarSettings.showsRecentKey) private var showsRecent = true
     @AppStorage(MacSidebarSettings.pinsUnreadDMsKey) private var pinsUnreadDMs = true
     @AppStorage(MacSidebarLayout.storageKey) private var layout = MacSidebarLayout.standard
+    @Environment(\.textScale) private var textScale
+
+    /// The rail layout's sidebar, widened with the text size so names and previews keep
+    /// their room.
+    private static let sidebarWidth = (min: CGFloat(300), ideal: CGFloat(360), max: CGFloat(480))
 
     var body: some View {
         alerts(sheets(split))
@@ -50,7 +55,11 @@ struct MacShellView: View {
             case .rail:
                 NavigationSplitView(columnVisibility: $columns) {
                     sidebar
-                        .navigationSplitViewColumnWidth(min: 300, ideal: 330, max: 480)
+                        .navigationSplitViewColumnWidth(
+                            min: Self.sidebarWidth.min * textScale,
+                            ideal: Self.sidebarWidth.ideal * textScale,
+                            max: Self.sidebarWidth.max * textScale
+                        )
                 } detail: {
                     MacDetailView()
                 }
@@ -65,7 +74,7 @@ struct MacShellView: View {
                         .navigationTitle(listTitle)
                         .navigationSubtitle(listSubtitle)
                         .navigationSplitViewColumnWidth(min: 260, ideal: 300, max: 440)
-                        .modifier(BlackColumn())
+                        .modifier(SidebarColumn())
                 } detail: {
                     MacDetailView()
                 }
@@ -220,7 +229,7 @@ struct MacShellView: View {
                 MacSidebarFooter()
             }
         }
-        .modifier(BlackColumn())
+        .modifier(SidebarColumn())
     }
 
     /// The foldable's tabs, as a Mac draws a tab bar given the room: a sidebar of them,
@@ -279,13 +288,13 @@ struct MacShellView: View {
         }
         .listStyle(.sidebar)
         .scrollContentBackground(.hidden)
-        .modifier(BlackColumn())
+        .modifier(SidebarColumn())
         .safeAreaInset(edge: .bottom, spacing: 0) {
             VStack(spacing: 0) {
                 Divider()
                 MacSidebarFooter()
             }
-            .background(Platform.canvas)
+            .background(Platform.sidebar)
         }
     }
 
@@ -306,20 +315,20 @@ struct MacShellView: View {
             // showing, so it is never hidden behind a rail switch. It stays while it is
             // the open conversation, rather than vanishing the moment it is read.
             if pinsUnreadDMs, ui.section != .dms, ui.section != .recent, !pinnedDMs.isEmpty {
-                Section("Direct Messages") {
+                Section {
                     ForEach(pinnedDMs) { dm in dmRow(dm) }
-                }
+                } header: { MacSidebarHeader(title: "Direct Messages") }
             }
             // The column's navigation title does not render on macOS 26, so the section
             // says what it is at the top of the list, the way Mail's sidebar does.
-            Section(listTitle) {
+            Section {
                 sectionRows
-            }
+            } header: { MacSidebarHeader(title: listTitle) }
             // A hidden channel someone mentioned you in, listed until the mention is read.
             if ui.section != .dms, ui.section != .recent, !mentionedHidden.isEmpty {
-                Section("Hidden") {
+                Section {
                     ForEach(mentionedHidden) { channel in channelRow(channel) }
-                }
+                } header: { MacSidebarHeader(title: "Hidden") }
             }
         }
         .listStyle(.sidebar)
@@ -359,7 +368,7 @@ struct MacShellView: View {
         if ui.section == .recent {
             ForEach(recentEntries) { entry in
                 // A row whose entry has not changed is not laid out again.
-                MacRecentRow(entry: entry)
+                MacRecentRow(entry: entry, scale: textScale)
                     .equatable()
                     .tag(entry.destination)
                     .contextMenu {
@@ -684,13 +693,16 @@ struct MacSidebarRow: View {
     var pinned = false
     var unread = 0
     var mentions = 0
+    /// A topic under its forum: a size smaller and a step quieter than the channel above it.
+    var nested = false
+    @Environment(\.textScale) private var scale
 
     /// Read rows sit back in gray and an unread one lights up with a dot beside it, so
     /// what is new stands out without a column of counts.
     private var isUnread: Bool { unread > 0 }
 
     var body: some View {
-        HStack(spacing: 7) {
+        HStack(spacing: Self.spacing) {
             UnreadDot(visible: isUnread)
             if let symbol {
                 Image(systemName: symbol)
@@ -701,8 +713,8 @@ struct MacSidebarRow: View {
             VStack(alignment: .leading, spacing: 1) {
                 HStack(spacing: 4) {
                     Text(title)
-                        .font(.body.weight(isUnread ? .semibold : .regular))
-                        .foregroundStyle(isUnread ? SidebarTone.unread : SidebarTone.readTitle)
+                        .font(Font.scaled(nested ? .callout : .body, by: scale).weight(isUnread ? .semibold : nested ? .regular : .medium))
+                        .foregroundStyle(isUnread ? SidebarTone.unread : nested ? TextTone.secondary : SidebarTone.readTitle)
                         .lineLimit(1)
                     if restricted {
                         Image(systemName: "lock.fill")
@@ -712,7 +724,7 @@ struct MacSidebarRow: View {
                 }
                 if let subtitle, !subtitle.isEmpty {
                     Text(subtitle)
-                        .font(.caption)
+                        .font(.scaled(.caption, by: scale))
                         .foregroundStyle(SidebarTone.readIcon)
                         .lineLimit(1)
                 }
@@ -727,12 +739,21 @@ struct MacSidebarRow: View {
             }
         }
         .padding(.vertical, 1)
+        .padding(.leading, nested ? Self.nestedIndent : 0)
+        // A long topic is cut short at any sidebar width; hovering shows all of it.
+        .help(title)
     }
+
+    private static let nestedIndent: CGFloat = 18
+    private static let spacing: CGFloat = 7
+    /// Where a nested row's title starts, past the indent and the unread dot's slot.
+    static let nestedTitleInset = nestedIndent + UnreadDot.size + spacing
 }
 
 struct MacDMRow: View {
     let dm: DMSummary
     @Environment(AppModel.self) private var model
+    @Environment(\.textScale) private var scale
 
     var body: some View {
         HStack(spacing: 9) {
@@ -741,16 +762,22 @@ struct MacDMRow: View {
                 userID: model.soleParticipant(inDM: dm.dmKey),
                 size: 30
             )
-            VStack(alignment: .leading, spacing: 1) {
+            VStack(alignment: .leading, spacing: 2) {
                 Text(model.title(forDM: dm.dmKey))
-                    .font(.body.weight(dm.unreadCount > 0 ? .semibold : .regular))
+                    .font(Font.scaled(.body, by: scale).weight(dm.unreadCount > 0 ? .semibold : .regular))
+                    .foregroundStyle(dm.unreadCount > 0 ? SidebarTone.unread : SidebarTone.readTitle)
                     .lineLimit(1)
-                if let preview = model.preview(forDM: dm) {
-                    Text(preview)
-                        .font(.caption)
-                        .foregroundStyle(TextTone.secondary)
+                // The date rides with the preview, so the name has the whole line.
+                HStack(alignment: .firstTextBaseline, spacing: 4) {
+                    Text(model.preview(forDM: dm) ?? " ")
+                        .foregroundStyle(dm.unreadCount > 0 ? TextTone.secondary : TextTone.tertiary)
                         .lineLimit(1)
+                    Spacer(minLength: 4)
+                    if let date = dm.date {
+                        ConversationTime(date: date, isUnread: dm.unreadCount > 0)
+                    }
                 }
+                .font(.scaled(.caption, by: scale))
             }
             Spacer(minLength: 4)
             Badge(count: dm.unreadCount, mention: true)
@@ -769,7 +796,8 @@ private struct MacTopicRow: View {
     var body: some View {
         MacSidebarRow(
             title: topic.name.isEmpty ? "general chat" : topic.name,
-            unread: topic.unreadCount
+            unread: topic.unreadCount,
+            nested: true
         )
         .tag(AppModel.Destination.topic(
             channelID: channel.id, name: topic.name, channelName: channel.name
@@ -800,6 +828,7 @@ private struct MacTopicRows: View {
     @Environment(AppModel.self) private var model
     @State private var topics: [TopicSummary] = []
     @State private var loaded = false
+    @Environment(\.textScale) private var scale
 
     private static let shown = 8
 
@@ -822,8 +851,9 @@ private struct MacTopicRows: View {
                         model.destination = .channel(channel.id)
                     } label: {
                         Text("All \(topics.count) topics…")
-                            .font(.callout)
-                            .foregroundStyle(TextTone.secondary)
+                            .font(.scaled(.callout, by: scale))
+                            .foregroundStyle(Color.accentColor)
+                            .padding(.leading, MacSidebarRow.nestedTitleInset)
                     }
                     .buttonStyle(.plain)
                     .selectionDisabled()
@@ -1144,16 +1174,29 @@ struct MacSidebarFooter: View {
     }
 }
 
-/// A sidebar column in black like the conversation, with a hairline where it ends.
-private struct BlackColumn: ViewModifier {
+/// A sidebar column a step lighter than the conversation, as Mail and Messages draw it, with a hairline where it ends.
+private struct SidebarColumn: ViewModifier {
     func body(content: Content) -> some View {
         content
             // Under the title bar too: the column's own vibrancy would otherwise show
             // through as grey.
-            .background(Platform.canvas.ignoresSafeArea())
+            .background(Platform.sidebar.ignoresSafeArea())
             // The canvas behind the columns hides the split view's own divider.
             .overlay(alignment: .trailing) {
                 HStack(spacing: 0) { Divider() }.ignoresSafeArea()
             }
+    }
+}
+
+/// A sidebar section's heading, a step brighter than the system's: on the dark sidebar
+/// surface the stock grey all but disappears.
+private struct MacSidebarHeader: View {
+    let title: String
+    @Environment(\.textScale) private var scale
+
+    var body: some View {
+        Text(title)
+            .font(Font.scaled(.subheadline, by: scale).weight(.semibold))
+            .foregroundStyle(TextTone.secondary)
     }
 }

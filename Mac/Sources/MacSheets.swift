@@ -500,6 +500,7 @@ struct MacSettingsView: View {
     @AppStorage(MacSidebarSettings.showsRecentKey) private var showsRecent = true
     @AppStorage(MacSidebarSettings.pinsUnreadDMsKey) private var pinsUnreadDMs = true
     @AppStorage(MacSidebarLayout.storageKey) private var sidebarLayout = MacSidebarLayout.standard
+    @AppStorage(TextScale.storageKey) private var textScale = TextScale.standard
 
     var body: some View {
         Form {
@@ -514,6 +515,19 @@ struct MacSettingsView: View {
                 }
             }
             Section("Messages") {
+                LabeledContent("Text size") {
+                    Slider(
+                        value: $textScale,
+                        in: TextScale.range,
+                        step: TextScale.increment
+                    ) {
+                        EmptyView()
+                    } minimumValueLabel: {
+                        Image(systemName: "textformat.size.smaller")
+                    } maximumValueLabel: {
+                        Image(systemName: "textformat.size.larger")
+                    }
+                }
                 Picker("Show actions", selection: $messageActionStyle) {
                     ForEach(MacMessageActionStyle.allCases) { style in
                         Text(style.title).tag(style)

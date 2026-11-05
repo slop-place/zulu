@@ -151,8 +151,8 @@ struct MacComposerBar: View {
                 MacEmojiPicker { insert($0) }
             }
         }
-        .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 10))
-        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(.quaternary))
+        .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
+        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(Color(nsColor: .separatorColor)))
     }
 
     /// Who is being answered, and enough of what they said to be sure it is the right

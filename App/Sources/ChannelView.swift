@@ -32,29 +32,33 @@ struct ChannelView: View {
                 NavigationLink(value: ConversationView.Source.topic(
                     channelID: channel.id, name: topic.name, channelName: channel.name
                 )) {
-                    HStack(alignment: .top, spacing: 10) {
+                    HStack(alignment: .firstTextBaseline, spacing: 10) {
                         Circle()
                             .fill(topic.unreadCount > 0 ? Color.accentColor : .clear)
                             .frame(width: 8, height: 8)
-                            .padding(.top, 6)
                         VStack(alignment: .leading, spacing: 3) {
                             Text(topic.name.isEmpty ? "general chat" : topic.name)
-                                .font(.subheadline.weight(topic.unreadCount > 0 ? .semibold : .regular))
-                                .lineLimit(1)
+                                .font(.body.weight(topic.unreadCount > 0 ? .semibold : .regular))
+                                .foregroundStyle(topic.unreadCount > 0 ? SidebarTone.unread : Color.primary)
+                                .lineLimit(2)
                             if let sender = topic.lastSender {
-                                Text(sender).font(.caption).foregroundStyle(TextTone.secondary).lineLimit(1)
+                                Text(sender).font(.footnote).foregroundStyle(TextTone.secondary).lineLimit(1)
                             }
                         }
                         Spacer(minLength: 4)
                         VStack(alignment: .trailing, spacing: 4) {
                             if let date = topic.date {
-                                Text(date, format: .dateTime.hour().minute())
-                                    .font(.caption2).foregroundStyle(TextTone.secondary)
+                                Text(RecentTime.label(for: date))
+                                    .font(.footnote)
+                                    .foregroundStyle(topic.unreadCount > 0 ? Color.accentColor : TextTone.secondary)
+                                    .monospacedDigit()
                             }
-                            Badge(count: topic.unreadCount)
+                            if topic.unreadCount > 0 {
+                                UnreadCount(count: topic.unreadCount)
+                            }
                         }
                     }
-                    .padding(.vertical, 2)
+                    .padding(.vertical, 4)
                 }
                 .contextMenu {
                     OpenInNewWindowButton(source: .topic(

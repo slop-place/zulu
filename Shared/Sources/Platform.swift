@@ -121,6 +121,15 @@ enum Platform {
         appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua ? .black : .windowBackgroundColor
     })
 
+    /// The sidebar's surface: a step up from the canvas in dark mode, so the list and the
+    /// conversation read as separate panes without leaning on the divider.
+    static let sidebar = Color(NSColor(name: nil) { appearance in
+        appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+            ? NSColor(white: sidebarDarkWhite, alpha: 1)
+            : .windowBackgroundColor
+    })
+    private static let sidebarDarkWhite: CGFloat = 0.1
+
     /// The system's text roles, under one name on both platforms.
     static let label = NSColor.labelColor
     static let secondaryLabel = NSColor.secondaryLabelColor
@@ -167,9 +176,36 @@ extension Platform {
         return (ceil(font.ascender - font.descender), font.descender)
     }
     #else
+    /// At the reader's text scale, so an inline emoji grows with the words around it.
     private static func line(of style: NSFont.TextStyle) -> (height: CGFloat, descender: CGFloat) {
-        let font = NSFont.preferredFont(forTextStyle: style)
+        let base = NSFont.preferredFont(forTextStyle: style)
+        let font = base.withSize(base.pointSize * TextScale.current)
         return (ceil(font.ascender - font.descender), font.descender)
+    }
+
+    static func pointSize(of style: Font.TextStyle) -> CGFloat {
+        NSFont.preferredFont(forTextStyle: style.appKit).pointSize
     }
     #endif
 }
+
+#if os(macOS)
+private extension Font.TextStyle {
+    var appKit: NSFont.TextStyle {
+        switch self {
+        case .largeTitle: .largeTitle
+        case .title: .title1
+        case .title2: .title2
+        case .title3: .title3
+        case .headline: .headline
+        case .subheadline: .subheadline
+        case .body: .body
+        case .callout: .callout
+        case .footnote: .footnote
+        case .caption: .caption1
+        case .caption2: .caption2
+        @unknown default: .body
+        }
+    }
+}
+#endif

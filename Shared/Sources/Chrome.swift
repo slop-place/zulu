@@ -92,7 +92,7 @@ struct PinMark: View {
 struct UnreadDot: View {
     let visible: Bool
 
-    private static let size: CGFloat = 7
+    static let size: CGFloat = 7
 
     var body: some View {
         Circle()
@@ -107,10 +107,10 @@ struct UnreadDot: View {
 enum SidebarTone {
     static let unread = Platform.dynamic(light: .black, dark: .white)
     static let readTitle = Platform.dynamic(
-        light: Platform.label.withAlphaComponent(0.6), dark: .white.withAlphaComponent(0.6)
+        light: Platform.label.withAlphaComponent(0.7), dark: .white.withAlphaComponent(0.86)
     )
     static let readIcon = Platform.dynamic(
-        light: Platform.label.withAlphaComponent(0.45), dark: .white.withAlphaComponent(0.5)
+        light: Platform.label.withAlphaComponent(0.5), dark: .white.withAlphaComponent(0.58)
     )
 }
 
@@ -118,8 +118,10 @@ enum SidebarTone {
 /// grey, so in dark mode every supporting line is a step brighter; light mode keeps the
 /// system's own roles.
 enum TextTone {
+    /// Message text sits a step below the sender's name, so the name anchors each group.
+    static let body = Platform.dynamic(light: Platform.label, dark: .white.withAlphaComponent(0.88))
     static let secondary = Platform.dynamic(light: Platform.secondaryLabel, dark: .white.withAlphaComponent(0.74))
-    static let tertiary = Platform.dynamic(light: Platform.tertiaryLabel, dark: .white.withAlphaComponent(0.52))
+    static let tertiary = Platform.dynamic(light: Platform.tertiaryLabel, dark: .white.withAlphaComponent(0.66))
 }
 
 struct ChannelIcon: View {
@@ -143,3 +145,13 @@ struct ChannelIcon: View {
     }
 }
 
+
+/// Says a channel is private. Sits after the name, where it cannot collide with the icon.
+struct LockMark: View {
+    var body: some View {
+        Image(systemName: "lock.fill")
+            .font(.system(size: 9))
+            .foregroundStyle(TextTone.tertiary)
+            .accessibilityLabel("Private")
+    }
+}
