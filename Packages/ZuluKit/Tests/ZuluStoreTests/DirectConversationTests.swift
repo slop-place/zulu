@@ -64,4 +64,37 @@ struct DirectConversationTests {
         let rows = try await dms(store)
         #expect(rows.map(\.lastMessageID) == [100])
     }
+
+    @Test func aSnapshotAfterADeletionLowersTheConversation() async throws {
+        let store = try ZuluStore(url: nil)
+        try store.saveDirectConversations([
+            RecentDirectConversation(max_message_id: 100, user_ids: [2]),
+            RecentDirectConversation(max_message_id: 90, user_ids: [3]),
+        ], selfUserID: me)
+        try store.saveDirectConversations(
+            [RecentDirectConversation(max_message_id: 50, user_ids: [2])], selfUserID: me
+        )
+
+        let rows = try await dms(store)
+        #expect(rows.map(\.dmKey) == ["1,3", "1,2"])
+    }
+
+    @Test func deletingTheNewestMessageMovesItsConversationDown() async throws {
+        let store = try ZuluStore(url: nil)
+        try store.save(messages: [try dm(80, with: 2), try dm(100, with: 2), try dm(90, with: 3)], selfUserID: me)
+        try store.deleteMessages(ids: [100])
+
+        let rows = try await dms(store)
+        #expect(rows.map(\.dmKey) == ["1,3", "1,2"])
+        #expect(rows.map(\.lastMessageID) == [90, 80])
+    }
+
+    @Test func deletingTheLastFetchedMessageDropsTheConversation() async throws {
+        let store = try ZuluStore(url: nil)
+        try store.save(messages: [try dm(100, with: 2), try dm(90, with: 3)], selfUserID: me)
+        try store.deleteMessages(ids: [100])
+
+        let rows = try await dms(store)
+        #expect(rows.map(\.dmKey) == ["1,3"])
+    }
 }

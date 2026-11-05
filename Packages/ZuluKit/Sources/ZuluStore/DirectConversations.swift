@@ -34,11 +34,14 @@ extension ZuluStore {
     public func saveDirectConversations(_ conversations: [RecentDirectConversation], selfUserID: Int) throws {
         try writer.write { db in
             for conversation in conversations {
-                try Self.noteDirectConversation(
-                    MessageRecord.dmKey(for: conversation.user_ids, selfUserID: selfUserID),
-                    messageID: conversation.max_message_id,
-                    in: db
-                )
+                let dmKey = MessageRecord.dmKey(for: conversation.user_ids, selfUserID: selfUserID)
+                try db.execute(sql: """
+                    INSERT INTO dmConversation (dmKey, maxMessageID) VALUES (?, ?)
+                    ON CONFLICT(dmKey) DO UPDATE SET maxMessageID = MAX(
+                        excluded.maxMessageID,
+                        COALESCE((SELECT MAX(id) FROM message WHERE message.dmKey = excluded.dmKey), 0)
+                    )
+                    """, arguments: [dmKey, conversation.max_message_id])
             }
         }
     }
@@ -48,5 +51,22 @@ extension ZuluStore {
             INSERT INTO dmConversation (dmKey, maxMessageID) VALUES (?, ?)
             ON CONFLICT(dmKey) DO UPDATE SET maxMessageID = MAX(maxMessageID, excluded.maxMessageID)
             """, arguments: [dmKey, messageID])
+    }
+
+    /// A conversation whose newest message was deleted falls back to its newest remaining
+    /// one. With none fetched it is dropped until the next snapshot lists it again.
+    static func forgetDeletedDirectMessages(_ ids: [Int], in db: Database) throws {
+        guard !ids.isEmpty else { return }
+        let deleted = databaseQuestionMarks(count: ids.count)
+        try db.execute(sql: """
+            DELETE FROM dmConversation
+            WHERE maxMessageID IN (\(deleted))
+              AND NOT EXISTS (SELECT 1 FROM message WHERE message.dmKey = dmConversation.dmKey)
+            """, arguments: StatementArguments(ids))
+        try db.execute(sql: """
+            UPDATE dmConversation
+            SET maxMessageID = (SELECT MAX(id) FROM message WHERE message.dmKey = dmConversation.dmKey)
+            WHERE maxMessageID IN (\(deleted))
+            """, arguments: StatementArguments(ids))
     }
 }

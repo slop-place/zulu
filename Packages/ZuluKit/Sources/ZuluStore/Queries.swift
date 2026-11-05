@@ -211,6 +211,7 @@ extension ZuluStore {
     public func deleteMessages(ids: [Int]) throws {
         try writer.write { db in
             try MessageRecord.filter(ids.contains(Column("id"))).deleteAll(db)
+            try Self.forgetDeletedDirectMessages(ids, in: db)
         }
     }
 
