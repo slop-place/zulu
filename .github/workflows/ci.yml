@@ -52,18 +52,6 @@ jobs:
             -derivedDataPath build \
             CODE_SIGNING_ALLOWED=NO
 
-      - name: Build nav-shell prototype
-        working-directory: prototypes/nav-shell
-        run: |
-          xcodegen generate
-          xcodebuild build \
-            -project NavShell.xcodeproj \
-            -scheme NavShell \
-            -sdk iphonesimulator \
-            -destination 'generic/platform=iOS Simulator' \
-            -derivedDataPath build \
-            CODE_SIGNING_ALLOWED=NO
-
   service:
     name: Build and test (service)
     runs-on: ubuntu-latest
