@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.21.0](https://github.com/slop-place/zulu/compare/zulu-v1.20.1...zulu-v1.21.0) (2026-11-05)
+
+
+### Features
+
+* save files from the download button instead of opening quick look ([2b1c98e](https://github.com/slop-place/zulu/commit/2b1c98e99dde70eb6197865c342b41178d201e88))
+* update the Mac app in place with Sparkle ([a6dd0fa](https://github.com/slop-place/zulu/commit/a6dd0fa832ccc0c5c13826e38bfd19c2a102d8cd))
+
 ## [1.20.1](https://github.com/slop-place/zulu/compare/zulu-v1.20.0...zulu-v1.20.1) (2026-11-05)
 
 
