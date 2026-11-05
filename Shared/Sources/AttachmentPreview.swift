@@ -2,6 +2,9 @@ import ImageIO
 import QuickLook
 import SwiftUI
 import UniformTypeIdentifiers
+#if os(macOS)
+import AppKit
+#endif
 
 /// Uploads shown in Quick Look, fetched through the signed-in client and written to disk
 /// under their own name. The browser would need the realm's sign-in to open them at all.
@@ -34,6 +37,36 @@ final class AttachmentPreviewer {
     func preview(
         _ paths: [String], imagesOnly: Bool = false, model: AppModel, onFailure: @escaping () -> Void = {}
     ) {
+        load(paths, imagesOnly: imagesOnly, model: model) { [weak self] written in
+            if let written { self?.file = written } else { onFailure() }
+        }
+    }
+
+    #if os(macOS)
+    /// Saves an upload to Downloads and shows it in Finder.
+    func save(_ path: String, model: AppModel) {
+        load([path], imagesOnly: false, model: model) { written in
+            if let written { Self.moveToDownloads(written) }
+        }
+    }
+    #else
+    /// A downloaded upload waiting for the user to pick a folder for it in Files.
+    var saving: URL? {
+        didSet {
+            if let oldValue, oldValue != saving { Self.discard(oldValue) }
+        }
+    }
+
+    func save(_ path: String, model: AppModel) {
+        load([path], imagesOnly: false, model: model) { [weak self] written in
+            if let written { self?.saving = written }
+        }
+    }
+    #endif
+
+    private func load(
+        _ paths: [String], imagesOnly: Bool, model: AppModel, then finish: @escaping (URL?) -> Void
+    ) {
         loading?.cancel()
         loading = Task {
             let written = await Self.download(paths, imagesOnly: imagesOnly, model: model)
@@ -42,7 +75,7 @@ final class AttachmentPreviewer {
                 return
             }
             loading = nil
-            if let written { file = written } else { onFailure() }
+            finish(written)
         }
     }
 
@@ -89,6 +122,34 @@ final class AttachmentPreviewer {
     private static func discard(_ file: URL) {
         try? FileManager.default.removeItem(at: file.deletingLastPathComponent())
     }
+
+    #if os(macOS)
+    private static func moveToDownloads(_ file: URL) {
+        defer { discard(file) }
+        // The sandbox hands back a link inside the app's container; Finder should show the real folder.
+        guard let downloads = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first?
+            .resolvingSymlinksInPath()
+        else { return }
+        let destination = unusedURL(for: file.lastPathComponent, in: downloads)
+        guard (try? FileManager.default.moveItem(at: file, to: destination)) != nil else { return }
+        NSWorkspace.shared.activateFileViewerSelecting([destination])
+    }
+
+    /// `name` in `folder`, or `name 2`, `name 3`… when that is taken, as Finder numbers copies.
+    private static func unusedURL(for name: String, in folder: URL) -> URL {
+        let isFree = { (url: URL) in !FileManager.default.fileExists(atPath: url.path(percentEncoded: false)) }
+        let original = folder.appending(path: name)
+        if isFree(original) { return original }
+        let stem = original.deletingPathExtension().lastPathComponent
+        let ext = original.pathExtension
+        return (2...).lazy
+            .map { number in
+                let numberedName = "\(stem) \(number)"
+                return folder.appending(path: ext.isEmpty ? numberedName : "\(numberedName).\(ext)")
+            }
+            .first(where: isFree) ?? original
+    }
+    #endif
 }
 
 extension View {
@@ -125,5 +186,16 @@ private struct AttachmentPreviews: ViewModifier {
                 }
             }
             .quickLookPreview($previewer.file)
+            #if os(iOS)
+            .fileMover(
+                isPresented: Binding(
+                    get: { previewer.saving != nil },
+                    set: { if !$0 { previewer.saving = nil } }
+                ),
+                file: previewer.saving
+            ) { _ in
+                previewer.saving = nil
+            }
+            #endif
     }
 }

@@ -151,6 +151,7 @@ targets:
         com.apple.security.app-sandbox: true
         com.apple.security.network.client: true
         com.apple.security.files.user-selected.read-only: true
+        com.apple.security.files.downloads.read-write: true
         com.apple.developer.ubiquity-kvstore-identifier: $(TeamIdentifierPrefix)com.bwees.zulu
     settings:
       base:

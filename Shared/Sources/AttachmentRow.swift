@@ -1,11 +1,13 @@
 import SwiftUI
 import ZuluMarkup
 
-/// An uploaded file, drawn as a card with its type, name and a download mark. A tap goes
-/// through `openURL`, which `attachmentPreviews()` routes to Quick Look.
+/// An uploaded file, drawn as a card with its type, name and a download button. A tap on
+/// the card goes through `openURL`, which `attachmentPreviews()` routes to Quick Look.
 struct AttachmentRow: View {
     let attachment: MessageAttachment
 
+    @Environment(AppModel.self) private var model
+    @Environment(AttachmentPreviewer.self) private var previewer
     @Environment(\.openURL) private var openURL
 
     private static let maxWidth: CGFloat = 320
@@ -21,48 +23,58 @@ struct AttachmentRow: View {
     private static let downloadSymbol = "arrow.down.circle"
 
     var body: some View {
-        Button {
-            guard let url = URL(string: attachment.path, relativeTo: RealmContext.realmURL)?.absoluteURL
-            else { return }
-            openURL(url)
-        } label: {
-            HStack(spacing: Self.spacing) {
-                Image(systemName: attachment.kind.symbol)
-                    .font(.title3)
-                    .foregroundStyle(.tint)
-                    .frame(width: Self.iconSize, height: Self.iconSize)
-                    .background(.tint.opacity(Self.iconTintOpacity), in: RoundedRectangle(cornerRadius: Self.iconCornerRadius))
-                VStack(alignment: .leading, spacing: Self.textSpacing) {
-                    Text(attachment.name)
-                        .font(.subheadline.weight(.medium))
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                    if !attachment.fileExtension.isEmpty {
-                        Text(attachment.fileExtension.uppercased())
-                            .font(.caption)
-                            .foregroundStyle(TextTone.secondary)
+        HStack(spacing: Self.spacing) {
+            Button {
+                guard let url = URL(string: attachment.path, relativeTo: RealmContext.realmURL)?.absoluteURL
+                else { return }
+                openURL(url)
+            } label: {
+                HStack(spacing: Self.spacing) {
+                    Image(systemName: attachment.kind.symbol)
+                        .font(.title3)
+                        .foregroundStyle(.tint)
+                        .frame(width: Self.iconSize, height: Self.iconSize)
+                        .background(.tint.opacity(Self.iconTintOpacity), in: RoundedRectangle(cornerRadius: Self.iconCornerRadius))
+                    VStack(alignment: .leading, spacing: Self.textSpacing) {
+                        Text(attachment.name)
+                            .font(.subheadline.weight(.medium))
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                        if !attachment.fileExtension.isEmpty {
+                            Text(attachment.fileExtension.uppercased())
+                                .font(.caption)
+                                .foregroundStyle(TextTone.secondary)
+                        }
                     }
+                    Spacer(minLength: 0)
                 }
-                Spacer(minLength: 0)
+                .contentShape(.rect)
+            }
+            .accessibilityLabel(attachment.name)
+            .accessibilityHint("Opens the file")
+
+            Button {
+                previewer.save(attachment.path, model: model)
+            } label: {
                 Image(systemName: Self.downloadSymbol)
                     .font(.title3)
                     .foregroundStyle(TextTone.secondary)
+                    .contentShape(.rect)
             }
-            .padding(Self.padding)
-            .background(.quaternary.opacity(Self.fillOpacity), in: RoundedRectangle(cornerRadius: Self.cornerRadius))
-            .overlay {
-                RoundedRectangle(cornerRadius: Self.cornerRadius)
-                    .strokeBorder(.quaternary, lineWidth: Self.borderWidth)
-            }
-            .contentShape(.rect(cornerRadius: Self.cornerRadius))
+            .help("Download")
+            .accessibilityLabel("Download \(attachment.name)")
         }
         .buttonStyle(.plain)
-        .frame(maxWidth: Self.maxWidth, alignment: .leading)
         #if os(macOS)
         .pointerStyle(.link)
         #endif
-        .accessibilityLabel(attachment.name)
-        .accessibilityHint("Opens the file")
+        .padding(Self.padding)
+        .background(.quaternary.opacity(Self.fillOpacity), in: RoundedRectangle(cornerRadius: Self.cornerRadius))
+        .overlay {
+            RoundedRectangle(cornerRadius: Self.cornerRadius)
+                .strokeBorder(.quaternary, lineWidth: Self.borderWidth)
+        }
+        .frame(maxWidth: Self.maxWidth, alignment: .leading)
     }
 }
 
