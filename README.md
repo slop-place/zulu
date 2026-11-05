@@ -30,7 +30,6 @@ locked and what is still open.
 | `Shared` | SwiftUI shared by both apps: the model, messages, composer pieces |
 | `Packages/ZuluKit` | `ZulipAPI`, `ZuluStore` (GRDB), `ZuluSync`, `ZuluMarkup`, `ZuluEmoji`, `ZuluCompose`, `ZuluPolls` |
 | `service` | The Go notification service |
-| `prototypes/` | Throwaway prototypes that answer one design question each |
 | `.scratch/zulu-client/` | The wayfinder map, its decision tickets, and research notes |
 
 ## Running it
@@ -45,9 +44,3 @@ a browser and comes back through the `zulip://` callback the server hardcodes.
 release-please cuts releases for the app (to TestFlight) and the notification service
 (to GHCR) separately. See [`docs/RELEASING.md`](docs/RELEASING.md) for how that works
 and the one-time Apple setup it needs.
-
-The nav-shell prototype still runs on its own:
-
-```sh
-prototypes/nav-shell/run.sh
-```
