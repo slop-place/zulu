@@ -102,11 +102,27 @@ final class EmojiNameState {
     }
 }
 
+#if os(macOS)
+/// Selectable text keeps putting its I-beam back, and wins over `pointerStyle`, so the
+/// hand is set again on every move over a link.
+@MainActor
+private final class LinkCursor {
+    private var showingHand = false
+
+    func update(overLink: Bool) {
+        if overLink && !showingHand { NSCursor.pointingHand.push() }
+        if !overLink && showingHand { NSCursor.pop() }
+        if overLink { NSCursor.pointingHand.set() }
+        showingHand = overLink
+    }
+}
+#endif
+
 private struct InlineHover: ViewModifier {
     @State private var frames = InlineFrames()
     @State private var emojiName = EmojiNameState()
     #if os(macOS)
-    @State private var overLink = false
+    @State private var linkCursor = LinkCursor()
     #endif
 
     func body(content: Content) -> some View {
@@ -117,14 +133,14 @@ private struct InlineHover: ViewModifier {
             .onContinuousHover { phase in
                 switch phase {
                 case .active(let point):
-                    overLink = frames.links.contains { $0.contains(point) }
+                    linkCursor.update(overLink: frames.links.contains { $0.contains(point) })
                     emojiName.hover(over: emoji(at: point))
                 case .ended:
-                    overLink = false
+                    linkCursor.update(overLink: false)
                     emojiName.hover(over: nil)
                 }
             }
-            .pointerStyle(overLink ? .link : nil)
+            .onDisappear { linkCursor.update(overLink: false) }
             #else
             // Alongside rather than instead of the text's own taps, so links still open.
             .simultaneousGesture(SpatialTapGesture().onEnded { tap in
