@@ -2,7 +2,9 @@ import SwiftUI
 import ZuluEmoji
 
 /// Marks the runs of a `Text` that are links, so the Mac can find them under the pointer.
-struct LinkAttribute: TextAttribute {}
+struct LinkAttribute: TextAttribute {
+    let url: URL
+}
 
 /// Marks an emoji's run of a `Text` with its `:name:`, so pointing at it can say what it is.
 struct EmojiNameAttribute: TextAttribute {
@@ -22,8 +24,16 @@ extension View {
 /// Where the renderer last drew each link and emoji. Written while drawing, so it is
 /// not observed: a change here must not ask for another draw.
 private final class InlineFrames: @unchecked Sendable {
-    var links: [CGRect] = []
+    var links: [LinkFrame] = [] {
+        didSet { if links != oldValue { onLinksChange?(links) } }
+    }
     var emoji: [EmojiFrame] = []
+    var onLinksChange: (([LinkFrame]) -> Void)?
+}
+
+struct LinkFrame: Equatable {
+    let rect: CGRect
+    let url: URL
 }
 
 struct EmojiFrame: Equatable {
@@ -36,12 +46,12 @@ private struct InlineFrameRecorder: TextRenderer {
     let frames: InlineFrames
 
     func draw(layout: Text.Layout, in context: inout GraphicsContext) {
-        var links: [CGRect] = []
+        var links: [LinkFrame] = []
         var emoji: [EmojiFrame] = []
         for line in layout {
             for run in line {
                 let rect = run.typographicBounds.rect
-                if run[LinkAttribute.self] != nil { links.append(rect) }
+                if let link = run[LinkAttribute.self] { links.append(LinkFrame(rect: rect, url: link.url)) }
                 if let attribute = run[EmojiNameAttribute.self] {
                     emoji.append(EmojiFrame(rect: rect, emoji: attribute))
                 }
@@ -102,29 +112,65 @@ final class EmojiNameState {
     }
 }
 
+#if os(macOS)
+/// Selectable text shows its I-beam over everything it is the top view of, links
+/// included, so each link gets a view of its own above the text to own the pointer.
+private struct LinkTargets: View {
+    let links: [LinkFrame]
+    @Environment(\.openURL) private var openURL
+
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            ForEach(Array(links.enumerated()), id: \.offset) { _, link in
+                Color.clear
+                    .contentShape(Rectangle())
+                    .frame(width: link.rect.width, height: link.rect.height)
+                    .offset(x: link.rect.minX, y: link.rect.minY)
+                    .pointerStyle(.link)
+                    .onTapGesture { openURL(link.url) }
+                    .contextMenu {
+                        Button("Open Link") { openURL(link.url) }
+                        Button("Copy Link") { Platform.copyToClipboard(link.url.absoluteString) }
+                    }
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+}
+#endif
+
 private struct InlineHover: ViewModifier {
     @State private var frames = InlineFrames()
     @State private var emojiName = EmojiNameState()
     #if os(macOS)
-    @State private var overLink = false
+    @State private var links: [LinkFrame] = []
     #endif
 
     func body(content: Content) -> some View {
         content
             .textRenderer(InlineFrameRecorder(frames: frames))
+            #if os(macOS)
+            .overlay { LinkTargets(links: links) }
+            .onAppear {
+                links = frames.links
+                let destination = $links
+                // Drawing must not change state directly, so the new frames land on the next turn.
+                frames.onLinksChange = { changed in
+                    Task { @MainActor in destination.wrappedValue = changed }
+                }
+            }
+            .onDisappear { frames.onLinksChange = nil }
+            #endif
             .overlay(alignment: .topLeading) { bubble }
             #if os(macOS)
             .onContinuousHover { phase in
                 switch phase {
                 case .active(let point):
-                    overLink = frames.links.contains { $0.contains(point) }
                     emojiName.hover(over: emoji(at: point))
                 case .ended:
-                    overLink = false
                     emojiName.hover(over: nil)
                 }
             }
-            .pointerStyle(overLink ? .link : nil)
             #else
             // Alongside rather than instead of the text's own taps, so links still open.
             .simultaneousGesture(SpatialTapGesture().onEnded { tap in
