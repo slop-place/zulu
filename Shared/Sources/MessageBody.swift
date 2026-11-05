@@ -221,7 +221,7 @@ struct InlineStyler {
         }
         if let link = span.link, let url = URL(string: link, relativeTo: RealmContext.realmURL) {
             attributed.link = url
-            return Text(attributed).customAttribute(LinkAttribute())
+            return Text(attributed).customAttribute(LinkAttribute(url: url))
         }
         return Text(attributed)
     }
