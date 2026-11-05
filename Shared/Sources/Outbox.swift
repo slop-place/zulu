@@ -180,6 +180,8 @@ struct PendingMessageRow: View {
 
 private extension PendingMarkup.Reply {
     init(_ draft: ReplyDraft) {
-        self.init(author: draft.author, authorID: draft.authorID, messageID: draft.messageID, preview: draft.preview)
+        let quoted = draft.renderedContent.map(MessageMarkup.blocks(from:))
+            ?? [.paragraph([InlineSpan(text: draft.preview)])]
+        self.init(author: draft.author, authorID: draft.authorID, messageID: draft.messageID, quoted: quoted)
     }
 }

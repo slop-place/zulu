@@ -39,10 +39,31 @@ struct PendingMarkupTests {
         #expect(pending("`:100:`") == [.paragraph([InlineSpan(text: ":100:", code: true)])])
     }
 
+    private static let replyHeader = ##"<p><span class="user-mention silent" data-user-id="2323">Brandon Wees</span> <a href="#narrow/channel/108/near/498801">said</a>:</p>"##
+
+    private func reply(quoting original: String) -> PendingMarkup.Reply {
+        PendingMarkup.Reply(
+            author: "Brandon Wees", authorID: 2323, messageID: 498801,
+            quoted: MessageMarkup.blocks(from: original)
+        )
+    }
+
     @Test func replyIsDrawnAsAReplyStraightAway() {
-        let reply = PendingMarkup.Reply(author: "Brandon Wees", authorID: 2323, messageID: 498801, preview: "the original words")
-        let server = ##"<p><span class="user-mention silent" data-user-id="2323">Brandon Wees</span> <a href="#narrow/channel/108/near/498801">said</a>:</p><blockquote><p>the original words</p></blockquote><p>Thanks</p>"##
-        #expect(pending("Thanks", replyingTo: reply) == MessageMarkup.blocks(from: server))
+        let original = "<p>the original words</p>"
+        let server = Self.replyHeader + "<blockquote>\(original)</blockquote><p>Thanks</p>"
+        #expect(pending("Thanks", replyingTo: reply(quoting: original)) == MessageMarkup.blocks(from: server))
+    }
+
+    @Test func quotedListKeepsItsShape() {
+        let original = "<ul>\n<li>first</li>\n<li>second</li>\n</ul>"
+        let server = Self.replyHeader + "<blockquote>\n\(original)\n</blockquote>\n<p>Thanks</p>"
+        #expect(pending("Thanks", replyingTo: reply(quoting: original)) == MessageMarkup.blocks(from: server))
+    }
+
+    @Test func quotedCustomEmojiAndImageSurvive() {
+        let original = #"<p><img alt=":party:" class="emoji" src="/user_avatars/2/emoji/images/7.gif" title="party"> look</p><div class="message_inline_image"><a href="/user_uploads/2/ab/cat.png" title="cat.png"><img src="/user_uploads/thumbnail/2/ab/cat.png/840x560.webp"></a></div>"#
+        let server = Self.replyHeader + "<blockquote>\(original)</blockquote><p>Thanks</p>"
+        #expect(pending("Thanks", replyingTo: reply(quoting: original)) == MessageMarkup.blocks(from: server))
     }
 
     @Test func inlineStylingMatchesTheServer() {

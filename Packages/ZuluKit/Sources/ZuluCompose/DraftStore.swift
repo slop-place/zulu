@@ -19,12 +19,15 @@ public struct SavedReply: Codable, Equatable, Sendable {
     public let author: String
     public let authorID: Int?
     public let preview: String
+    /// The quoted message's HTML. Drafts saved before this was kept have none.
+    public let renderedContent: String?
 
-    public init(messageID: Int, author: String, authorID: Int?, preview: String) {
+    public init(messageID: Int, author: String, authorID: Int?, preview: String, renderedContent: String? = nil) {
         self.messageID = messageID
         self.author = author
         self.authorID = authorID
         self.preview = preview
+        self.renderedContent = renderedContent
     }
 }
 

@@ -9,13 +9,13 @@ public enum PendingMarkup {
         public let author: String
         public let authorID: Int?
         public let messageID: Int
-        public let preview: String
+        public let quoted: [MessageBlock]
 
-        public init(author: String, authorID: Int?, messageID: Int, preview: String) {
+        public init(author: String, authorID: Int?, messageID: Int, quoted: [MessageBlock]) {
             self.author = author
             self.authorID = authorID
             self.messageID = messageID
-            self.preview = preview
+            self.quoted = quoted
         }
     }
 
@@ -33,9 +33,8 @@ public enum PendingMarkup {
             return .paragraph(spans(of: parsed).flatMap { withEmoji($0, emoji: emoji) })
         }
         guard let reply else { return paragraphs }
-        let quoted = MessageBlock.paragraph([InlineSpan(text: reply.preview)])
         return [.quotedReply(
-            author: reply.author, authorID: reply.authorID, messageID: reply.messageID, quoted: [quoted]
+            author: reply.author, authorID: reply.authorID, messageID: reply.messageID, quoted: reply.quoted
         )] + paragraphs
     }
 

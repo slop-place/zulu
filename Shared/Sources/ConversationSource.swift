@@ -35,6 +35,7 @@ struct ReplyDraft: Equatable, Identifiable {
     let author: String
     let authorID: Int?
     let preview: String
+    let renderedContent: String?
 
     var id: Int { messageID }
 
@@ -44,6 +45,7 @@ struct ReplyDraft: Equatable, Identifiable {
         author = message.senderName
         authorID = message.senderID
         preview = MessageActionsController.plainText(of: message.renderedContent)
+        renderedContent = message.renderedContent
     }
 }
 
@@ -53,10 +55,14 @@ extension ReplyDraft {
         author = saved.author
         authorID = saved.authorID
         preview = saved.preview
+        renderedContent = saved.renderedContent
     }
 
     var saved: SavedReply {
-        SavedReply(messageID: messageID, author: author, authorID: authorID, preview: preview)
+        SavedReply(
+            messageID: messageID, author: author, authorID: authorID, preview: preview,
+            renderedContent: renderedContent
+        )
     }
 }
 
