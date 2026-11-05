@@ -128,6 +128,10 @@ private struct LinkTargets: View {
                     .offset(x: link.rect.minX, y: link.rect.minY)
                     .pointerStyle(.link)
                     .onTapGesture { openURL(link.url) }
+                    .contextMenu {
+                        Button("Open Link") { openURL(link.url) }
+                        Button("Copy Link") { Platform.copyToClipboard(link.url.absoluteString) }
+                    }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -149,11 +153,13 @@ private struct InlineHover: ViewModifier {
             .overlay { LinkTargets(links: links) }
             .onAppear {
                 links = frames.links
+                let destination = $links
                 // Drawing must not change state directly, so the new frames land on the next turn.
                 frames.onLinksChange = { changed in
-                    Task { @MainActor in links = changed }
+                    Task { @MainActor in destination.wrappedValue = changed }
                 }
             }
+            .onDisappear { frames.onLinksChange = nil }
             #endif
             .overlay(alignment: .topLeading) { bubble }
             #if os(macOS)
