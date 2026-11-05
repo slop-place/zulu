@@ -5,7 +5,7 @@ component, built from conventional commits:
 
 | Component | Paths | Tag | Merging its release PR runs |
 | --- | --- | --- | --- |
-| `zulu` | everything but `service/` | `zulu-v1.2.3` | `release.yml`: tests ZuluKit, archives, uploads to TestFlight |
+| `zulu` | everything but `service/` | `zulu-v1.2.3` | `release.yml`: tests ZuluKit, uploads to TestFlight, attaches a notarized Mac DMG |
 | `notifyd` | `service/` | `notifyd-v0.1.0` | `notifyd-release.yml`: pushes `ghcr.io/bwees/zulu-notifyd:v0.1.0` |
 
 `release.yml` can also be run by hand from the Actions tab. Nothing below happens
@@ -19,8 +19,9 @@ Team: **Brandon Wees, `65AMD2STXG`** (not FUTO Holdings). Bundle id: `com.bwees.
 
 - Identifiers → **+** → App IDs → App.
 - Description: `Zulu`. Bundle ID: **Explicit**, `com.bwees.zulu`.
-- No capabilities to enable yet. Push notifications will need one later; the Go
-  service in `service/` is not wired to APNs through this pipeline.
+- Enable **iCloud** (key-value storage). The Mac and iOS apps share groups and
+  channel settings through it, and the Developer ID profile for the Mac DMG must
+  carry it.
 
 `xcodebuild -allowProvisioningUpdates` creates the provisioning profile itself on
 every run, so there is no profile to make or store by hand. The App ID is the one
@@ -39,17 +40,18 @@ metadata to use TestFlight internal testing.
 
 ## 3. Export the signing certificates
 
-The workflow needs **both** identities in one `.p12`. `xcodebuild archive` with
+The workflow needs **three** identities in one `.p12`. `xcodebuild archive` with
 automatic signing signs the archive for development, and `-exportArchive` re-signs
-it for distribution; a runner holding only the distribution certificate fails at the
+it for distribution: Apple Distribution for TestFlight, Developer ID Application for
+the Mac DMG. A runner holding only the distribution certificates fails at the
 archive step.
 
 In **Keychain Access**, login keychain, My Certificates:
 
-- Select both `Apple Development: Brandon Wees` and
-  `Apple Distribution: Brandon Wees` (cmd-click) — the rows with a disclosure
-  triangle hiding a private key. A row without one is useless here.
-- Right click → Export 2 items… → Personal Information Exchange (.p12).
+- Select `Apple Development: Brandon Wees`, `Apple Distribution: Brandon Wees` and
+  `Developer ID Application: Brandon Wees (65AMD2STXG)` (cmd-click) — the rows with
+  a disclosure triangle hiding a private key. A row without one is useless here.
+- Right click → Export 3 items… → Personal Information Exchange (.p12).
 - Set a password. You need it again in step 5.
 
 Then base64 it for the secret:
@@ -58,17 +60,19 @@ Then base64 it for the secret:
 base64 -i Certificates.p12 | pbcopy
 ```
 
-If you ever need to make the distribution certificate from scratch:
+If you ever need to make a distribution certificate from scratch:
 <https://developer.apple.com/account/resources/certificates> → **+** → Apple
-Distribution, upload a CSR from Keychain Access → Certificate Assistant → Request a
-Certificate From a Certificate Authority, then double-click the download to install it.
+Distribution (or Developer ID Application), upload a CSR from Keychain Access →
+Certificate Assistant → Request a Certificate From a Certificate Authority, then
+double-click the download to install it. Only the Account Holder can create a
+Developer ID certificate.
 
 ## 4. Create the App Store Connect API key
 
 <https://appstoreconnect.apple.com/access/integrations/api> → Team Keys.
 
 - **+**, name it `GitHub Actions`, access **App Manager**. Developer is not enough:
-  the key both creates provisioning profiles and uploads builds.
+  the key creates provisioning profiles, uploads builds and notarizes the Mac DMG.
 - Download the `.p8`. **Apple lets you download it once.** Store it in a password
   manager.
 - The page shows the three values you need:
@@ -150,23 +154,33 @@ is the part worth wanting, but it needs a second private repository to hold the
 certificates, which is more moving parts than one `.p12` in a GitHub secret. Revisit
 if a second app or a second signing platform shows up.
 
-`notarytool` does not apply: notarization is for Developer ID distribution of macOS
-apps outside the App Store. iOS App Store builds are signed and uploaded, never
-notarized.
+`notarytool` only applies to the Mac DMG, which ships outside the App Store. iOS
+builds are signed and uploaded, never notarized.
 
-## Why the release job signs and `ci.yml` doesn't
+## Mac DMG signing
 
-`ci.yml` builds with `CODE_SIGNING_ALLOWED=NO` for the simulator and stays that way.
-No signing settings live in `App/project.yml`, deliberately: a `DEVELOPMENT_TEAM`
-there gives the app a real `application-identifier` entitlement, which changes the
-keychain access group, which hides the API key `AccountStorage` already wrote — a
-local development build silently signs you out. The release workflow passes
-`DEVELOPMENT_TEAM` and `CODE_SIGN_STYLE` on the `xcodebuild` command line for the
-archive only, so the simulator build keeps its ad-hoc signature and its entitlement-free
-bundle.
+The DMG app is signed with Developer ID by the same team and with the same
+entitlements as a local build, so the two share state. Each store is keyed by the
+signature:
 
-Do not add `CODE_SIGN_IDENTITY` next to them. Automatic signing refuses a manually
-chosen identity and fails the archive with "conflicting provisioning settings".
+| Store | Keyed by |
+| --- | --- |
+| API key (`SecretStore`) | keychain access group, from `application-identifier` (`65AMD2STXG.com.bwees.zulu`) |
+| Account, settings (`UserDefaults`) | sandbox container, from the bundle id and team |
+| Database (`zulu.sqlite`) | sandbox container, under Application Support |
+| Groups, channel settings | iCloud key-value store, from `ubiquity-kvstore-identifier` |
+
+Ad-hoc signing breaks all four. With no entitlements the app is not sandboxed, so
+defaults and the database land in `~/Library` instead of the container, the API key
+falls back to a file there, and iCloud is off.
+
+Releases up to 1.20.0 were ad-hoc signed. Their data is in
+`~/Library/Preferences/com.bwees.zulu.plist` and `~/Library/Application Support/Zulu`.
+A signed build does not read it, so those users sign in once more. Both paths can be
+deleted afterwards.
+
+Do not add `CODE_SIGN_IDENTITY` to the archive commands. Automatic signing refuses a
+manually chosen identity and fails the archive with "conflicting provisioning settings".
 
 ## When something goes wrong
 
@@ -178,3 +192,7 @@ chosen identity and fails the archive with "conflicting provisioning settings".
   Past that, check the email Apple sends — it names the actual rejection.
 - **codesign hangs.** The keychain partition list did not get set; the run will time
   out rather than prompt.
+- **Mac export fails with no Developer ID identity.** The `.p12` from step 3 lacks
+  the Developer ID Application certificate.
+- **Notarization returns Invalid.** Run `xcrun notarytool log <submission id>` with
+  the same key; it lists each rejected binary.

@@ -50,9 +50,10 @@ jobs:
         id: build-number
         run: echo "value=$(git rev-list --count HEAD)" >> "$GITHUB_OUTPUT"
 
-      # One .p12 holds both the development and the distribution identity. xcodebuild
-      # archive signs for development and -exportArchive re-signs for distribution,
-      # so a runner with only the distribution certificate cannot get past archiving.
+      # One .p12 holds the development, distribution and Developer ID identities.
+      # xcodebuild archive signs for development and -exportArchive re-signs for
+      # distribution, so a runner with only the distribution certificate cannot get
+      # past archiving. The Mac DMG is re-signed with Developer ID.
       - name: Import signing certificates
         env:
           CERTIFICATE_P12: ${{ secrets.APPLE_SIGNING_CERTIFICATES_P12 }}
@@ -151,39 +152,77 @@ jobs:
             --apiKey "$API_KEY_ID" \
             --apiIssuer "$API_KEY_ISSUER_ID"
 
-      # Ad-hoc signed, since Apple silicon will not launch unsigned code. Entitlements
-      # are dropped: the iCloud one needs a provisioning profile, and macOS kills an
-      # ad-hoc app that claims it.
-      - name: Build Mac app
+      # Signed by the same team and with the same entitlements as a local build, so
+      # both share one sandbox container, keychain access group and iCloud store.
+      - name: Archive Mac app
         working-directory: App
         env:
+          API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          API_KEY_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
           BUILD_NUMBER: ${{ steps.build-number.outputs.value }}
         run: |
           set -euo pipefail
-          xcodebuild build \
+          xcodebuild archive \
             -project Zulu.xcodeproj \
             -scheme ZuluMac \
             -configuration Release \
             -destination 'generic/platform=macOS' \
-            -derivedDataPath "$RUNNER_TEMP/mac-build" \
-            DEVELOPMENT_TEAM= \
-            CODE_SIGN_STYLE=Manual \
-            CODE_SIGN_IDENTITY=- \
-            CODE_SIGN_ENTITLEMENTS= \
+            -archivePath "$RUNNER_TEMP/ZuluMac.xcarchive" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$API_KEY_PATH" \
+            -authenticationKeyID "$API_KEY_ID" \
+            -authenticationKeyIssuerID "$API_KEY_ISSUER_ID" \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+            CODE_SIGN_STYLE=Automatic \
             CURRENT_PROJECT_VERSION="$BUILD_NUMBER"
+
+      - name: Export Developer ID app
+        working-directory: App
+        env:
+          API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          API_KEY_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+        run: |
+          set -euo pipefail
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/ZuluMac.xcarchive" \
+            -exportPath "$RUNNER_TEMP/mac-export" \
+            -exportOptionsPlist ExportOptionsMac.plist \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$API_KEY_PATH" \
+            -authenticationKeyID "$API_KEY_ID" \
+            -authenticationKeyIssuerID "$API_KEY_ISSUER_ID"
 
       - name: Build DMG
         run: |
           set -euo pipefail
           staging="$RUNNER_TEMP/dmg"
           mkdir -p "$staging"
-          ditto "$RUNNER_TEMP/mac-build/Build/Products/Release/Zulu.app" "$staging/Zulu.app"
+          ditto "$RUNNER_TEMP/mac-export/Zulu.app" "$staging/Zulu.app"
           ln -s /Applications "$staging/Applications"
           hdiutil create \
             -volname Zulu \
             -srcfolder "$staging" \
             -format UDZO \
             -ov "$RUNNER_TEMP/Zulu.dmg"
+          codesign --sign "Developer ID Application" \
+            --keychain "$SIGNING_KEYCHAIN" \
+            --timestamp \
+            "$RUNNER_TEMP/Zulu.dmg"
+
+      # Gatekeeper blocks a downloaded Developer ID app until Apple has notarized it.
+      # Stapling lets it open without asking Apple first.
+      - name: Notarize DMG
+        env:
+          API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          API_KEY_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+        run: |
+          set -euo pipefail
+          xcrun notarytool submit "$RUNNER_TEMP/Zulu.dmg" \
+            --key "$API_KEY_PATH" \
+            --key-id "$API_KEY_ID" \
+            --issuer "$API_KEY_ISSUER_ID" \
+            --wait
+          xcrun stapler staple "$RUNNER_TEMP/Zulu.dmg"
 
       - name: Attach DMG to release
         env:
