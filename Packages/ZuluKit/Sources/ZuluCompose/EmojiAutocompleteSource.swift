@@ -16,12 +16,16 @@ public struct EmojiAutocompleteSource: AutocompleteSource {
     /// trigger makes typing a bare `:` in prose flicker the box open.
     public func allows(precedingCharacter: Character) -> Bool { precedingCharacter != ":" }
 
+    /// `:3` is an emoticon, but `:10` is on its way to `:100:`.
+    private static let minimumDigitLedQueryLength = 2
+
     public func accepts(query: Substring) -> Bool {
         // A bare colon matches everything, which is noise rather than help.
         guard let first = query.first else { return false }
         // `:P`, `:)` and `:-p` are emoticons being typed, not emoji being searched.
-        // Zulip's own rule is that the first character must be `+` or lowercase.
-        guard first == "+" || (first.isLetter && !first.isUppercase) else { return false }
+        let startsLikeAName = first == "+" || (first.isLetter && !first.isUppercase)
+        let startsLikeANumberedName = first.isNumber && query.count >= Self.minimumDigitLedQueryLength
+        guard startsLikeAName || startsLikeANumberedName else { return false }
         return query.allSatisfy { $0 == "_" || $0 == "-" || $0 == "+" || $0.isLetter || $0.isNumber }
     }
 
