@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.21.1](https://github.com/slop-place/zulu/compare/zulu-v1.21.0...zulu-v1.21.1) (2026-11-05)
+
+
+### Bug Fixes
+
+* draw a sent message with its reply and emoji before the server echoes it ([#49](https://github.com/slop-place/zulu/issues/49)) ([19f56ab](https://github.com/slop-place/zulu/commit/19f56abf923a213c0c2e981efe829bec76885f54))
+* list every DM conversation the server knows about ([#51](https://github.com/slop-place/zulu/issues/51)) ([0b4f563](https://github.com/slop-place/zulu/commit/0b4f563e0a072a45994b4dc7b3d6341effb2743e))
+* open emoji autocomplete for names that start with a digit ([#50](https://github.com/slop-place/zulu/issues/50)) ([57687dd](https://github.com/slop-place/zulu/commit/57687ddee361f30be860493c7ce76f2865ef61f2))
+* show the pointing hand over links in messages on the Mac ([#48](https://github.com/slop-place/zulu/issues/48)) ([7c9ab4c](https://github.com/slop-place/zulu/commit/7c9ab4cb05804a4c147c96457e00b9453db45817))
+
 ## [1.21.0](https://github.com/slop-place/zulu/compare/zulu-v1.20.1...zulu-v1.21.0) (2026-11-05)
 
 
