@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.21.2](https://github.com/slop-place/zulu/compare/zulu-v1.21.1...zulu-v1.21.2) (2026-11-06)
+
+
+### Bug Fixes
+
+* keep Mac message rows from overlapping after a window resize ([#58](https://github.com/slop-place/zulu/issues/58)) ([a217ab4](https://github.com/slop-place/zulu/commit/a217ab4d5a22fc17262c6c7418a115f35308ec6f))
+* make attached pictures look attached and show them as soon as they are sent ([#61](https://github.com/slop-place/zulu/issues/61)) ([71fa377](https://github.com/slop-place/zulu/commit/71fa37785a5b71faad9a70d1ab1b82b99603517d))
+* show hover actions on grouped messages on the Mac ([#57](https://github.com/slop-place/zulu/issues/57)) ([724b21a](https://github.com/slop-place/zulu/commit/724b21aca58ade565b19dbb6e9b5acd3d20c552e))
+* show the arrow over images and links while the Mac window is in the background ([#59](https://github.com/slop-place/zulu/issues/59)) ([36887a8](https://github.com/slop-place/zulu/commit/36887a8d736536f1885daf8841585971059bfe17))
+
 ## [1.21.1](https://github.com/slop-place/zulu/compare/zulu-v1.21.0...zulu-v1.21.1) (2026-11-05)
 
 
