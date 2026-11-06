@@ -161,6 +161,8 @@ private struct MacMeasuredRow: View {
 final class MacConversationCell: NSTableCellView {
     private var host: NSHostingView<MacMeasuredRow>?
     private(set) var row: MacConversationRow?
+    /// The height the row last drew itself at in this cell.
+    private(set) var drawnHeight: CGFloat?
 
     init(identifier: NSUserInterfaceItemIdentifier) {
         super.init(frame: .zero)
@@ -176,8 +178,12 @@ final class MacConversationCell: NSTableCellView {
         context: MacConversationCellContext,
         onHeight: @escaping (CGFloat) -> Void
     ) {
+        if self.row?.id != row.id { drawnHeight = nil }
         self.row = row
-        let content = MacMeasuredRow(content: MacConversationCellContent(row: row, context: context), onHeight: onHeight)
+        let content = MacMeasuredRow(content: MacConversationCellContent(row: row, context: context)) { [weak self] height in
+            self?.drawnHeight = height
+            onHeight(height)
+        }
         if let host {
             host.rootView = content
         } else {
@@ -560,12 +566,27 @@ final class MacConversationTableCoordinator: NSObject, NSTableViewDataSource, NS
         let row = rows[index]
         let width = tableWidth
         guard width > 0 else { return false }
-        let height = measurer.height(of: row, context: context, width: width)
+        let height = drawnHeight(at: index) ?? measurer.height(of: row, context: context, width: width)
         stale.remove(row.id)
         let old = heights[row.id]
         heights[row.id] = height
         return old.map { abs($0 - height) > 0.5 } ?? (abs(estimate(row) - height) > 0.5)
     }
+
+    /// A row on screen is trusted over the measurer, which cannot see what a row loads
+    /// after it appears, such as a poll's options. If the new width rewraps the row, its
+    /// cell reports the new height.
+    private func drawnHeight(at index: Int) -> CGFloat? {
+        guard let cell = tableView?.view(atColumn: 0, row: index, makeIfNecessary: false) as? MacConversationCell,
+              cell.row?.id == rows[index].id,
+              let height = cell.drawnHeight
+        else { return nil }
+        return Self.rowHeight(height)
+    }
+
+    /// Rounded the way the measurer rounds, or the two would disagree by a fraction of a
+    /// point and correct each other forever.
+    private static func rowHeight(_ height: CGFloat) -> CGFloat { max(1, ceil(height)) }
 
     /// Measures the rows about to come into view, a screen's height either side, so a row
     /// is drawn at its real height rather than corrected after it shows.
@@ -596,9 +617,7 @@ final class MacConversationTableCoordinator: NSObject, NSTableViewDataSource, NS
 
     private func rowReported(height: CGFloat, for id: MacConversationRow.ID) {
         guard height > 0 else { return }
-        // Rounded the way the measurer rounds, or the two would disagree by a fraction
-        // of a point and correct each other forever.
-        reportedHeights[id] = max(1, ceil(height))
+        reportedHeights[id] = Self.rowHeight(height)
         guard !heightFlushScheduled else { return }
         heightFlushScheduled = true
         // Reported from inside a layout pass: the table cannot be told about it there.
