@@ -154,7 +154,7 @@ extension View {
         #endif
     }
 
-    /// The pointing hand over something a click opens, only while the window is key: a
+    /// The pointing hand over something a click opens, only while the window is active: a
     /// click on a window in the background just brings it forward.
     func linkPointer(_ enabled: Bool = true) -> some View {
         #if os(macOS)
@@ -168,10 +168,10 @@ extension View {
 #if os(macOS)
 private struct LinkPointer: ViewModifier {
     let enabled: Bool
-    @Environment(\.controlActiveState) private var activeState
+    @Environment(\.appearsActive) private var appearsActive
 
     func body(content: Content) -> some View {
-        content.pointerStyle(enabled && activeState == .key ? .link : nil)
+        content.pointerStyle(enabled && appearsActive ? .link : nil)
     }
 }
 #endif
