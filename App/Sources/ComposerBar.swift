@@ -54,7 +54,6 @@ struct ComposerBar: View {
                 Text(sendError).font(.caption).foregroundStyle(.red)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
-            ComposerUploadStrip(uploads: uploads)
             if isEditing {
                 editBanner
             } else if let replyingTo {
@@ -225,6 +224,15 @@ struct ComposerBar: View {
     }
 
     private var field: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ComposerUploadStrip(uploads: uploads, inset: Self.glassControlInset)
+            fieldInput
+        }
+        // A capsule while one line tall; rounded corners that stay put once it grows.
+        .glassEffect(.regular, in: .rect(cornerRadius: Self.fieldCornerRadius))
+    }
+
+    private var fieldInput: some View {
         HStack(alignment: .bottom, spacing: 6) {
             ComposerTextView(
                 text: $draft,
@@ -251,8 +259,6 @@ struct ComposerBar: View {
             .buttonStyle(.plain)
             .padding([.trailing, .bottom], Self.glassControlInset)
         }
-        // A capsule while one line tall; rounded corners that stay put once it grows.
-        .glassEffect(.regular, in: .rect(cornerRadius: Self.fieldCornerRadius))
     }
 
     /// A quote-and-reply is appended rather than replacing what is there, so replying

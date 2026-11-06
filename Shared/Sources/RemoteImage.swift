@@ -28,7 +28,7 @@ struct RemoteImage: View {
     /// A reused row keeps its state, so a picture only counts if it was loaded for this path.
     private var image: Image? {
         if let loaded, loaded.path == path { return loaded.image }
-        return DecodedImages.image(at: path)
+        return DecodedImages.image(at: path) ?? fullSize.flatMap(DecodedImages.image(at:))
     }
 
     private var currentFrame: Image? {
@@ -71,7 +71,7 @@ struct RemoteImage: View {
         .task(id: path) {
             let path = path
             if image == nil {
-                guard let data = await model.imageData(at: path), let decoded = Platform.image(from: data) else {
+                guard let data = await data(for: path), let decoded = Platform.image(from: data) else {
                     // Scrolled away mid-fetch is not a failure; the next appearance fetches again.
                     if !Task.isCancelled { failedPath = path }
                     return
@@ -89,10 +89,20 @@ struct RemoteImage: View {
 
     /// Runs for as long as the picture is on screen, and only if it moves.
     private func play(_ path: String) async {
-        guard let data = await model.imageData(at: path), AnimatedPicture.isAnimated(data) else { return }
+        guard let data = await data(for: path), AnimatedPicture.isAnimated(data) else { return }
         for await next in AnimatedPicture.frames(of: data, maxPixelSize: Self.maxFramePixels) {
             frame = (path, Image(decorative: next, scale: 1))
         }
+    }
+
+    /// The original stands in for the thumbnail when this device already has it, as it
+    /// does for a picture it just sent, so the server's copy does not fetch it again.
+    private func data(for path: String) async -> Data? {
+        // A link around a picture can lead to a web page, whose HTML may be cached here too.
+        if let fullSize, let original = AppModel.cachedImageData(at: fullSize), AnimatedPicture.isImage(original) {
+            return original
+        }
+        return await model.imageData(at: path)
     }
 }
 
@@ -112,20 +122,31 @@ extension RemoteImage {
     }
 }
 
-/// Small in-memory cache so scrolling back does not refetch.
-actor ImageCache {
-    private var entries: [String: Data] = [:]
-    private var order: [String] = []
-    private let limit = 80
+/// Small in-memory cache so scrolling back does not refetch. Bounded by bytes, since one
+/// photo can weigh as much as hundreds of avatars.
+final class ImageCache: Sendable {
+    private static let totalBytesLimit = 64 * 1024 * 1024
+    /// A file bigger than this is fetched again rather than pushing most of the cache out.
+    private static let entryBytesLimit = 16 * 1024 * 1024
 
-    func value(for key: String) -> Data? { entries[key] }
+    // NSCache is thread-safe but not marked Sendable.
+    nonisolated(unsafe) private let entries: NSCache<NSString, NSData> = {
+        let cache = NSCache<NSString, NSData>()
+        cache.totalCostLimit = totalBytesLimit
+        return cache
+    }()
+
+    func value(for key: String) -> Data? {
+        entries.object(forKey: key as NSString) as Data?
+    }
 
     func insert(_ data: Data, for key: String) {
-        if entries[key] == nil { order.append(key) }
-        entries[key] = data
-        while order.count > limit {
-            entries.removeValue(forKey: order.removeFirst())
-        }
+        guard data.count <= Self.entryBytesLimit else { return }
+        entries.setObject(data as NSData, forKey: key as NSString, cost: data.count)
+    }
+
+    func remove(for key: String) {
+        entries.removeObject(forKey: key as NSString)
     }
 }
 

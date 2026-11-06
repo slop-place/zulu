@@ -16,6 +16,11 @@ struct DecodedFrame: @unchecked Sendable {
 /// on it, and a conversation with a few GIFs in view spent a tenth of its frame budget
 /// in the GIF decoder before drawing anything.
 enum AnimatedPicture {
+    static func isImage(_ data: Data) -> Bool {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil) else { return false }
+        return CGImageSourceGetType(source) != nil
+    }
+
     static func isAnimated(_ data: Data) -> Bool {
         guard let source = CGImageSourceCreateWithData(data as CFData, nil) else { return false }
         return CGImageSourceGetCount(source) > 1

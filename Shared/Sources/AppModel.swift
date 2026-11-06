@@ -403,7 +403,7 @@ extension AppModel {
     /// authenticated client; anything already absolute is fetched plainly, so the API key
     /// never leaves the realm's origin.
     func imageData(at path: String) async -> Data? {
-        if let cached = await Self.imageCache.value(for: path) { return cached }
+        if let cached = Self.imageCache.value(for: path) { return cached }
 
         let data: Data?
         if path.hasPrefix("/") {
@@ -415,8 +415,24 @@ extension AppModel {
         }
 
         guard let data, !data.isEmpty else { return nil }
-        await Self.imageCache.insert(data, for: path)
+        Self.imageCache.insert(data, for: path)
         return data
+    }
+
+    /// Bytes this device already has for an upload, so a message showing it does not
+    /// fetch them back.
+    static func rememberImageData(_ data: Data, at path: String) {
+        Self.imageCache.insert(data, for: path)
+    }
+
+    /// Without fetching.
+    static func cachedImageData(at path: String) -> Data? {
+        imageCache.value(for: path)
+    }
+
+    /// For an upload taken out of the draft, whose bytes no message will show.
+    static func forgetImageData(at path: String) {
+        Self.imageCache.remove(for: path)
     }
 
     private static let imageCache = ImageCache()

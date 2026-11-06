@@ -27,15 +27,63 @@ public enum PendingMarkup {
         let options = AttributedString.MarkdownParsingOptions(
             interpretedSyntax: .inlineOnlyPreservingWhitespace
         )
-        let paragraphs: [MessageBlock] = text.split(separator: /\n[ \t]*\n\s*/).map { paragraph in
+        let paragraphs: [MessageBlock] = text.split(separator: /\n[ \t]*\n\s*/).flatMap { paragraph in
+            if let uploads = uploads(in: paragraph) { return uploads }
             let raw = String(paragraph)
             let parsed = (try? AttributedString(markdown: raw, options: options)) ?? AttributedString(raw)
-            return .paragraph(spans(of: parsed).flatMap { withEmoji($0, emoji: emoji) })
+            return [.paragraph(spans(of: parsed).flatMap { withEmoji($0, emoji: emoji) })]
         }
         guard let reply else { return paragraphs }
         return [.quotedReply(
             author: reply.author, authorID: reply.authorID, messageID: reply.messageID, quoted: reply.quoted
         )] + paragraphs
+    }
+
+    private static let imageMarker: Character = "!"
+    private static let textOpen: Character = "["
+    private static let textClose: Character = "]"
+    private static let escape: Character = "\\"
+
+    /// A paragraph of nothing but upload links, as the composer writes attached files.
+    /// A picture is drawn from the upload itself, since the server has not made its
+    /// thumbnail yet.
+    private static func uploads(in paragraph: Substring) -> [MessageBlock]? {
+        let lines = paragraph.split(separator: "\n")
+        let blocks = lines.compactMap { line -> MessageBlock? in
+            guard let link = uploadLink(in: line.trimmingCharacters(in: .whitespaces)[...]) else { return nil }
+            if link.isImage { return .image(source: link.path, link: link.path, alt: link.name) }
+            return MessageAttachment(path: link.path, title: link.name).map(MessageBlock.attachment)
+        }
+        return !blocks.isEmpty && blocks.count == lines.count ? blocks : nil
+    }
+
+    /// `[name](path)` or `![name](path)`. Markdown lets a name hold brackets as long as
+    /// they pair up, as in `scan [final].gif`.
+    private static func uploadLink(in line: Substring) -> (isImage: Bool, name: String, path: String)? {
+        let isImage = line.first == imageMarker
+        let rest = isImage ? line.dropFirst() : line
+        guard rest.first == textOpen else { return nil }
+        var depth = 0
+        var close: Substring.Index?
+        var index = rest.startIndex
+        while index < rest.endIndex, close == nil {
+            switch rest[index] {
+            case escape: index = rest.index(after: index)
+            case textOpen: depth += 1
+            case textClose:
+                depth -= 1
+                if depth == 0 { close = index }
+            default: break
+            }
+            if index < rest.endIndex { index = rest.index(after: index) }
+        }
+        guard let close,
+              let target = rest[rest.index(after: close)...].wholeMatch(of: /\(([^)\s]+)\)/)
+        else { return nil }
+        let path = String(target.1)
+        guard MessageAttachment.isUpload(path) else { return nil }
+        let name = rest[rest.index(after: rest.startIndex)..<close].replacing(/\\([[:punct:]])/) { $0.1 }
+        return (isImage, String(name), path)
     }
 
     private static func spans(of text: AttributedString) -> [InlineSpan] {

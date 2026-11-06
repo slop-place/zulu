@@ -54,6 +54,7 @@ final class ComposerUploads {
 
     func remove(_ id: UUID) {
         tasks.removeValue(forKey: id)?.cancel()
+        forgetCachedPicture(of: id)
         pending.remove(id)
         forgetRemoved()
     }
@@ -103,11 +104,20 @@ final class ComposerUploads {
             tasks[id] = nil
             switch outcome {
             case .success(let file):
+                if let preview = previews[id] { AppModel.rememberImageData(preview, at: file.path) }
                 pending.finish(id, path: file.path, filename: file.filename)
             case .failure(let message):
                 pending.fail(id, message: message)
             }
         }
+    }
+
+    /// A picture taken out before sending is never drawn, so its bytes need not stay cached.
+    private func forgetCachedPicture(of id: UUID) {
+        guard let upload = pending.items.first(where: { $0.id == id }), upload.isImage,
+              case .uploaded(let path) = upload.state
+        else { return }
+        AppModel.forgetImageData(at: path)
     }
 
     private func forgetRemoved() {
@@ -117,9 +127,11 @@ final class ComposerUploads {
     }
 }
 
-/// The composer's attachments, one card each, above the field.
+/// The composer's attachments, one card each, inside the field above the text.
 struct ComposerUploadStrip: View {
     let uploads: ComposerUploads
+    /// How far the cards sit from the field's edges.
+    let inset: CGFloat
 
     @Environment(AppModel.self) private var model
 
@@ -147,14 +159,15 @@ struct ComposerUploadStrip: View {
                 }
             }
             .scrollIndicators(.hidden)
-            .scrollClipDisabled()
-            .transition(.move(edge: .bottom).combined(with: .opacity))
+            .contentMargins(.horizontal, inset, for: .scrollContent)
+            .padding(.top, inset)
+            .transition(.opacity)
         }
     }
 }
 
-/// Drawn like a sent file's `AttachmentRow`, with the upload's progress or failure where
-/// the file type would be.
+/// A picture as a thumbnail with its remove button on the corner; any other file, or a
+/// failed upload, as a chip with its name and progress or failure.
 private struct ComposerUploadCard: View {
     let upload: PendingUpload
     /// A picture's own bytes, when this device still has them.
@@ -179,12 +192,72 @@ private struct ComposerUploadCard: View {
     private static let removeSymbol = "xmark.circle.fill"
     private static let retrySymbol = "arrow.clockwise.circle.fill"
     private static let failedSymbol = "exclamationmark.triangle.fill"
+    private static let tileSize: CGFloat = 64
+    private static let badgeInset: CGFloat = 3
+    private static let badgeBackdropOpacity = 0.6
+    private static let uploadingDimOpacity = 0.35
 
     private var fileExtension: String {
         URL(filePath: upload.filename).pathExtension.lowercased()
     }
 
+    private var thumbnail: Image? {
+        (preview ?? fetched).flatMap(Platform.image(from:))
+    }
+
     var body: some View {
+        Group {
+            if upload.isImage, !isFailed {
+                pictureTile
+            } else {
+                fileChip
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .task(id: upload.state) { await fetchRestoredPicture() }
+    }
+
+    private var pictureTile: some View {
+        Group {
+            if let thumbnail {
+                thumbnail
+                    .resizable()
+                    .scaledToFill()
+            } else {
+                icon
+            }
+        }
+        .frame(width: Self.tileSize, height: Self.tileSize)
+        .overlay {
+            if case .uploading(let fraction) = upload.state {
+                Color.black.opacity(Self.uploadingDimOpacity)
+                ProgressView(value: fraction)
+                    .progressViewStyle(.circular)
+                    .tint(.white)
+                    .accessibilityLabel("Uploading")
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: Self.cornerRadius))
+        .overlay {
+            RoundedRectangle(cornerRadius: Self.cornerRadius)
+                .strokeBorder(.quaternary, lineWidth: Self.borderWidth)
+        }
+        .overlay(alignment: .topTrailing) {
+            Button(action: remove) {
+                Image(systemName: Self.removeSymbol)
+                    .font(.title3)
+                    .symbolRenderingMode(.palette)
+                    .foregroundStyle(.white, .black.opacity(Self.badgeBackdropOpacity))
+                    .contentShape(.circle)
+            }
+            .buttonStyle(.plain)
+            .padding(Self.badgeInset)
+            .accessibilityLabel("Remove \(upload.filename)")
+        }
+        .help(upload.filename)
+    }
+
+    private var fileChip: some View {
         HStack(spacing: Self.spacing) {
             icon
             VStack(alignment: .leading, spacing: Self.textSpacing) {
@@ -207,8 +280,6 @@ private struct ComposerUploadCard: View {
             RoundedRectangle(cornerRadius: Self.cornerRadius)
                 .strokeBorder(.quaternary, lineWidth: Self.borderWidth)
         }
-        .accessibilityElement(children: .contain)
-        .task(id: upload.state) { await fetchRestoredPicture() }
     }
 
     private func control(_ symbol: String, label: String, action: @escaping () -> Void) -> some View {
@@ -225,7 +296,7 @@ private struct ComposerUploadCard: View {
 
     @ViewBuilder
     private var icon: some View {
-        if !isFailed, let thumbnail = (preview ?? fetched).flatMap(Platform.image(from:)) {
+        if !isFailed, let thumbnail {
             thumbnail
                 .resizable()
                 .scaledToFill()

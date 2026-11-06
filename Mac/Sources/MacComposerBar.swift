@@ -43,7 +43,6 @@ struct MacComposerBar: View {
                 Label(sendError, systemImage: "exclamationmark.triangle")
                     .font(.caption).foregroundStyle(.red)
             }
-            ComposerUploadStrip(uploads: uploads)
             if isEditing {
                 editBanner
             } else if let replyingTo {
@@ -117,7 +116,18 @@ struct MacComposerBar: View {
         }
     }
 
+    private static let uploadInset: CGFloat = 6
+
     private var field: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ComposerUploadStrip(uploads: uploads, inset: Self.uploadInset)
+            fieldInput
+        }
+        .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
+        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(Color(nsColor: .separatorColor)))
+    }
+
+    private var fieldInput: some View {
         HStack(alignment: .bottom, spacing: 4) {
             MacComposerTextView(
                 text: $draft,
@@ -151,8 +161,6 @@ struct MacComposerBar: View {
                 MacEmojiPicker { insert($0) }
             }
         }
-        .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
-        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(Color(nsColor: .separatorColor)))
     }
 
     /// Who is being answered, and enough of what they said to be sure it is the right
