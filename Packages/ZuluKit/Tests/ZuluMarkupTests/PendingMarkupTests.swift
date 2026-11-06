@@ -100,6 +100,13 @@ struct PendingMarkupTests {
         ])
     }
 
+    @Test func escapedBracketInANameKeepsThePictureDrawn() {
+        let path = "/user_uploads/2/ab/scan.gif"
+        #expect(pending(#"![scan \[final.gif](\#(path))"#) == [
+            .image(source: path, link: path, alt: "scan [final.gif"),
+        ])
+    }
+
     @Test func linkToAnotherSiteStaysInTheText() {
         let blocks = pending("[site](https://example.com/a.png)")
         #expect(blocks == [.paragraph([InlineSpan(text: "site", link: "https://example.com/a.png")])])

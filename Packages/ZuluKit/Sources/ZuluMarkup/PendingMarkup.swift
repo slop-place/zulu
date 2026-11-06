@@ -42,6 +42,7 @@ public enum PendingMarkup {
     private static let imageMarker: Character = "!"
     private static let textOpen: Character = "["
     private static let textClose: Character = "]"
+    private static let escape: Character = "\\"
 
     /// A paragraph of nothing but upload links, as the composer writes attached files.
     /// A picture is drawn from the upload itself, since the server has not made its
@@ -64,20 +65,25 @@ public enum PendingMarkup {
         guard rest.first == textOpen else { return nil }
         var depth = 0
         var close: Substring.Index?
-        for index in rest.indices {
+        var index = rest.startIndex
+        while index < rest.endIndex, close == nil {
             switch rest[index] {
+            case escape: index = rest.index(after: index)
             case textOpen: depth += 1
-            case textClose: depth -= 1
-            default: continue
+            case textClose:
+                depth -= 1
+                if depth == 0 { close = index }
+            default: break
             }
-            if depth == 0 { close = index; break }
+            if index < rest.endIndex { index = rest.index(after: index) }
         }
         guard let close,
               let target = rest[rest.index(after: close)...].wholeMatch(of: /\(([^)\s]+)\)/)
         else { return nil }
         let path = String(target.1)
         guard MessageAttachment.isUpload(path) else { return nil }
-        return (isImage, String(rest[rest.index(after: rest.startIndex)..<close]), path)
+        let name = rest[rest.index(after: rest.startIndex)..<close].replacing(/\\([[:punct:]])/) { $0.1 }
+        return (isImage, String(name), path)
     }
 
     private static func spans(of text: AttributedString) -> [InlineSpan] {
