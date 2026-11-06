@@ -927,7 +927,13 @@ final class MacConversationTableCoordinator: NSObject, NSTableViewDataSource, NS
         let model = rows[row]
         let cell = tableView.makeView(withIdentifier: model.reuseIdentifier, owner: nil) as? MacConversationCell
             ?? MacConversationCell(identifier: model.reuseIdentifier)
-        if cell.row != model { configure(cell, for: model) }
+        if cell.row != model {
+            configure(cell, for: model)
+        } else if let drawn = cell.drawnHeight {
+            // A cell back for the same row redraws nothing, so it never reports again on
+            // its own; a resize while it was away may have left the table a wrong height.
+            rowReported(height: drawn, for: model.id)
+        }
         return cell
     }
 
