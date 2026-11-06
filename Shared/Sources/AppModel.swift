@@ -425,6 +425,11 @@ extension AppModel {
         Self.imageCache.insert(data, for: path)
     }
 
+    /// Without fetching.
+    static func cachedImageData(at path: String) -> Data? {
+        imageCache.value(for: path)
+    }
+
     /// For an upload taken out of the draft, whose bytes no message will show.
     static func forgetImageData(at path: String) {
         Self.imageCache.remove(for: path)
