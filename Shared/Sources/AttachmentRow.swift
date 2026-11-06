@@ -65,9 +65,7 @@ struct AttachmentRow: View {
             .accessibilityLabel("Download \(attachment.name)")
         }
         .buttonStyle(.plain)
-        #if os(macOS)
-        .pointerStyle(.link)
-        #endif
+        .linkPointer()
         .padding(Self.padding)
         .background(.quaternary.opacity(Self.fillOpacity), in: RoundedRectangle(cornerRadius: Self.cornerRadius))
         .overlay {
