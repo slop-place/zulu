@@ -126,7 +126,7 @@ private struct LinkTargets: View {
                     .contentShape(Rectangle())
                     .frame(width: link.rect.width, height: link.rect.height)
                     .offset(x: link.rect.minX, y: link.rect.minY)
-                    .pointerStyle(.link)
+                    .linkPointer()
                     .onTapGesture { openURL(link.url) }
                     .contextMenu {
                         Button("Open Link") { openURL(link.url) }

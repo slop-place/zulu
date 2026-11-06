@@ -63,14 +63,7 @@ struct RemoteImage: View {
         #if os(iOS)
         .keepsReaderInPlace()
         #endif
-        #if os(macOS)
-        // A click opens the image at the size it was uploaded. The pointer says so on
-        // the way in.
-        .onHover { inside in
-            guard image != nil else { return }
-            inside ? NSCursor.pointingHand.push() : NSCursor.pop()
-        }
-        #endif
+        .linkPointer(image != nil)
         .onTapGesture {
             guard image != nil else { return }
             previewer.preview(previewPaths, imagesOnly: true, model: model)

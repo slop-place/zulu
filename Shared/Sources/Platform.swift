@@ -153,7 +153,28 @@ extension View {
         return self
         #endif
     }
+
+    /// The pointing hand over something a click opens, only while the window is key: a
+    /// click on a window in the background just brings it forward.
+    func linkPointer(_ enabled: Bool = true) -> some View {
+        #if os(macOS)
+        return modifier(LinkPointer(enabled: enabled))
+        #else
+        return self
+        #endif
+    }
 }
+
+#if os(macOS)
+private struct LinkPointer: ViewModifier {
+    let enabled: Bool
+    @Environment(\.controlActiveState) private var activeState
+
+    func body(content: Content) -> some View {
+        content.pointerStyle(enabled && activeState == .key ? .link : nil)
+    }
+}
+#endif
 
 extension UTType {
     /// Zulip wants a content type on every upload, and a file whose extension means
