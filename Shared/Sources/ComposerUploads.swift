@@ -114,8 +114,8 @@ final class ComposerUploads {
 
     /// A picture taken out before sending is never drawn, so its bytes need not stay cached.
     private func forgetCachedPicture(of id: UUID) {
-        guard previews[id] != nil,
-              case .uploaded(let path)? = pending.items.first(where: { $0.id == id })?.state
+        guard let upload = pending.items.first(where: { $0.id == id }), upload.isImage,
+              case .uploaded(let path) = upload.state
         else { return }
         AppModel.forgetImageData(at: path)
     }
