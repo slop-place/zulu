@@ -91,6 +91,15 @@ struct PendingMarkupTests {
         ])
     }
 
+    @Test func bracketsInOneNameKeepEveryPictureDrawn() {
+        let first = "/user_uploads/2/ab/cat.gif"
+        let second = "/user_uploads/2/cd/scan%20%5Bfinal%5D.gif"
+        #expect(pending("![cat.gif](\(first))\n![scan [final].gif](\(second))") == [
+            .image(source: first, link: first, alt: "cat.gif"),
+            .image(source: second, link: second, alt: "scan [final].gif"),
+        ])
+    }
+
     @Test func linkToAnotherSiteStaysInTheText() {
         let blocks = pending("[site](https://example.com/a.png)")
         #expect(blocks == [.paragraph([InlineSpan(text: "site", link: "https://example.com/a.png")])])

@@ -39,7 +39,9 @@ public enum PendingMarkup {
         )] + paragraphs
     }
 
-    private static let imageMarker = "!"
+    private static let imageMarker: Character = "!"
+    private static let textOpen: Character = "["
+    private static let textClose: Character = "]"
 
     /// A paragraph of nothing but upload links, as the composer writes attached files.
     /// A picture is drawn from the upload itself, since the server has not made its
@@ -47,16 +49,35 @@ public enum PendingMarkup {
     private static func uploads(in paragraph: Substring) -> [MessageBlock]? {
         let lines = paragraph.split(separator: "\n")
         let blocks = lines.compactMap { line -> MessageBlock? in
-            let link = /^(!?)\[([^\]\n]*)\]\(([^)\s]+)\)$/
-            guard let match = line.trimmingCharacters(in: .whitespaces).wholeMatch(of: link),
-                  MessageAttachment.isUpload(String(match.3))
-            else { return nil }
-            let name = String(match.2)
-            let path = String(match.3)
-            if match.1 == imageMarker { return .image(source: path, link: path, alt: name) }
-            return MessageAttachment(path: path, title: name).map(MessageBlock.attachment)
+            guard let link = uploadLink(in: line.trimmingCharacters(in: .whitespaces)[...]) else { return nil }
+            if link.isImage { return .image(source: link.path, link: link.path, alt: link.name) }
+            return MessageAttachment(path: link.path, title: link.name).map(MessageBlock.attachment)
         }
         return !blocks.isEmpty && blocks.count == lines.count ? blocks : nil
+    }
+
+    /// `[name](path)` or `![name](path)`. Markdown lets a name hold brackets as long as
+    /// they pair up, as in `scan [final].gif`.
+    private static func uploadLink(in line: Substring) -> (isImage: Bool, name: String, path: String)? {
+        let isImage = line.first == imageMarker
+        let rest = isImage ? line.dropFirst() : line
+        guard rest.first == textOpen else { return nil }
+        var depth = 0
+        var close: Substring.Index?
+        for index in rest.indices {
+            switch rest[index] {
+            case textOpen: depth += 1
+            case textClose: depth -= 1
+            default: continue
+            }
+            if depth == 0 { close = index; break }
+        }
+        guard let close,
+              let target = rest[rest.index(after: close)...].wholeMatch(of: /\(([^)\s]+)\)/)
+        else { return nil }
+        let path = String(target.1)
+        guard MessageAttachment.isUpload(path) else { return nil }
+        return (isImage, String(rest[rest.index(after: rest.startIndex)..<close]), path)
     }
 
     private static func spans(of text: AttributedString) -> [InlineSpan] {
