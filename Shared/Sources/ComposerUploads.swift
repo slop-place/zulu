@@ -54,6 +54,7 @@ final class ComposerUploads {
 
     func remove(_ id: UUID) {
         tasks.removeValue(forKey: id)?.cancel()
+        forgetCachedPicture(of: id)
         pending.remove(id)
         forgetRemoved()
     }
@@ -103,12 +104,20 @@ final class ComposerUploads {
             tasks[id] = nil
             switch outcome {
             case .success(let file):
-                if let preview = previews[id] { await model.rememberImageData(preview, at: file.path) }
+                if let preview = previews[id] { AppModel.rememberImageData(preview, at: file.path) }
                 pending.finish(id, path: file.path, filename: file.filename)
             case .failure(let message):
                 pending.fail(id, message: message)
             }
         }
+    }
+
+    /// A picture taken out before sending is never drawn, so its bytes need not stay cached.
+    private func forgetCachedPicture(of id: UUID) {
+        guard previews[id] != nil,
+              case .uploaded(let path)? = pending.items.first(where: { $0.id == id })?.state
+        else { return }
+        AppModel.forgetImageData(at: path)
     }
 
     private func forgetRemoved() {

@@ -119,20 +119,31 @@ extension RemoteImage {
     }
 }
 
-/// Small in-memory cache so scrolling back does not refetch.
-actor ImageCache {
-    private var entries: [String: Data] = [:]
-    private var order: [String] = []
-    private let limit = 80
+/// Small in-memory cache so scrolling back does not refetch. Bounded by bytes, since one
+/// photo can weigh as much as hundreds of avatars.
+final class ImageCache: Sendable {
+    private static let totalBytesLimit = 64 * 1024 * 1024
+    /// A file bigger than this is fetched again rather than pushing most of the cache out.
+    private static let entryBytesLimit = 16 * 1024 * 1024
 
-    func value(for key: String) -> Data? { entries[key] }
+    // NSCache is thread-safe but not marked Sendable.
+    nonisolated(unsafe) private let entries: NSCache<NSString, NSData> = {
+        let cache = NSCache<NSString, NSData>()
+        cache.totalCostLimit = totalBytesLimit
+        return cache
+    }()
+
+    func value(for key: String) -> Data? {
+        entries.object(forKey: key as NSString) as Data?
+    }
 
     func insert(_ data: Data, for key: String) {
-        if entries[key] == nil { order.append(key) }
-        entries[key] = data
-        while order.count > limit {
-            entries.removeValue(forKey: order.removeFirst())
-        }
+        guard data.count <= Self.entryBytesLimit else { return }
+        entries.setObject(data as NSData, forKey: key as NSString, cost: data.count)
+    }
+
+    func remove(for key: String) {
+        entries.removeObject(forKey: key as NSString)
     }
 }
 
