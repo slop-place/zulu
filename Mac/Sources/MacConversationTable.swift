@@ -118,7 +118,7 @@ struct MacConversationCellContent: View {
                 MessageRow(message: entry.message, startsGroup: entry.startsGroup, reactions: reactions)
                     .padding(.top, entry.startsGroup ? Self.groupSpacing : Self.continuationSpacing)
                     .padding(.bottom, 1)
-                    .macMessageActions(entry.message, in: context.source)
+                    .macMessageActions(entry.message, in: context.source, startsGroup: entry.startsGroup)
             }
         case .pending(let pending):
             PendingMessageRow(message: pending.entry, startsGroup: pending.startsGroup)

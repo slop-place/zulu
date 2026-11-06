@@ -24,21 +24,25 @@ enum MacMessageActionStyle: String, CaseIterable, Identifiable {
 extension View {
     /// The Mac's answer to the phone's long press: a context menu on right-click, and
     /// the same things under the small buttons in a message's header or hover bar.
-    func macMessageActions(_ message: MessageRecord, in source: ConversationSource) -> some View {
-        modifier(MacMessageActions(message: message, source: source))
+    func macMessageActions(
+        _ message: MessageRecord, in source: ConversationSource, startsGroup: Bool
+    ) -> some View {
+        modifier(MacMessageActions(message: message, source: source, startsGroup: startsGroup))
     }
 }
 
 private struct MacMessageActions: ViewModifier {
     let message: MessageRecord
     let source: ConversationSource
+    let startsGroup: Bool
 
     @AppStorage(MacMessageActionStyle.storageKey) private var style = MacMessageActionStyle.standard
 
     func body(content: Content) -> some View {
         switch style {
-        case .header: content.modifier(MacMessageRowMenu(message: message))
-        case .hover: content.modifier(MacMessageHoverBar(message: message))
+        case .header where startsGroup: content.modifier(MacMessageRowMenu(message: message))
+        // A message under another's header has no header of its own to hold the buttons.
+        case .header, .hover: content.modifier(MacMessageHoverBar(message: message))
         }
     }
 }
