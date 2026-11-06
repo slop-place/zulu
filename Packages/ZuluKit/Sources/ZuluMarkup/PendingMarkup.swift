@@ -27,15 +27,36 @@ public enum PendingMarkup {
         let options = AttributedString.MarkdownParsingOptions(
             interpretedSyntax: .inlineOnlyPreservingWhitespace
         )
-        let paragraphs: [MessageBlock] = text.split(separator: /\n[ \t]*\n\s*/).map { paragraph in
+        let paragraphs: [MessageBlock] = text.split(separator: /\n[ \t]*\n\s*/).flatMap { paragraph in
+            if let uploads = uploads(in: paragraph) { return uploads }
             let raw = String(paragraph)
             let parsed = (try? AttributedString(markdown: raw, options: options)) ?? AttributedString(raw)
-            return .paragraph(spans(of: parsed).flatMap { withEmoji($0, emoji: emoji) })
+            return [.paragraph(spans(of: parsed).flatMap { withEmoji($0, emoji: emoji) })]
         }
         guard let reply else { return paragraphs }
         return [.quotedReply(
             author: reply.author, authorID: reply.authorID, messageID: reply.messageID, quoted: reply.quoted
         )] + paragraphs
+    }
+
+    private static let imageMarker = "!"
+
+    /// A paragraph of nothing but upload links, as the composer writes attached files.
+    /// A picture is drawn from the upload itself, since the server has not made its
+    /// thumbnail yet.
+    private static func uploads(in paragraph: Substring) -> [MessageBlock]? {
+        let lines = paragraph.split(separator: "\n")
+        let blocks = lines.compactMap { line -> MessageBlock? in
+            let link = /^(!?)\[([^\]\n]*)\]\(([^)\s]+)\)$/
+            guard let match = line.trimmingCharacters(in: .whitespaces).wholeMatch(of: link),
+                  MessageAttachment.isUpload(String(match.3))
+            else { return nil }
+            let name = String(match.2)
+            let path = String(match.3)
+            if match.1 == imageMarker { return .image(source: path, link: path, alt: name) }
+            return MessageAttachment(path: path, title: name).map(MessageBlock.attachment)
+        }
+        return !blocks.isEmpty && blocks.count == lines.count ? blocks : nil
     }
 
     private static func spans(of text: AttributedString) -> [InlineSpan] {

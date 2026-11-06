@@ -103,6 +103,7 @@ final class ComposerUploads {
             tasks[id] = nil
             switch outcome {
             case .success(let file):
+                if let preview = previews[id] { await model.rememberImageData(preview, at: file.path) }
                 pending.finish(id, path: file.path, filename: file.filename)
             case .failure(let message):
                 pending.fail(id, message: message)

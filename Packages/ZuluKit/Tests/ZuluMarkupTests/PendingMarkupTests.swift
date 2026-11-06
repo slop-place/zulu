@@ -70,4 +70,29 @@ struct PendingMarkupTests {
         let server = "<p>a <strong>bold</strong> and <em>soft</em></p>\n<p>next</p>"
         #expect(pending("a **bold** and *soft*\n\nnext") == MessageMarkup.blocks(from: server))
     }
+
+    @Test func attachedFileMatchesTheServer() {
+        let server = #"<p><a href="/user_uploads/2/ab/notes.pdf">notes.pdf</a></p>"#
+        #expect(pending("[notes.pdf](/user_uploads/2/ab/notes.pdf)") == MessageMarkup.blocks(from: server))
+    }
+
+    /// The server's copy points at a thumbnail it makes later; until then the upload
+    /// itself is drawn, from bytes this device already holds.
+    @Test func attachedPictureIsDrawnFromTheUpload() {
+        let path = "/user_uploads/2/ab/cat.gif"
+        let server = #"<p><img alt="cat.gif" class="inline-image" data-original-dimensions="480x270" data-original-src="/user_uploads/2/ab/cat.gif" src="/user_uploads/thumbnail/2/ab/cat.gif/840x560-anim.webp"></p>"#
+        guard case .image(_, let serverLink, let serverAlt, _)? = MessageMarkup.blocks(from: server).first else {
+            Issue.record("server HTML did not parse to an image")
+            return
+        }
+        #expect(pending("look\n\n![cat.gif](\(path))") == [
+            .paragraph([InlineSpan(text: "look")]),
+            .image(source: path, link: serverLink, alt: serverAlt),
+        ])
+    }
+
+    @Test func linkToAnotherSiteStaysInTheText() {
+        let blocks = pending("[site](https://example.com/a.png)")
+        #expect(blocks == [.paragraph([InlineSpan(text: "site", link: "https://example.com/a.png")])])
+    }
 }

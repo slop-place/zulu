@@ -419,6 +419,12 @@ extension AppModel {
         return data
     }
 
+    /// Bytes this device already has for an upload, so a message showing it does not
+    /// fetch them back.
+    func rememberImageData(_ data: Data, at path: String) async {
+        await Self.imageCache.insert(data, for: path)
+    }
+
     private static let imageCache = ImageCache()
 }
 
