@@ -105,7 +105,10 @@ struct RemoteImage: View {
     /// The original stands in for the thumbnail when this device already has it, as it
     /// does for a picture it just sent, so the server's copy does not fetch it again.
     private func data(for path: String) async -> Data? {
-        if let fullSize, let original = AppModel.cachedImageData(at: fullSize) { return original }
+        // A link around a picture can lead to a web page, whose HTML may be cached here too.
+        if let fullSize, let original = AppModel.cachedImageData(at: fullSize), AnimatedPicture.isImage(original) {
+            return original
+        }
         return await model.imageData(at: path)
     }
 }
