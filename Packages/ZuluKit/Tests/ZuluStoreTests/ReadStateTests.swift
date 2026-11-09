@@ -43,6 +43,25 @@ struct ReadStateTests {
         #expect(try store.unreadIDs().isEmpty)
     }
 
+    @Test func theServersUnreadSetDecidesWhichStoredMessagesAreRead() throws {
+        let store = try ZuluStore(url: nil)
+        try store.writer.write { db in
+            try db.execute(sql: "INSERT INTO channel (id, name, isRestricted, isMuted, pinned) VALUES (7, 'general', 0, 0, 0)")
+        }
+        try store.save(messages: [try arriving(1, from: me), try arriving(2, from: someoneElse)], selfUserID: me)
+        let unread = try JSONDecoder().decode(UnreadMessages.self, from: Data("""
+            {"streams": [{"stream_id": 7, "topic": "lunch", "unread_message_ids": [2]}],
+             "pms": [], "huddles": [], "mentions": []}
+            """.utf8))
+
+        try store.replaceUnread(unread, selfUserID: me)
+
+        let read = try store.writer.read { db in
+            try Dictionary(uniqueKeysWithValues: MessageRecord.fetchAll(db).map { ($0.id, $0.isRead) })
+        }
+        #expect(read == [1: true, 2: false])
+    }
+
     @Test func markingEverythingReadClearsEveryConversation() throws {
         let store = try ZuluStore(url: nil)
         try store.writer.write { db in

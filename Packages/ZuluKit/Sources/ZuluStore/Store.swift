@@ -325,6 +325,9 @@ extension ZuluStore {
                     ).save(db)
                 }
             }
+            try db.execute(sql: """
+                UPDATE message SET isRead = (id NOT IN (SELECT messageID FROM unread))
+                """)
         }
     }
 

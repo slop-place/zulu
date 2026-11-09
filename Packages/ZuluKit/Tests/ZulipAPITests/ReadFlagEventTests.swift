@@ -38,6 +38,36 @@ struct ReadFlagEventTests {
         #expect(all)
     }
 
+    private func messageEvent(flags: [String]) -> String {
+        """
+        {"id": 3, "type": "message", "flags": \(flags),
+         "message": {"id": 900, "sender_id": 5, "sender_full_name": "Ana",
+                     "sender_email": "ana@example.com", "type": "stream",
+                     "content": "<p>hi</p>", "content_type": "text/html",
+                     "subject": "lunch", "timestamp": 1700000000, "stream_id": 7,
+                     "is_me_message": false, "reactions": [],
+                     "display_recipient": "general"}}
+        """
+    }
+
+    @Test func aNewMessageTakesItsFlagsFromTheEvent() throws {
+        guard case .message(let message, _) = try decode(messageEvent(flags: ["read", "mentioned"])) else {
+            Issue.record("not a message event")
+            return
+        }
+        #expect(message.isRead)
+        #expect(message.isMentioned)
+    }
+
+    @Test func aNewMessageWithNoFlagsIsUnread() throws {
+        guard case .message(let message, _) = try decode(messageEvent(flags: [])) else {
+            Issue.record("not a message event")
+            return
+        }
+        #expect(!message.isRead)
+        #expect(!message.isMentioned)
+    }
+
     @Test func markingUnreadStillDecodes() throws {
         let event = try decode("""
             {"type": "update_message_flags", "op": "remove", "operation": "remove",
