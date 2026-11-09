@@ -384,6 +384,9 @@ struct NativeShellView: View {
             }
         }
         ToolbarItem(placement: .topBarTrailing) {
+            MessageSearchButton(destination: nil) { open($0, in: section) }
+        }
+        ToolbarItem(placement: .topBarTrailing) {
             Menu("More", systemImage: "ellipsis") {
                 if case .group = section, let group = currentGroup {
                     Button("Edit “\(group.name)”…", systemImage: "pencil") { editingGroup = group.id }

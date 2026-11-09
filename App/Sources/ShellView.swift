@@ -20,6 +20,7 @@ struct ShellView: View {
     @State private var showingHidden = false
     @State private var showingNotifications = false
     @State private var showingNewMessage = false
+    @State private var showingSearch = false
     @State private var showingSettings = false
     @State private var showingReorder = false
     @State private var reorderingGroups = false
@@ -407,6 +408,15 @@ struct ShellView: View {
             Text(listTitle).font(.headline).lineLimit(1)
             Spacer(minLength: 4)
             SyncDot(status: model.status)
+            Button { showingSearch = true } label: {
+                Image(systemName: "magnifyingglass")
+                    .font(.footnote)
+                    .foregroundStyle(TextTone.secondary)
+                    .frame(width: 22, height: 22)
+                    .contentShape(.rect)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Search")
             if section == .dms {
                 Button { showingNewMessage = true } label: {
                     Image(systemName: "plus")
@@ -490,6 +500,12 @@ struct ShellView: View {
         .sheet(isPresented: $showingNewMessage) {
             NewMessageView { openFromDrawer(.dm($0)) }
         }
+        .sheet(isPresented: $showingSearch) {
+            MessageSearchView(model: model, from: nil) { openFromDrawer($0) }
+        }
+        // A topic pushed from a channel's list would otherwise stay on top of whatever
+        // was opened from outside it, such as a search hit.
+        .onChange(of: model.destination) { path = [] }
         .sheet(isPresented: $showingSettings) { SettingsView() }
         .sheet(isPresented: $reorderingGroups) { ReorderGroupsView(groups: model.groups) }
         .sheet(item: Binding(get: { editingGroup.map(Identified.init) },

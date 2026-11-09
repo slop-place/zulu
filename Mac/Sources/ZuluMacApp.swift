@@ -127,6 +127,7 @@ final class MacUIState {
     var section: SidebarSection = .unfiled
 
     var showingQuickSwitcher = false
+    var messageSearch: MessageSearchRequest?
     var showingNewMessage = false
     var showingNewGroup = false
     var showingHidden = false
@@ -171,6 +172,12 @@ final class MacUIState {
     /// `sheet(item:)` needs something Identifiable, and a bare String is not.
     struct GroupBox: Identifiable {
         let id: String
+    }
+
+    /// A search opened on `origin`, or on everything when it is nil.
+    struct MessageSearchRequest: Identifiable {
+        let id = UUID()
+        let origin: AppModel.Destination?
     }
 }
 

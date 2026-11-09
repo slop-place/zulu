@@ -396,6 +396,17 @@ extension AppModel {
     var storeForReading: ZuluStore? { store }
 }
 
+// MARK: - Search
+
+extension AppModel {
+    /// Hits are never saved: a stored message far back in a conversation would open
+    /// that conversation with a gap in its history.
+    func search(_ query: String, in scope: SearchScope, olderThan oldestShown: Int?) async throws -> MessagesPage {
+        guard let client else { throw ZulipError(kind: .badResponse, message: "Not signed in.") }
+        return try await client.search(query, in: scope, olderThan: oldestShown)
+    }
+}
+
 // MARK: - Media
 
 extension AppModel {

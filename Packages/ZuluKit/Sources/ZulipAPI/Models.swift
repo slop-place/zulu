@@ -85,6 +85,10 @@ public struct ZulipMessage: Decodable, Sendable, Equatable, Identifiable {
     /// Present on both `GET /messages` and the `message` event, so a poll never needs a
     /// fetch of its own. Optional because the field is documented as experimental.
     public let submessages: [Submessage]?
+    /// Only on search results: the content and topic with each match wrapped in
+    /// `<span class="highlight">`.
+    public let match_content: String?
+    public let match_subject: String?
 
     /// A channel name for channel messages, the participant list for DMs.
     public let display_recipient: DisplayRecipientField?
