@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.22.0](https://github.com/slop-place/zulu/compare/zulu-v1.21.2...zulu-v1.22.0) (2026-11-09)
+
+
+### Features
+
+* search messages in a topic, channel, DMs or everywhere ([#62](https://github.com/slop-place/zulu/issues/62)) ([024ba7b](https://github.com/slop-place/zulu/commit/024ba7b6eec3033909a0d0664d027608b55570fb))
+
+
+### Bug Fixes
+
+* show message timestamps as readable local dates ([#65](https://github.com/slop-place/zulu/issues/65)) ([a326175](https://github.com/slop-place/zulu/commit/a3261753ae8a217f221954e2d48da2a534efb3c0))
+* stop showing own and already-read messages as unread ([#63](https://github.com/slop-place/zulu/issues/63)) ([bee6464](https://github.com/slop-place/zulu/commit/bee646422e45233770bdb9ac7d225e7e645d2347))
+
 ## [1.21.2](https://github.com/slop-place/zulu/compare/zulu-v1.21.1...zulu-v1.21.2) (2026-11-06)
 
 
