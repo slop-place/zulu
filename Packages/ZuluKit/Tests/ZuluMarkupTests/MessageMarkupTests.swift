@@ -1,4 +1,5 @@
 import Testing
+import Foundation
 @testable import ZuluMarkup
 
 struct MessageMarkupTests {
@@ -22,6 +23,14 @@ struct MessageMarkupTests {
         let blocks = MessageMarkup.blocks(from: #"<p><a href="https://example.com/x">x</a></p>"#)
         #expect(blocks == [.paragraph([
             InlineSpan(text: "x", link: "https://example.com/x"),
+        ])])
+    }
+
+    @Test func timestampShowsInLocalTimeNotRawISO() throws {
+        let html = #"<p><time datetime="2026-11-09T17:00:00Z">2026-11-09T11:00:00-06:00</time></p>"#
+        let date = try Date("2026-11-09T17:00:00Z", strategy: .iso8601)
+        #expect(MessageMarkup.blocks(from: html) == [.paragraph([
+            InlineSpan(text: date.formatted(MessageMarkup.timestampFormat)),
         ])])
     }
 
