@@ -48,10 +48,11 @@ final class MessageSearch {
     private(set) var hits: [SearchHit] = []
     private(set) var phase: Phase = .idle
     private(set) var hasMore = false
-    private(set) var isLoadingMore = false
+    private(set) var loadMoreFailed = false
 
     private let model: AppModel
     private var searchTask: Task<Void, Never>?
+    private var moreTask: Task<Void, Never>?
 
     private static let typingPause = Duration.milliseconds(300)
 
@@ -66,6 +67,8 @@ final class MessageSearch {
     func stop() {
         searchTask?.cancel()
         searchTask = nil
+        moreTask?.cancel()
+        moreTask = nil
     }
 
     /// Return in the field: search now rather than after the pause.
@@ -77,6 +80,7 @@ final class MessageSearch {
         stop()
         hits = []
         hasMore = false
+        loadMoreFailed = false
         guard !terms.isEmpty else {
             phase = .idle
             return
@@ -98,15 +102,24 @@ final class MessageSearch {
         }
     }
 
-    func loadMore() async {
-        guard hasMore, !isLoadingMore, phase == .loaded, let oldest = hits.last?.id else { return }
-        isLoadingMore = true
-        defer { isLoadingMore = false }
+    /// Belongs to the search that started it: a restart cancels it, so an older page of
+    /// a replaced query never lands in, or holds up, the new one.
+    func loadMore() {
+        guard hasMore, moreTask == nil, phase == .loaded, let oldest = hits.last?.id else { return }
+        loadMoreFailed = false
         let terms = terms, scope = scope
-        guard let page = try? await model.search(terms, in: scope, olderThan: oldest),
-              terms == self.terms, scope == self.scope
-        else { return }
-        accept(page, replacing: false)
+        moreTask = Task { [weak self] in
+            guard let self else { return }
+            defer { if !Task.isCancelled { moreTask = nil } }
+            do {
+                let page = try await model.search(terms, in: scope, olderThan: oldest)
+                guard !Task.isCancelled else { return }
+                accept(page, replacing: false)
+            } catch {
+                guard !Task.isCancelled else { return }
+                loadMoreFailed = true
+            }
+        }
     }
 
     private func accept(_ page: MessagesPage, replacing: Bool) {
@@ -208,6 +221,28 @@ struct SearchHitRow: View {
             }
             text += piece
         }
+    }
+}
+
+/// Under the last hit while older ones exist: fetches them on appearing, or offers a
+/// retry when that fetch failed.
+struct SearchMoreFooter: View {
+    let search: MessageSearch
+
+    var body: some View {
+        Group {
+            if search.loadMoreFailed {
+                Button("Couldn’t load more. Try Again") { search.loadMore() }
+                    .font(.callout)
+                    .buttonStyle(.borderless)
+            } else {
+                ProgressView()
+                    .controlSize(.small)
+                    .task(id: search.hits.count) { search.loadMore() }
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 8)
     }
 }
 

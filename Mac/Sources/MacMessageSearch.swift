@@ -88,11 +88,7 @@ struct MacMessageSearch: View {
                             .onTapGesture { open(hit) }
                     }
                     if search.hasMore {
-                        ProgressView()
-                            .controlSize(.small)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 8)
-                            .task(id: search.hits.count) { await search.loadMore() }
+                        SearchMoreFooter(search: search)
                     }
                 }
                 .padding(6)

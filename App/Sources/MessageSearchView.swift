@@ -28,10 +28,7 @@ struct MessageSearchView: View {
                             .buttonStyle(.plain)
                     }
                     if search.hasMore {
-                        ProgressView()
-                            .frame(maxWidth: .infinity)
-                            .listRowBackground(Color.clear)
-                            .task(id: search.hits.count) { await search.loadMore() }
+                        SearchMoreFooter(search: search).listRowBackground(Color.clear)
                     }
                 }
             }
