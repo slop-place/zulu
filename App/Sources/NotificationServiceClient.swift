@@ -6,12 +6,6 @@ import ZulipAPI
 struct NotificationServiceClient {
     static let platform = "ios"
 
-    #if DEBUG
-    static let apnsEnvironment = "sandbox"
-    #else
-    static let apnsEnvironment = "production"
-    #endif
-
     let baseURL: URL
 
     private struct Registration: Encodable {
@@ -63,7 +57,7 @@ struct NotificationServiceClient {
             apiKey: account.apiKey,
             deviceToken: deviceToken,
             platform: Self.platform,
-            environment: Self.apnsEnvironment,
+            environment: APNsEnvironment.current.rawValue,
             appVersion: version ?? ""
         )
 
