@@ -80,7 +80,9 @@ public struct ZulipMessage: Decodable, Sendable, Equatable, Identifiable {
     public let avatar_url: String?
     public let is_me_message: Bool
     public let reactions: [Reaction]
-    public let flags: [String]?
+    /// Set from the envelope for a `message` event, which carries flags beside the message
+    /// rather than inside it.
+    public internal(set) var flags: [String]?
     public let last_edit_timestamp: Int?
     /// Present on both `GET /messages` and the `message` event, so a poll never needs a
     /// fetch of its own. Optional because the field is documented as experimental.

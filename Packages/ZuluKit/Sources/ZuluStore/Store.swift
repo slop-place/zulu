@@ -325,6 +325,17 @@ extension ZuluStore {
                     ).save(db)
                 }
             }
+            // A truncated snapshot says nothing about messages older than its oldest unread.
+            let knownFrom = unread.old_unreads_missing == true
+                ? try Int.fetchOne(db, sql: "SELECT MIN(messageID) FROM unread") ?? 0
+                : 0
+            try db.execute(
+                sql: """
+                    UPDATE message SET isRead = NOT isRead
+                    WHERE id >= ? AND isRead = (id IN (SELECT messageID FROM unread))
+                    """,
+                arguments: [knownFrom]
+            )
         }
     }
 

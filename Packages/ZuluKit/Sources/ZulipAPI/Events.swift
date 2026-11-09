@@ -76,6 +76,7 @@ struct EventEnvelope: Decodable {
     let id: Int
     let type: String
     let message: ZulipMessage?
+    let flags: [String]?
     let message_id: Int?
     let message_ids: [Int]?
     /// `update_message_flags` names its ids `messages`, not `message_ids`.
@@ -106,7 +107,10 @@ struct EventEnvelope: Decodable {
     func decoded() -> ZulipEvent {
         switch type {
         case "message":
-            if let message { return .message(message, localID: local_message_id.flatMap(\.value)) }
+            if var message {
+                message.flags = message.flags ?? flags
+                return .message(message, localID: local_message_id.flatMap(\.value))
+            }
         case "update_message":
             if let id = message_id {
                 return .updateMessage(id: id, renderedContent: rendered_content, editedAt: edit_timestamp)
