@@ -391,6 +391,14 @@ public enum MessageMarkup {
                         if !span.text.isEmpty { spans.append(span) }
                     }
                     continue
+                case "time":
+                    // Zulip's <time:...> syntax; the text inside is the raw ISO string the sender typed.
+                    if let date = element.attribute("datetime").flatMap({ try? Date($0, strategy: .iso8601) }) {
+                        var span = inherited
+                        span.text = date.formatted(timestampFormat)
+                        spans.append(span)
+                        continue
+                    }
                 default:
                     break
                 }
@@ -450,6 +458,9 @@ public enum MessageMarkup {
     /// Marks where a block element sat inside inline content. It becomes a line break
     /// unless one is already there, so `<li><p>` does not open with two.
     private static let blockBreak: Character = "\u{2029}"
+
+    static let timestampFormat = Date.FormatStyle.dateTime
+        .weekday(.abbreviated).month(.abbreviated).day().year().hour().minute()
 
     private static let blockElements: Set<String> = [
         "p", "li", "ul", "ol", "div", "blockquote", "pre", "h1", "h2", "h3", "h4", "h5", "h6",
