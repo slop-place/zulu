@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.22.1](https://github.com/slop-place/zulu/compare/zulu-v1.22.0...zulu-v1.22.1) (2026-11-09)
+
+
+### Bug Fixes
+
+* register the APNs environment the signing profile uses ([#66](https://github.com/slop-place/zulu/issues/66)) ([a4ab1f3](https://github.com/slop-place/zulu/commit/a4ab1f363b49f7b7d5caa93d83824a4aa273d4d3))
+
 ## [1.22.0](https://github.com/slop-place/zulu/compare/zulu-v1.21.2...zulu-v1.22.0) (2026-11-09)
 
 
