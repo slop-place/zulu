@@ -122,6 +122,9 @@ struct MacShellView: View {
         @Bindable var ui = ui
         return content
             .sheet(isPresented: $ui.showingQuickSwitcher) { MacQuickSwitcher() }
+            .sheet(item: $ui.messageSearch) { request in
+                MacMessageSearch(model: model, from: request.origin)
+            }
             .sheet(isPresented: $ui.showingNewMessage) { MacNewMessageSheet() }
             .sheet(isPresented: $ui.showingHidden) { MacHiddenChannelsSheet() }
             .sheet(item: $ui.newTopicChannel) { box in MacNewTopicSheet(channel: box.channel) }

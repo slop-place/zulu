@@ -76,6 +76,7 @@ struct ChannelView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) { NewTopicButton(channel: channel) }
+            ToolbarItem(placement: .topBarTrailing) { MessageSearchButton(destination: .channel(channel.id)) }
         }
         .refreshable { await model.refreshTopics() }
     }

@@ -107,6 +107,10 @@ struct ConversationView: View {
                 ToolbarItem(placement: .topBarTrailing) { NewTopicButton(channel: forum) }
                     .sideBarItem()
             }
+            if !isStandalone, !isCoveredByList, !clearsSideBarForTyping {
+                ToolbarItem(placement: .topBarTrailing) { MessageSearchButton(destination: destination) }
+                    .sideBarItem()
+            }
         }
         .background { SideBarEdgeReader(edge: $sideBarEdge) }
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
@@ -155,6 +159,14 @@ struct ConversationView: View {
               let channel = model.channel(channelID), channel.rendersAsForum
         else { return nil }
         return channel
+    }
+
+    private var destination: AppModel.Destination {
+        switch source {
+        case .topic(let channelID, let name, let channelName):
+            .topic(channelID: channelID, name: name, channelName: channelName)
+        case .dm(let key): .dm(key)
+        }
     }
 
     private var title: String {

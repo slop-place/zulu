@@ -57,6 +57,15 @@ struct MacCommands: Commands {
                 .keyboardShortcut("k")
                 .disabled(model.phase != .signedIn)
 
+            Button("Search Messages…") {
+                ui.messageSearch = MacUIState.MessageSearchRequest(origin: model.destination)
+            }
+            .keyboardShortcut("f")
+            .disabled(model.phase != .signedIn)
+            Button("Search Everywhere…") { ui.messageSearch = MacUIState.MessageSearchRequest(origin: nil) }
+                .keyboardShortcut("f", modifiers: [.command, .shift])
+                .disabled(model.phase != .signedIn)
+
             Divider()
 
             if showsRecent {
