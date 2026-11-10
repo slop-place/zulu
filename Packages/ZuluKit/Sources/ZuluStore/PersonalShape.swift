@@ -169,27 +169,28 @@ extension ZuluStore {
     public func observePromotedTopics(in scope: SidebarScope)
         -> ValueObservation<ValueReducers.Fetch<[PromotedTopicSummary]>>
     {
-        let (membership, arguments) = scope.promotedMembership
+        ValueObservation.tracking { db in try Self.promotedTopics(in: scope, db) }
+    }
 
-        return ValueObservation.tracking { db in
-            try PromotedTopicSummary.fetchAll(db, sql: """
-                SELECT p.channelID, p.topic, p.groupID,
-                       COALESCE(p.alias, NULLIF(p.topic, ''), 'general chat') AS displayName,
-                       COALESCE(c.alias, c.name) AS channelName,
-                       c.isRestricted,
-                       (SELECT COUNT(*) FROM unread u
-                         WHERE u.channelID = p.channelID AND u.topic = p.topic) AS unreadCount,
-                       (SELECT COUNT(*) FROM unread u
-                         WHERE u.channelID = p.channelID AND u.topic = p.topic
-                           AND u.isMention = 1) AS mentionCount,
-                       p.position
-                  FROM promotedTopic p
-                  JOIN channel c ON c.id = p.channelID
-                 WHERE \(membership)
-                   AND \(TopicMuting.isNotMuted(channel: "p.channelID", topic: "p.topic"))
-                 ORDER BY p.position
-                """, arguments: arguments)
-        }
+    static func promotedTopics(in scope: SidebarScope, _ db: Database) throws -> [PromotedTopicSummary] {
+        let (membership, arguments) = scope.promotedMembership
+        return try PromotedTopicSummary.fetchAll(db, sql: """
+            SELECT p.channelID, p.topic, p.groupID,
+                   COALESCE(p.alias, NULLIF(p.topic, ''), 'general chat') AS displayName,
+                   COALESCE(c.alias, c.name) AS channelName,
+                   c.isRestricted,
+                   (SELECT COUNT(*) FROM unread u
+                     WHERE u.channelID = p.channelID AND u.topic = p.topic) AS unreadCount,
+                   (SELECT COUNT(*) FROM unread u
+                     WHERE u.channelID = p.channelID AND u.topic = p.topic
+                       AND u.isMention = 1) AS mentionCount,
+                   p.position
+              FROM promotedTopic p
+              JOIN channel c ON c.id = p.channelID
+             WHERE \(membership)
+               AND \(TopicMuting.isNotMuted(channel: "p.channelID", topic: "p.topic"))
+             ORDER BY p.position
+            """, arguments: arguments)
     }
 
     public func setGroup(_ groupID: String?, forPromotedTopic topic: String, inChannel channelID: Int) throws {

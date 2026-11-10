@@ -8,6 +8,7 @@ struct MessageBody: View {
     /// Changes whenever the blocks do, so the emoji they need are loaded again.
     private let contentKey: String
     private let blocks: [MessageBlock]
+    private let pieces: [Piece]
     private let emojiOnly: Bool
     @Environment(AppModel.self) private var model
 
@@ -28,6 +29,7 @@ struct MessageBody: View {
     init(blocks: [MessageBlock], contentKey: String) {
         self.contentKey = contentKey
         self.blocks = blocks
+        pieces = Self.pieces(of: blocks)
         let emojiOnly = MessageMarkup.isEmojiOnly(blocks)
         self.emojiOnly = emojiOnly
         let height = Self.line(emojiOnly: emojiOnly).height
@@ -40,29 +42,31 @@ struct MessageBody: View {
 
     var body: some View {
         Group {
-            // Redrawing on a clock is only worth it when something in here moves. An
-            // animated emoji cannot live in a `Text`, so the paragraph around it is
-            // rebuilt each tick with the frame for that moment.
+            // Redrawing on a clock is only worth it when something in here moves. The
+            // text holds each moving emoji's first frame, and only its drawing changes
+            // with the clock.
             if emoji.values.contains(where: \.isAnimated) {
                 TimelineView(.periodic(from: .now, by: Self.tick)) { context in
-                    stack(at: context.date.timeIntervalSinceReferenceDate)
+                    stack.environment(\.inlineEmojiPlayback, InlineEmojiPlayback(
+                        frames: emoji, time: context.date.timeIntervalSinceReferenceDate
+                    ))
                 }
             } else {
-                stack(at: 0)
+                stack
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .task(id: contentKey) { await loadEmoji() }
     }
 
-    private func stack(at time: TimeInterval) -> some View {
+    private var stack: some View {
         VStack(alignment: .leading, spacing: Self.blockSpacing) {
-            ForEach(Self.pieces(of: blocks)) { piece in
+            ForEach(pieces) { piece in
                 switch piece {
                 case .text(let run, _):
-                    TextRunView(blocks: run, emoji: emoji, time: time, emojiOnly: emojiOnly)
+                    TextRunView(blocks: run, emoji: emoji, emojiOnly: emojiOnly).equatable()
                 case .block(let block):
-                    BlockView(block: block, emoji: emoji, time: time, emojiOnly: emojiOnly)
+                    BlockView(block: block, emoji: emoji, emojiOnly: emojiOnly).equatable()
                 }
             }
         }
@@ -139,12 +143,15 @@ struct MessageBody: View {
 /// Consecutive paragraphs and lists as one `Text`, so a selection can run through them.
 /// Paragraphs are parted by a line in a tiny font, which is how one `Text` gets the
 /// spacing the stack gives separate blocks; list items get their marker in the text.
-struct TextRunView: View {
+struct TextRunView: View, Equatable {
     let blocks: [MessageBlock]
     let emoji: [String: EmojiFrames]
-    var time: TimeInterval = 0
     var emojiOnly = false
     @Environment(\.textScale) private var scale
+
+    nonisolated static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.blocks == rhs.blocks && lhs.emoji == rhs.emoji && lhs.emojiOnly == rhs.emojiOnly
+    }
 
     var body: some View {
         merged
@@ -155,7 +162,7 @@ struct TextRunView: View {
     }
 
     private var merged: Text {
-        let styler = InlineStyler(emoji: emoji, time: time, emojiOnly: emojiOnly, scale: scale)
+        let styler = InlineStyler(emoji: emoji, emojiOnly: emojiOnly, scale: scale)
         var result = Text("")
         for (index, block) in blocks.enumerated() {
             if index > 0 {
@@ -182,33 +189,34 @@ struct TextRunView: View {
     }
 }
 
-/// Turns spans into `Text`, with the emoji frame for this moment in place of each
-/// custom emoji. Shared by the block and the run renderers.
+/// Turns spans into `Text`, with each custom emoji's first frame in its place. A moving
+/// emoji is marked so the renderer can draw its other frames over that one. Shared by
+/// the block and the run renderers.
 @MainActor
 struct InlineStyler {
     let emoji: [String: EmojiFrames]
-    let time: TimeInterval
     let emojiOnly: Bool
     let scale: CGFloat
 
     private var body: Font { .scaled(.body, by: scale) }
 
     func styled(_ spans: [InlineSpan]) -> Text {
-        spans.reduce(Text("")) { result, span in
-            guard let name = span.emojiName else { return result + drawn(span) }
+        spans.enumerated().reduce(Text("")) { result, item in
+            let (position, span) = item
+            guard let name = span.emojiName else { return result + drawn(span, at: position) }
             let display: EmojiDisplay = span.emojiURL.map { .image(url: $0, still: nil) }
                 ?? .glyph(span.text)
-            return result + drawn(span).customAttribute(EmojiNameAttribute(name: name, display: display))
+            return result + drawn(span, at: position)
+                .customAttribute(EmojiNameAttribute(name: name, display: display))
         }
     }
 
-    private func drawn(_ span: InlineSpan) -> Text {
+    private func drawn(_ span: InlineSpan, at position: Int) -> Text {
         guard let url = span.emojiURL else { return text(for: span) }
-        if let frames = emoji[url] {
-            return Text(frames.frame(at: time))
-                .baselineOffset(MessageBody.line(emojiOnly: emojiOnly).descender)
-        }
-        return Text(span.text).foregroundColor(TextTone.secondary)
+        guard let frames = emoji[url] else { return Text(span.text).foregroundColor(TextTone.secondary) }
+        let still = Text(frames.frames[0]).baselineOffset(MessageBody.line(emojiOnly: emojiOnly).descender)
+        guard frames.isAnimated else { return still }
+        return still.customAttribute(AnimatedEmojiAttribute(url: url, position: position))
     }
 
     private func text(for span: InlineSpan) -> Text {
@@ -232,13 +240,15 @@ struct InlineStyler {
     }
 }
 
-struct BlockView: View {
+struct BlockView: View, Equatable {
     let block: MessageBlock
     let emoji: [String: EmojiFrames]
-    /// Which moment of an animated emoji to draw. Constant for messages that have none.
-    var time: TimeInterval = 0
     var emojiOnly = false
     @Environment(\.textScale) private var scale
+
+    nonisolated static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.block == rhs.block && lhs.emoji == rhs.emoji && lhs.emojiOnly == rhs.emojiOnly
+    }
 
     var body: some View {
         switch block {
@@ -253,7 +263,7 @@ struct BlockView: View {
             HStack(alignment: .top, spacing: 8) {
                 Capsule().fill(.tertiary).frame(width: 3)
                 VStack(alignment: .leading, spacing: 6) {
-                    ForEach(inner) { BlockView(block: $0, emoji: emoji, time: time) }
+                    ForEach(inner) { BlockView(block: $0, emoji: emoji) }
                 }
                 .foregroundStyle(TextTone.secondary)
             }
@@ -303,7 +313,7 @@ struct BlockView: View {
 
         case .quotedReply(let author, let authorID, _, let quoted):
             QuotedReplyView(
-                author: author, authorID: authorID, quoted: quoted, emoji: emoji, time: time
+                author: author, authorID: authorID, quoted: quoted, emoji: emoji
             )
         }
     }
@@ -311,7 +321,7 @@ struct BlockView: View {
     /// Built by concatenating `Text`, which is the only way to put an image in the middle
     /// of a wrapping paragraph.
     private func styled(_ spans: [InlineSpan]) -> Text {
-        InlineStyler(emoji: emoji, time: time, emojiOnly: emojiOnly, scale: scale).styled(spans)
+        InlineStyler(emoji: emoji, emojiOnly: emojiOnly, scale: scale).styled(spans)
     }
 }
 
@@ -330,7 +340,6 @@ private struct QuotedReplyView: View {
     let authorID: Int?
     let quoted: [MessageBlock]
     let emoji: [String: EmojiFrames]
-    let time: TimeInterval
 
     @State private var expanded = false
     @Environment(\.textScale) private var scale
@@ -364,7 +373,7 @@ private struct QuotedReplyView: View {
                 HStack(alignment: .top, spacing: 8) {
                     Capsule().fill(.tertiary).frame(width: 3)
                     VStack(alignment: .leading, spacing: 6) {
-                        ForEach(quoted) { BlockView(block: $0, emoji: emoji, time: time) }
+                        ForEach(quoted) { BlockView(block: $0, emoji: emoji) }
                     }
                     .foregroundStyle(TextTone.secondary)
                 }
@@ -397,17 +406,19 @@ private struct QuotedReplyView: View {
 }
 
 /// Parsed once per distinct body. A row's view is rebuilt every time the conversation
-/// changes, and reading the HTML again each time costs frames while scrolling.
-@MainActor
+/// changes, and reading the HTML again each time costs frames while scrolling. A
+/// conversation's messages are parsed off the main thread as they load, so a row
+/// usually finds its blocks here already.
 enum ParsedMessages {
-    private final class Box {
+    private final class Box: Sendable {
         let blocks: [MessageBlock]
         init(_ blocks: [MessageBlock]) { self.blocks = blocks }
     }
 
-    private static let cache: NSCache<NSString, Box> = {
+    // NSCache is thread-safe but not marked Sendable.
+    nonisolated(unsafe) private static let cache: NSCache<NSString, Box> = {
         let cache = NSCache<NSString, Box>()
-        cache.countLimit = 1000
+        cache.countLimit = 4000
         return cache
     }()
 

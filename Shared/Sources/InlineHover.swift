@@ -12,6 +12,25 @@ struct EmojiNameAttribute: TextAttribute {
     let display: EmojiDisplay
 }
 
+/// Marks a moving custom emoji, which the text holds as its first frame. `position` keeps
+/// two of the same emoji side by side in runs of their own.
+struct AnimatedEmojiAttribute: TextAttribute {
+    let url: String
+    let position: Int
+}
+
+/// The frames of a message's moving emoji, and the moment to draw them at. Only the
+/// drawing changes from one moment to the next, so the text is not built or measured
+/// again for each frame.
+struct InlineEmojiPlayback {
+    var frames: [String: EmojiFrames] = [:]
+    var time: TimeInterval = 0
+}
+
+extension EnvironmentValues {
+    @Entry var inlineEmojiPlayback = InlineEmojiPlayback()
+}
+
 extension View {
     /// Selectable text shows an I-beam everywhere, links included. This puts the
     /// pointing hand back over the links, and names an emoji when the pointer rests on
@@ -41,9 +60,11 @@ struct EmojiFrame: Equatable {
     let emoji: EmojiNameAttribute
 }
 
-/// Draws the text unchanged, noting where each link and emoji landed along the way.
+/// Draws the text, with each moving emoji at its frame for the moment, noting where each
+/// link and emoji landed along the way.
 private struct InlineFrameRecorder: TextRenderer {
     let frames: InlineFrames
+    let playback: InlineEmojiPlayback
 
     func draw(layout: Text.Layout, in context: inout GraphicsContext) {
         var links: [LinkFrame] = []
@@ -55,7 +76,11 @@ private struct InlineFrameRecorder: TextRenderer {
                 if let attribute = run[EmojiNameAttribute.self] {
                     emoji.append(EmojiFrame(rect: rect, emoji: attribute))
                 }
-                context.draw(run)
+                if let animated = run[AnimatedEmojiAttribute.self], let moving = playback.frames[animated.url] {
+                    context.draw(moving.frame(at: playback.time), in: rect)
+                } else {
+                    context.draw(run)
+                }
             }
         }
         frames.links = links
@@ -142,13 +167,14 @@ private struct LinkTargets: View {
 private struct InlineHover: ViewModifier {
     @State private var frames = InlineFrames()
     @State private var emojiName = EmojiNameState()
+    @Environment(\.inlineEmojiPlayback) private var playback
     #if os(macOS)
     @State private var links: [LinkFrame] = []
     #endif
 
     func body(content: Content) -> some View {
         content
-            .textRenderer(InlineFrameRecorder(frames: frames))
+            .textRenderer(InlineFrameRecorder(frames: frames, playback: playback))
             #if os(macOS)
             .overlay { LinkTargets(links: links) }
             .onAppear {

@@ -108,16 +108,30 @@ extension ZuluStore {
     public func observeChannels(in scope: SidebarScope)
         -> ValueObservation<ValueReducers.Fetch<[ChannelSummary]>>
     {
-        let (membership, arguments) = scope.channelMembership
-        return ValueObservation.tracking { db in
-            try ChannelSummary.fetchAll(db, sql: """
-                SELECT \(Self.sidebarRowColumns)
-                  FROM channel c
-                 WHERE \(membership)
-                   AND \(ChannelVisibility.clause)
-                 ORDER BY c.pinned DESC, c.position IS NULL, c.position, c.name COLLATE NOCASE
-                """, arguments: arguments)
+        ValueObservation.tracking { db in try Self.channels(in: scope, db) }
+    }
+
+    /// Everything one section of the sidebar lists, read together so the rows land in
+    /// one frame instead of filling in a part at a time.
+    public func observeSidebar(in scope: SidebarScope) -> ValueObservation<ValueReducers.Fetch<SidebarRows>> {
+        ValueObservation.tracking { db in
+            SidebarRows(
+                channels: try Self.channels(in: scope, db),
+                promoted: try Self.promotedTopics(in: scope, db),
+                mentionedHidden: try Self.mentionedHiddenChannels(in: scope, db)
+            )
         }
+    }
+
+    static func channels(in scope: SidebarScope, _ db: Database) throws -> [ChannelSummary] {
+        let (membership, arguments) = scope.channelMembership
+        return try ChannelSummary.fetchAll(db, sql: """
+            SELECT \(Self.sidebarRowColumns)
+              FROM channel c
+             WHERE \(membership)
+               AND \(ChannelVisibility.clause)
+             ORDER BY c.pinned DESC, c.position IS NULL, c.position, c.name COLLATE NOCASE
+            """, arguments: arguments)
     }
 
     /// Hidden channels in a group that have a mention waiting. A hidden channel keeps
@@ -132,19 +146,21 @@ extension ZuluStore {
     public func observeMentionedHiddenChannels(in scope: SidebarScope)
         -> ValueObservation<ValueReducers.Fetch<[ChannelSummary]>>
     {
+        ValueObservation.tracking { db in try Self.mentionedHiddenChannels(in: scope, db) }
+    }
+
+    static func mentionedHiddenChannels(in scope: SidebarScope, _ db: Database) throws -> [ChannelSummary] {
         let (membership, arguments) = scope.channelMembership
-        return ValueObservation.tracking { db in
-            try ChannelSummary.fetchAll(db, sql: """
-                SELECT * FROM (
-                    SELECT \(Self.sidebarRowColumns)
-                      FROM channel c
-                     WHERE \(membership)
-                       AND c.hidden = 1
-                )
-                 WHERE mentionCount > 0
-                 ORDER BY name COLLATE NOCASE
-                """, arguments: arguments)
-        }
+        return try ChannelSummary.fetchAll(db, sql: """
+            SELECT * FROM (
+                SELECT \(Self.sidebarRowColumns)
+                  FROM channel c
+                 WHERE \(membership)
+                   AND c.hidden = 1
+            )
+             WHERE mentionCount > 0
+             ORDER BY name COLLATE NOCASE
+            """, arguments: arguments)
     }
 
 
@@ -168,7 +184,8 @@ extension ZuluStore {
           WHERE u.channelID = c.id AND u.isMention = 1
             AND \(TopicMuting.unreadIsNotPromoted)
             AND \(GeneralChat.unreadIsGeneralChat)) AS generalChatMentionCount,
-        c.position
+        c.position,
+        \(GeneralChat.columns)
         """
 
     public func groups() throws -> [ChannelGroupRecord] {
@@ -241,6 +258,14 @@ extension ZuluStore {
 }
 
 /// Which channels a sidebar list holds.
+public struct SidebarRows: Sendable, Equatable {
+    public var channels: [ChannelSummary]
+    public var promoted: [PromotedTopicSummary]
+    public var mentionedHidden: [ChannelSummary]
+
+    public static let empty = SidebarRows(channels: [], promoted: [], mentionedHidden: [])
+}
+
 public enum SidebarScope: Hashable, Sendable {
     /// Every channel, filed in a group or not.
     case everything

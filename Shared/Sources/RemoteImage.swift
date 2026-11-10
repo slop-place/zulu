@@ -14,8 +14,8 @@ struct RemoteImage: View {
     @Environment(AppModel.self) private var model
     @Environment(AttachmentPreviewer.self) private var previewer
     @State private var loaded: (path: String, image: Image)?
-    /// The frame showing now, while a picture with more than one is playing.
-    @State private var frame: (path: String, image: Image)?
+    /// Set once a picture turns out to have more than one frame.
+    @State private var playing: (path: String, animation: FrameAnimation)?
     @State private var failedPath: String?
 
     init(path: String, fullSize: String? = nil, alt: String? = nil, aspectRatio: Double? = nil) {
@@ -31,21 +31,28 @@ struct RemoteImage: View {
         return DecodedImages.image(at: path) ?? fullSize.flatMap(DecodedImages.image(at:))
     }
 
-    private var currentFrame: Image? {
-        guard let frame, frame.path == path else { return nil }
-        return frame.image
+    private var animation: FrameAnimation? {
+        if let playing, playing.path == path { return playing.animation }
+        return DecodedImages.animation(at: path)
     }
 
     private var failed: Bool { failedPath == path }
 
+    private static let cornerRadius: CGFloat = 10
+
     var body: some View {
         Group {
             if let image {
-                (currentFrame ?? image)
+                image
                     .resizable()
                     .scaledToFit()
+                    .overlay {
+                        if let animation {
+                            FrameAnimationView(animation: animation, cornerRadius: Self.cornerRadius)
+                        }
+                    }
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                    .clipShape(RoundedRectangle(cornerRadius: Self.cornerRadius))
             } else if failed {
                 Label(alt ?? "Image", systemImage: "photo")
                     .font(.footnote)
@@ -71,28 +78,36 @@ struct RemoteImage: View {
         .task(id: path) {
             let path = path
             if image == nil {
-                guard let data = await data(for: path), let decoded = Platform.image(from: data) else {
+                guard let data = await data(for: path),
+                      let decoded = await Platform.decodedImage(from: data, maxPixelSize: Self.maxPixels)
+                else {
                     // Scrolled away mid-fetch is not a failure; the next appearance fetches again.
                     if !Task.isCancelled { failedPath = path }
                     return
                 }
                 DecodedImages.store(decoded, at: path)
-                loaded = (path, decoded)
+                loaded = (path, decoded.swiftUIImage)
             }
-            await play(path)
+            await prepareAnimation(path)
         }
     }
 
-    /// The picture is shown at most this wide, so a frame need not be decoded larger
-    /// than twice that: enough for a Retina screen, and far less work than full size.
+    /// The picture is shown at most 320 points wide, so it need not be decoded larger
+    /// than that on a 3x screen.
+    private static let maxPixels = 960
+    /// Every frame of a moving picture is held at once, so they are kept smaller.
     private static let maxFramePixels = 640
 
-    /// Runs for as long as the picture is on screen, and only if it moves.
-    private func play(_ path: String) async {
-        guard let data = await data(for: path), AnimatedPicture.isAnimated(data) else { return }
-        for await next in AnimatedPicture.frames(of: data, maxPixelSize: Self.maxFramePixels) {
-            frame = (path, Image(decorative: next, scale: 1))
+    private func prepareAnimation(_ path: String) async {
+        guard animation == nil, !DecodedImages.isStill(path),
+              let data = await data(for: path)
+        else { return }
+        guard let decoded = await FrameAnimation.decode(data, maxPixelSize: Self.maxFramePixels) else {
+            DecodedImages.markStill(path)
+            return
         }
+        DecodedImages.store(decoded, at: path)
+        playing = (path, decoded)
     }
 
     /// The original stands in for the thumbnail when this device already has it, as it
@@ -162,8 +177,22 @@ enum DecodedImages {
     private static let images: NSCache<NSString, Box<Image>> = {
         let cache = NSCache<NSString, Box<Image>>()
         cache.countLimit = 300
+        cache.totalCostLimit = imageBytesLimit
         return cache
     }()
+
+    private static let animations: NSCache<NSString, Box<FrameAnimation>> = {
+        let cache = NSCache<NSString, Box<FrameAnimation>>()
+        cache.totalCostLimit = animationBytesLimit
+        return cache
+    }()
+
+    /// Pictures already known to have one frame, so showing one again does not fetch
+    /// and inspect it again.
+    private static var stills: Set<String> = []
+
+    private static let imageBytesLimit = 128 * 1024 * 1024
+    private static let animationBytesLimit = 96 * 1024 * 1024
 
     private static let emoji: NSCache<NSString, Box<EmojiFrames>> = {
         let cache = NSCache<NSString, Box<EmojiFrames>>()
@@ -175,9 +204,21 @@ enum DecodedImages {
         images.object(forKey: path as NSString)?.value
     }
 
-    static func store(_ image: Image, at path: String) {
-        images.setObject(Box(image), forKey: path as NSString)
+    static func store(_ frame: DecodedFrame, at path: String) {
+        images.setObject(Box(frame.swiftUIImage), forKey: path as NSString, cost: frame.cost)
     }
+
+    static func animation(at path: String) -> FrameAnimation? {
+        animations.object(forKey: path as NSString)?.value
+    }
+
+    static func store(_ animation: FrameAnimation, at path: String) {
+        animations.setObject(Box(animation), forKey: path as NSString, cost: animation.cost)
+    }
+
+    static func isStill(_ path: String) -> Bool { stills.contains(path) }
+
+    static func markStill(_ path: String) { stills.insert(path) }
 
     /// Keyed by height as well, since a text size change needs the emoji redrawn.
     static func emoji(at url: String, height: CGFloat) -> EmojiFrames? {

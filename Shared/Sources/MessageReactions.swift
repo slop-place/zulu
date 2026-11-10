@@ -259,14 +259,17 @@ struct EmojiDisplayView: View {
 
     @ViewBuilder
     private func imageView(path: String) -> some View {
-        if let frames {
+        if let frames = frames ?? DecodedImages.emoji(at: path, height: imageSide) {
             AnimatedEmojiView(frames: frames)
         } else {
             Color.clear
                 .frame(width: imageSide, height: imageSide)
                 .task(id: path) {
-                    guard let data = await model.imageData(at: path) else { return }
-                    frames = await EmojiFrames.decode(data, height: imageSide)
+                    guard let data = await model.imageData(at: path),
+                          let decoded = await EmojiFrames.decode(data, height: imageSide)
+                    else { return }
+                    DecodedImages.store(decoded, at: path, height: imageSide)
+                    frames = decoded
                 }
         }
     }

@@ -2,6 +2,7 @@ import Foundation
 import GRDB
 import Observation
 import SwiftUI
+import Synchronization
 import ZuluStore
 
 /// Owns everything a conversation knows about its messages: what is loaded, whether older
@@ -14,11 +15,7 @@ import ZuluStore
 @MainActor
 @Observable
 final class MessageHistoryLoader {
-    private(set) var messages: [MessageRecord] = [] {
-        didSet { grouped = Self.group(messages, firstUnreadID: firstUnreadID) }
-    }
-    /// Kept in step with `messages` rather than worked out on read: the list reads it on
-    /// every render, and working it out took a calendar lookup per message each time.
+    private(set) var messages: [MessageRecord] = []
     private(set) var grouped: [GroupedMessage] = []
     private(set) var isLoadingOlder = false
     private(set) var hasMoreOlder = true
@@ -28,11 +25,11 @@ final class MessageHistoryLoader {
     private(set) var isReady = false
     private(set) var reactions: [Int: [ReactionGroup]] = [:]
 
-    private let source: ConversationSource
+    let source: ConversationSource
     private let model: AppModel
     private var scrollPhase: ScrollPhase = .idle
-    private var observationTask: Task<Void, Never>?
-    private var reactionTask: Task<Void, Never>?
+    @ObservationIgnored private var observation: AnyDatabaseCancellable?
+    @ObservationIgnored private var openedFromStore = false
 
     init(source: ConversationSource, model: AppModel) {
         self.source = source
@@ -42,27 +39,29 @@ final class MessageHistoryLoader {
     /// Called when the conversation closes. `deinit` cannot touch main-actor state, and
     /// leaving the observation running would keep writing into a view that is gone.
     func stop() {
-        observationTask?.cancel()
-        observationTask = nil
-        reactionTask?.cancel()
-        reactionTask = nil
+        observation?.cancel()
+        observation = nil
+        isStopped = true
     }
 
-    /// Opens on what is stored when that reaches back to the first unread message, and
-    /// merges in what the server adds as it arrives. Waiting for the server on every
-    /// switch drew a blank conversation for a network round trip each time. Otherwise it
-    /// does wait: opened on a stored history that stops short of the first unread, the
-    /// conversation would open past everything the reader has not seen.
+    /// A conversation coming back on screen opens a fresh loader rather than this one.
+    @ObservationIgnored private(set) var isStopped = false
+
+    /// Shows what is stored at once, when that reaches back to the first unread message.
+    /// Called before the conversation's first frame, so it opens drawn rather than blank.
+    func openFromStore() {
+        guard !openedFromStore, canOpenFromStore else { return }
+        openedFromStore = true
+        observe()
+    }
+
+    /// Merges in what the server adds. Opened on a stored history that stops short of the
+    /// first unread, the conversation would open past everything the reader has not seen,
+    /// so then it waits for the server before showing anything.
     func start() async {
-        if canOpenFromStore {
-            observeReactions()
-            observe()
-            await loadInitialHistory()
-        } else {
-            await loadInitialHistory()
-            observeReactions()
-            observe()
-        }
+        openFromStore()
+        await loadInitialHistory()
+        observe()
     }
 
     private var canOpenFromStore: Bool {
@@ -84,30 +83,38 @@ final class MessageHistoryLoader {
         }
     }
 
+    /// The first value is read on the spot, so the rows are there for the frame that asked
+    /// for them. Every later one is grouped and parsed off the main thread.
     private func observe() {
-        guard let writer = model.databaseWriter, let store = model.storeForReading else { return }
-        let observation: ValueObservation<ValueReducers.Fetch<[MessageRecord]>> = switch source {
-        case .topic(let channelID, let name, _):
-            store.observeMessages(channelID: channelID, topic: name)
-        case .dm(let key):
-            store.observeMessages(dmKey: key)
+        guard observation == nil, let writer = model.databaseWriter, let store = model.storeForReading
+        else { return }
+        let rows = switch source {
+        case .topic(let channelID, let name, _): store.observeConversation(channelID: channelID, topic: name)
+        case .dm(let key): store.observeConversation(dmKey: key)
         }
+        let firstUnread = FirstUnreadSnapshot()
+        let selfUserID = model.selfUserID
 
-        observationTask = Task { [weak self] in
-            do {
-                for try await rows in observation.removeDuplicates().values(in: writer) {
-                    guard let self else { return }
-                    if !isReady {
-                        firstUnreadID = rows.first { !$0.isRead }?.id
-                        isReady = true
-                    }
-                    messages = rows
-                    model.outbox.settle(landed: Set(rows.map(\.id)))
-                }
-            } catch {
-                // Observation ends when the conversation closes; nothing to recover.
+        observation = rows
+            .map { ConversationSnapshot($0, firstUnreadID: firstUnread.resolve(in: $0.messages), selfUserID: selfUserID) }
+            .removeDuplicates()
+            .start(in: writer, scheduling: .immediate, onError: { _ in }) { [weak self] snapshot in
+                MainActor.assumeIsolated { self?.apply(snapshot) }
             }
+    }
+
+    private func apply(_ snapshot: ConversationSnapshot) {
+        if !isReady {
+            firstUnreadID = snapshot.firstUnreadID
+            isReady = true
+            // Read on the spot, the first value was not parsed ahead of the rows.
+            let bodies = snapshot.messages.map(\.renderedContent)
+            Task.detached(priority: .userInitiated) { ConversationSnapshot.parse(bodies) }
         }
+        if messages != snapshot.messages { messages = snapshot.messages }
+        if grouped != snapshot.grouped { grouped = snapshot.grouped }
+        if reactions != snapshot.reactions { reactions = snapshot.reactions }
+        model.outbox.settle(landed: Set(snapshot.messages.map(\.id)))
     }
 
     func noteScrollPhase(_ phase: ScrollPhase) {
@@ -136,11 +143,45 @@ final class MessageHistoryLoader {
         }
         if result == .reachedStart { hasMoreOlder = false }
     }
+}
+
+struct GroupedMessage: Identifiable, Equatable, Sendable {
+    let message: MessageRecord
+    let startsGroup: Bool
+    let startsDay: Bool
+
+    var id: Int { message.id }
+}
+
+/// What a conversation shows, worked out from its rows wherever the store delivers them.
+struct ConversationSnapshot: Equatable, Sendable {
+    let messages: [MessageRecord]
+    let grouped: [GroupedMessage]
+    let reactions: [Int: [ReactionGroup]]
+    let firstUnreadID: Int?
+
+    init(_ rows: ConversationRows, firstUnreadID: Int?, selfUserID: Int?) {
+        messages = rows.messages
+        self.firstUnreadID = firstUnreadID
+        grouped = Self.group(rows.messages, firstUnreadID: firstUnreadID)
+        reactions = Dictionary(grouping: rows.reactions, by: \.messageID)
+            .mapValues { ReactionGroup.group($0, selfUserID: selfUserID) }
+        // The first value is read on the main thread, where parsing every body would
+        // hold up the frame it is read for.
+        if !Thread.isMainThread { Self.parse(rows.messages.map(\.renderedContent)) }
+    }
+
+    /// The newest bodies are the ones a conversation opens on.
+    static func parse(_ bodies: [String]) {
+        for body in bodies.suffix(parsedAhead) { _ = ParsedMessages.blocks(from: body) }
+    }
+
+    private static let parsedAhead = 300
 
     /// Consecutive messages from one person collapse under a single header, the way every
     /// chat client does it. A long enough pause starts a new group even for the same sender,
     /// so a conversation picked up hours later does not read as one block.
-    private static func group(_ messages: [MessageRecord], firstUnreadID: Int?) -> [GroupedMessage] {
+    static func group(_ messages: [MessageRecord], firstUnreadID: Int?) -> [GroupedMessage] {
         var previous: MessageRecord?
         return messages.map { message in
             defer { previous = message }
@@ -154,7 +195,7 @@ final class MessageHistoryLoader {
             let startsDay = !Calendar.current.isDate(previous.date, inSameDayAs: message.date)
                 || message.id == firstUnreadID
             let sameSender = previous.senderID == message.senderID
-            let closeInTime = message.timestamp - previous.timestamp < Self.groupingWindow
+            let closeInTime = message.timestamp - previous.timestamp < groupingWindow
             let continues = sameSender && closeInTime && !startsDay && message.id != firstUnreadID
             return GroupedMessage(message: message, startsGroup: !continues, startsDay: startsDay)
         }
@@ -164,33 +205,16 @@ final class MessageHistoryLoader {
     static let groupingWindow = 5 * 60
 }
 
-struct GroupedMessage: Identifiable, Equatable {
-    let message: MessageRecord
-    let startsGroup: Bool
-    let startsDay: Bool
+/// The first unread message as the conversation first loaded, kept for as long as it is open.
+private final class FirstUnreadSnapshot: Sendable {
+    private let value = Mutex<Int??>(nil)
 
-    var id: Int { message.id }
-}
-
-extension MessageHistoryLoader {
-    /// Reactions arrive as one observation for the whole conversation. Watching them per
-    /// message meant every row started empty and grew once its own query returned — and a
-    /// lazy row that gains height after it has been measured is not reliably re-laid-out,
-    /// so the chips never appeared at all.
-    func observeReactions() {
-        guard let writer = model.databaseWriter, let store = model.storeForReading else { return }
-        reactionTask = Task { [weak self] in
-            do {
-                for try await records in store.observeAllReactions().removeDuplicates().values(in: writer) {
-                    guard let self else { return }
-                    let byMessage = Dictionary(grouping: records, by: \.messageID)
-                    reactions = byMessage.mapValues {
-                        ReactionGroup.group($0, selfUserID: model.selfUserID)
-                    }
-                }
-            } catch {
-                // Ends with the conversation; nothing to recover.
-            }
+    func resolve(in messages: [MessageRecord]) -> Int? {
+        value.withLock { stored in
+            if let stored { return stored }
+            let first = messages.first { !$0.isRead }?.id
+            stored = .some(first)
+            return first
         }
     }
 }
