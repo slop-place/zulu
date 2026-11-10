@@ -9,56 +9,30 @@ struct DecodedFrame: @unchecked Sendable {
     let delay: Double
 }
 
-/// A picture with more than one frame, played the way a browser plays it: at the file's
-/// own delays, one frame decoded at a time, so a long GIF never sits in memory whole.
-///
-/// Decoding runs off the main thread. `CGAnimateImageDataWithBlock` decoded every frame
-/// on it, and a conversation with a few GIFs in view spent a tenth of its frame budget
-/// in the GIF decoder before drawing anything.
 enum AnimatedPicture {
     static func isImage(_ data: Data) -> Bool {
         guard let source = CGImageSourceCreateWithData(data as CFData, nil) else { return false }
         return CGImageSourceGetType(source) != nil
     }
+}
 
-    static func isAnimated(_ data: Data) -> Bool {
-        guard let source = CGImageSourceCreateWithData(data as CFData, nil) else { return false }
-        return CGImageSourceGetCount(source) > 1
+extension Platform {
+    /// A picture's first frame, decoded off the main thread at no more than `maxPixelSize`.
+    /// Made from the bytes directly, a platform image is decoded at full size on the main
+    /// thread the first time it is drawn.
+    static func decodedImage(from data: Data, maxPixelSize: Int) async -> DecodedFrame? {
+        await Task.detached(priority: .userInitiated) {
+            guard let source = CGImageSourceCreateWithData(data as CFData, nil),
+                  let image = FrameDecoding.image(source: source, index: 0, maxPixelSize: maxPixelSize)
+            else { return nil }
+            return DecodedFrame(image: image, delay: 0)
+        }.value
     }
+}
 
-    /// Frames, for as long as the reader keeps reading them, no larger than
-    /// `maxPixelSize` on their longer side: a frame is drawn at the size it will be shown.
-    static func frames(of data: Data, maxPixelSize: Int) -> AsyncStream<CGImage> {
-        AsyncStream { continuation in
-            let task = Task.detached(priority: .utility) {
-                guard let source = CGImageSourceCreateWithData(data as CFData, nil) else {
-                    continuation.finish()
-                    return
-                }
-                let count = CGImageSourceGetCount(source)
-                guard count > 1 else {
-                    continuation.finish()
-                    return
-                }
-                let delays = (0..<count).map { FrameDecoding.delay(source: source, index: $0) }
-                var index = 0
-                while !Task.isCancelled {
-                    let started = ContinuousClock.now
-                    if let frame = FrameDecoding.image(source: source, index: index, maxPixelSize: maxPixelSize) {
-                        continuation.yield(frame)
-                    }
-                    let elapsed = ContinuousClock.now - started
-                    let remaining = Duration.seconds(delays[index]) - elapsed
-                    if remaining > .zero {
-                        try? await Task.sleep(for: remaining)
-                    }
-                    index = (index + 1) % count
-                }
-                continuation.finish()
-            }
-            continuation.onTermination = { _ in task.cancel() }
-        }
-    }
+extension DecodedFrame {
+    var swiftUIImage: Image { Image(decorative: image, scale: 1) }
+    var cost: Int { image.bytesPerRow * image.height }
 }
 
 /// Shared by the emoji and the picture decoders.
@@ -110,21 +84,22 @@ enum FrameDecoding {
 /// Realm custom emoji are frequently animated GIFs or WebPs, decoded here into the frames
 /// a caller can play.
 ///
-/// Frames rather than a platform image view: an emoji inline in a paragraph has to be a
-/// `Text`, which can only hold one still image, so the only way to animate one is to
-/// rebuild the paragraph with a different frame each tick. Reactions then use the same
-/// mechanism rather than a second one.
+/// An emoji inline in a paragraph has to be a `Text`, which holds one still image, so the
+/// paragraph's renderer draws the frame for the moment over it. Anywhere else the emoji
+/// is its own view, and Core Animation plays `animation` instead.
 struct EmojiFrames: Equatable {
     let frames: [Image]
     /// When each frame stops showing, measured from the start of the loop. Frames in one
     /// file can each have their own delay, so they cannot be spread evenly over the loop.
     let frameEnds: [Double]
+    let animation: FrameAnimation?
 
     var isAnimated: Bool { frames.count > 1 }
     var duration: Double { frameEnds.last ?? 0 }
 
-    init(frames: [Image], delays: [Double]) {
+    init(frames: [Image], delays: [Double], animation: FrameAnimation? = nil) {
         self.frames = frames
+        self.animation = animation
         var elapsed: Double = 0
         frameEnds = delays.map { delay in
             elapsed += delay
@@ -154,9 +129,11 @@ struct EmojiFrames: Equatable {
             }
         }.value
         guard !decoded.isEmpty else { return nil }
+        let delays = decoded.map(\.delay)
         return EmojiFrames(
             frames: decoded.map { Image(decorative: $0.image, scale: CGFloat($0.image.height) / height) },
-            delays: decoded.map(\.delay)
+            delays: delays,
+            animation: FrameAnimation(frames: decoded.map(\.image), delays: delays)
         )
     }
 }
@@ -165,17 +142,11 @@ struct EmojiFrames: Equatable {
 struct AnimatedEmojiView: View {
     let frames: EmojiFrames
 
-    /// Fast enough that nothing looks like a slideshow, slow enough that a wall of
-    /// reactions is not redrawn at display rate.
-    static let tick: TimeInterval = 1.0 / 15
-
     var body: some View {
-        if frames.isAnimated {
-            TimelineView(.periodic(from: .now, by: Self.tick)) { context in
-                frames.frame(at: context.date.timeIntervalSinceReferenceDate)
+        frames.frames[0].overlay {
+            if let animation = frames.animation, animation.isAnimated {
+                FrameAnimationView(animation: animation)
             }
-        } else {
-            frames.frames[0]
         }
     }
 }

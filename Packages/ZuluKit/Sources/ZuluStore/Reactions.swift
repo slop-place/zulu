@@ -271,16 +271,3 @@ extension ZuluStore {
         }
     }
 }
-
-extension ZuluStore {
-    /// Every reaction in the store, for one observation per conversation rather than one
-    /// per visible message. The table holds only reactions on messages we already have, so
-    /// it stays small, and grouping in memory is cheaper than a query per row.
-    public func observeAllReactions()
-        -> ValueObservation<ValueReducers.Fetch<[ReactionRecord]>>
-    {
-        ValueObservation.tracking { db in
-            try ReactionRecord.fetchAll(db, sql: "SELECT * FROM reaction ORDER BY rowid")
-        }
-    }
-}

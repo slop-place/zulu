@@ -51,9 +51,12 @@ struct SenderAvatar: View {
         // Gravatar and the realm's own uploads both arrive here; `imageData` decides
         // which of them may see the account's credentials.
         guard let data = await model.imageData(at: source),
-              let decoded = Platform.image(from: data)
+              let decoded = await Platform.decodedImage(from: data, maxPixelSize: Self.maxPixels)
         else { return }
         DecodedImages.store(decoded, at: source)
-        loaded = (source, decoded)
+        loaded = (source, decoded.swiftUIImage)
     }
+
+    /// Avatars are drawn at most 36 points across, so 3x that is all a screen can show.
+    private static let maxPixels = 120
 }

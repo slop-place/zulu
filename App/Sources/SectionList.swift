@@ -52,17 +52,9 @@ struct SectionList: View {
 
     @Environment(AppModel.self) private var model
 
-    @State private var visibleChannels: [ChannelSummary] = []
-    @State private var visiblePromoted: [PromotedTopicSummary] = []
-    /// Resolved once per change rather than per render: each row's preview is a parse of
-    /// rendered HTML.
-    @State private var recentEntries: [RecentEntry] = []
+    @State private var feed = SidebarFeed()
     /// Tall enough for a topic's three lines, so rows with fewer keep the list on an even rhythm.
     @ScaledMetric(relativeTo: .callout) private var recentRowHeight: CGFloat = 56
-    /// Hidden channels with a mention waiting, surfaced so the rail's count can be answered.
-    @State private var mentionedHidden: [ChannelSummary] = []
-    @State private var promotedTask: Task<Void, Never>?
-    @State private var mentionedHiddenTask: Task<Void, Never>?
     @State private var renamingChannel: ChannelSummary?
     @State private var renamingPromoted: PromotedTopicSummary?
     @State private var aliasDraft = ""
@@ -119,7 +111,7 @@ struct SectionList: View {
         .refreshable { await model.refreshTopics() }
         // Observed by the list, which both shells keep mounted: one observing only while
         // shown showed its last state for a moment every time it came back.
-        .task(id: section) { await observe() }
+        .onChange(of: feedContent, initial: true) { feed.show(feedContent, model: model) }
         .sheet(item: $mutedTopicsChannel) { channel in MutedTopicsView(channel: channel) }
         .sheet(item: $newTopicChannel) { channel in NewTopicSheet(channel: channel) }
         .sheet(isPresented: $showingReorder) { ReorderChannelsView(entries: sidebarEntries) }
@@ -168,8 +160,13 @@ struct SectionList: View {
     }
 
     private var sidebarEntries: [SidebarEntry] {
-        SidebarEntry.merged(channels: visibleChannels, promoted: visiblePromoted)
+        SidebarEntry.merged(channels: visibleChannels, promoted: feed.rows.promoted)
     }
+
+    private var visibleChannels: [ChannelSummary] { feed.rows.channels }
+    private var recentEntries: [RecentEntry] { feed.recent }
+    /// Hidden channels with a mention waiting, surfaced so the rail's count can be answered.
+    private var mentionedHidden: [ChannelSummary] { feed.rows.mentionedHidden }
 
     /// A hidden channel someone mentioned you in, listed until the mention is read. The
     /// heading says why a channel that was hidden is back.
@@ -202,50 +199,11 @@ struct SectionList: View {
         }
     }
 
-    private func observe() async {
-        guard section != .dms else { return }
-        if section == .recent {
-            await observeRecent()
-            return
-        }
-        let scope = section.scope
-        guard let writer = model.databaseWriter else { return }
-        if let promoted = model.promotedTopicObservation(in: scope) {
-            promotedTask?.cancel()
-            promotedTask = Task {
-                do {
-                    for try await rows in promoted.removeDuplicates().values(in: writer) { visiblePromoted = rows }
-                } catch {}
-            }
-        }
-        if let hidden = model.mentionedHiddenChannelObservation(in: scope) {
-            mentionedHiddenTask?.cancel()
-            mentionedHiddenTask = Task {
-                do {
-                    for try await rows in hidden.removeDuplicates().values(in: writer) { mentionedHidden = rows }
-                } catch {}
-            }
-        }
-        guard let observation = model.channelObservation(in: scope) else { return }
-        do {
-            for try await rows in observation.removeDuplicates().values(in: writer) {
-                visibleChannels = rows
-            }
-        } catch {
-            // Observation ends when the section changes; nothing to recover.
-        }
-    }
-
-    private func observeRecent() async {
-        guard let writer = model.databaseWriter,
-              let observation = model.recentConversationObservation()
-        else { return }
-        do {
-            for try await rows in observation.removeDuplicates().values(in: writer) {
-                recentEntries = RecentEntry.resolve(rows, model: model)
-            }
-        } catch {
-            // Observation ends when the section changes; nothing to recover.
+    private var feedContent: SidebarFeed.Content {
+        switch section {
+        case .recent: .recent
+        case .dms: .nothing
+        case .group, .unfiled, .all: .channels(section.scope)
         }
     }
 
@@ -334,7 +292,7 @@ struct SectionList: View {
     @ViewBuilder
     private func topicBranch(under channel: ChannelSummary) -> some View {
         // The channel's own row is general chat, so it is not listed again here.
-        let generalChat = model.generalChatTopic(inChannel: channel.id)
+        let generalChat = channel.generalChatName
         let topics = (model.recentTopics[channel.id] ?? []).filter { $0.name != generalChat }
         if !topics.isEmpty {
             HStack(alignment: .top, spacing: 0) {

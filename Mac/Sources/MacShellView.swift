@@ -14,15 +14,7 @@ struct MacShellView: View {
     @Environment(AppModel.self) private var model
     @Environment(MacUIState.self) private var ui
 
-    @State private var channels: [ChannelSummary] = []
-    @State private var promoted: [PromotedTopicSummary] = []
-    /// Resolved when the store delivers, not on every redraw: each row's preview is a
-    /// parse of rendered HTML, and the sidebar redraws far more often than Recent changes.
-    @State private var recentEntries: [RecentEntry] = []
-    /// Hidden channels with a mention waiting, surfaced so the rail's count can be answered.
-    @State private var mentionedHidden: [ChannelSummary] = []
-    @State private var promotedTask: Task<Void, Never>?
-    @State private var mentionedHiddenTask: Task<Void, Never>?
+    @State private var feed = SidebarFeed()
     @State private var expanded: Set<Int> = []
     @State private var columns: NavigationSplitViewVisibility = .all
 
@@ -95,7 +87,7 @@ struct MacShellView: View {
             guard model.destination.map(self.section(for:)) != section else { return }
             model.destination = ui.lastDestination(in: section)
         }
-        .task(id: ui.section) { await observe() }
+        .onChange(of: feedContent, initial: true) { feed.show(feedContent, model: model) }
         // The remembered destination comes back before the groups do, so the section
         // follows it once the groups are known — and only once, or switching sections
         // by hand would keep snapping back.
@@ -463,7 +455,7 @@ struct MacShellView: View {
     private static let collapsedTopicIndent: CGFloat = 16
 
     private func unreadTopics(in channel: ChannelSummary) -> [TopicSummary] {
-        let generalChat = model.generalChatTopic(inChannel: channel.id)
+        let generalChat = channel.generalChatName
         return (model.recentTopics[channel.id] ?? [])
             .filter { $0.unreadCount > 0 && $0.name != generalChat }
     }
@@ -562,8 +554,13 @@ struct MacShellView: View {
     }
 
     private var entries: [SidebarEntry] {
-        SidebarEntry.merged(channels: channels, promoted: promoted)
+        SidebarEntry.merged(channels: feed.rows.channels, promoted: feed.rows.promoted)
     }
+
+    private var recentEntries: [RecentEntry] { feed.recent }
+
+    /// Hidden channels with a mention waiting, surfaced so the rail's count can be answered.
+    private var mentionedHidden: [ChannelSummary] { feed.rows.mentionedHidden }
 
     private var listTitle: String {
         switch ui.section {
@@ -608,41 +605,11 @@ struct MacShellView: View {
         )
     }
 
-    private func observe() async {
-        guard let writer = model.databaseWriter else { return }
-        if ui.section == .recent {
-            guard let observation = model.recentConversationObservation() else { return }
-            do {
-                for try await rows in observation.removeDuplicates().values(in: writer) {
-                    recentEntries = RecentEntry.resolve(rows, model: model)
-                }
-            } catch {}
-            return
-        }
-        guard ui.section != .dms else { return }
-        let groupID = currentGroupID
-
-        promotedTask?.cancel()
-        if let observation = model.promotedTopicObservation(inGroup: groupID) {
-            promotedTask = Task {
-                do {
-                    for try await rows in observation.removeDuplicates().values(in: writer) { promoted = rows }
-                } catch {}
-            }
-        }
-        mentionedHiddenTask?.cancel()
-        if let observation = model.mentionedHiddenChannelObservation(inGroup: groupID) {
-            mentionedHiddenTask = Task {
-                do {
-                    for try await rows in observation.removeDuplicates().values(in: writer) { mentionedHidden = rows }
-                } catch {}
-            }
-        }
-        guard let observation = model.channelObservation(inGroup: groupID) else { return }
-        do {
-            for try await rows in observation.removeDuplicates().values(in: writer) { channels = rows }
-        } catch {
-            // Observation ends when the section changes; nothing to recover.
+    private var feedContent: SidebarFeed.Content {
+        switch ui.section {
+        case .recent: .recent
+        case .dms: .nothing
+        case .unfiled, .group: .channels(SidebarScope(group: currentGroupID))
         }
     }
 
@@ -855,7 +822,7 @@ private struct MacTopicRows: View {
     /// The most recent few, plus any older topic still unread. The channel's own row is
     /// general chat, so it is not listed again here.
     private var shownTopics: [TopicSummary] {
-        let generalChat = model.generalChatTopic(inChannel: channel.id)
+        let generalChat = channel.generalChatName
         let listed = topics.filter { $0.name != generalChat }
         return Array(listed.prefix(Self.shown))
             + listed.dropFirst(Self.shown).filter { $0.unreadCount > 0 }

@@ -477,10 +477,14 @@ extension AppModel {
     /// stop being unread everywhere else too.
     func markRead(_ ids: [Int]) async {
         unsentReads.formUnion(ids)
-        guard !unsentReads.isEmpty else { return }
+        guard !unsentReads.isEmpty, let store else { return }
         let batch = Array(unsentReads)
-        try? store?.clearUnread(ids: batch)
-        try? store?.setRead(ids: batch, read: true)
+        // Off the main thread: a write waits for whatever sync is writing, and these
+        // land while the reader is scrolling.
+        await Task.detached(priority: .userInitiated) {
+            try? store.clearUnread(ids: batch)
+            try? store.setRead(ids: batch, read: true)
+        }.value
         do {
             try await client?.markRead(messageIDs: batch)
             unsentReads.subtract(batch)
@@ -517,13 +521,14 @@ extension AppModel {
     /// messages that were drawn on the way there.
     func markConversationRead(_ source: ConversationSource) async {
         guard let store else { return }
-        let ids: [Int]
-        switch source {
-        case .topic(let channelID, let name, _):
-            ids = (try? store.unreadIDs(inChannel: channelID, topic: name)) ?? []
-        case .dm(let key):
-            ids = (try? store.unreadIDs(inDM: key)) ?? []
-        }
+        let ids = await Task.detached(priority: .userInitiated) {
+            switch source {
+            case .topic(let channelID, let name, _):
+                (try? store.unreadIDs(inChannel: channelID, topic: name)) ?? []
+            case .dm(let key):
+                (try? store.unreadIDs(inDM: key)) ?? []
+            }
+        }.value
         for start in stride(from: 0, to: ids.count, by: Self.markReadBatch) {
             await markRead(Array(ids[start..<min(start + Self.markReadBatch, ids.count)]))
         }
@@ -573,36 +578,6 @@ extension AppModel {
 extension AppModel {
     var groupObservation: ValueObservation<ValueReducers.Fetch<[ChannelGroupSummary]>>? {
         store?.observeGroups()
-    }
-
-    func channelObservation(inGroup id: String?)
-        -> ValueObservation<ValueReducers.Fetch<[ChannelSummary]>>?
-    {
-        store?.observeChannels(inGroup: id)
-    }
-
-    func channelObservation(in scope: SidebarScope)
-        -> ValueObservation<ValueReducers.Fetch<[ChannelSummary]>>?
-    {
-        store?.observeChannels(in: scope)
-    }
-
-    func mentionedHiddenChannelObservation(in scope: SidebarScope)
-        -> ValueObservation<ValueReducers.Fetch<[ChannelSummary]>>?
-    {
-        store?.observeMentionedHiddenChannels(in: scope)
-    }
-
-    func promotedTopicObservation(in scope: SidebarScope)
-        -> ValueObservation<ValueReducers.Fetch<[PromotedTopicSummary]>>?
-    {
-        store?.observePromotedTopics(in: scope)
-    }
-
-    func mentionedHiddenChannelObservation(inGroup id: String?)
-        -> ValueObservation<ValueReducers.Fetch<[ChannelSummary]>>?
-    {
-        store?.observeMentionedHiddenChannels(inGroup: id)
     }
 
     func createGroup(named name: String) {
@@ -679,7 +654,9 @@ extension AppModel {
     /// once; the server's own flags event confirms it, and a refusal is put right by the
     /// next full sync of unreads. Nothing queued is worth sending after this.
     func markAllRead() async {
-        try? store?.markEverythingRead()
+        if let store {
+            await Task.detached(priority: .userInitiated) { try? store.markEverythingRead() }.value
+        }
         unsentReads.removeAll()
         try? await client?.markAllRead()
     }
@@ -688,7 +665,9 @@ extension AppModel {
     /// means the whole channel, not the topics that happen to be open.
     func markChannelRead(_ id: Int) async {
         guard let store else { return }
-        let ids = (try? store.unreadIDs(inChannel: id)) ?? []
+        let ids = await Task.detached(priority: .userInitiated) {
+            (try? store.unreadIDs(inChannel: id)) ?? []
+        }.value
         for start in stride(from: 0, to: ids.count, by: Self.markReadBatch) {
             await markRead(Array(ids[start..<min(start + Self.markReadBatch, ids.count)]))
         }
@@ -794,20 +773,14 @@ extension AppModel {
     /// The conversation a forum channel's name refers to. The unnamed topic where the
     /// server has one, otherwise the topic literally called "general chat", which is
     /// both what older servers send and what a new one is created as.
-    func generalChatTopic(inChannel id: Int) -> String {
-        (try? store?.generalChatTopicName(inChannel: id)) ?? "general chat"
-    }
-
     func generalChat(in channel: ChannelSummary) -> Destination {
-        .topic(channelID: channel.id, name: generalChatTopic(inChannel: channel.id), channelName: channel.name)
+        .topic(channelID: channel.id, name: channel.generalChatName, channelName: channel.name)
     }
 
     /// A forum's sidebar row opens its general chat, unless that chat has its own row
     /// already; then the forum's row opens the topic list instead.
     func forumRowDestination(for channel: ChannelSummary) -> Destination {
-        isPromoted(topic: generalChatTopic(inChannel: channel.id), inChannel: channel.id)
-            ? .channel(channel.id)
-            : generalChat(in: channel)
+        channel.generalChatIsPromoted == true ? .channel(channel.id) : generalChat(in: channel)
     }
 }
 
@@ -819,19 +792,6 @@ extension AppModel {
 // MARK: - Personal channel shape
 
 extension AppModel {
-    func promotedTopicObservation(inGroup id: String?)
-        -> ValueObservation<ValueReducers.Fetch<[PromotedTopicSummary]>>?
-    {
-        store?.observePromotedTopics(inGroup: id)
-    }
-
-    /// Everything that moved lately, in one list, for catching up.
-    func recentConversationObservation()
-        -> ValueObservation<ValueReducers.Fetch<[RecentConversation]>>?
-    {
-        store?.observeRecentConversations()
-    }
-
     func promote(topic: String, inChannel channelID: Int, toGroup groupID: String? = nil) {
         try? store?.promote(topic: topic, inChannel: channelID, toGroup: groupID)
     }
@@ -1029,7 +989,7 @@ extension AppModel {
             ? "You"
             : (sender?.split(separator: " ").first.map(String.init) ?? "")
 
-        let body = MessageMarkup.blocks(from: html).lazy.compactMap { block -> String? in
+        let body = ParsedMessages.blocks(from: html).lazy.compactMap { block -> String? in
             switch block {
             case .paragraph(let spans):
                 let text = spans.map(\.text).joined().trimmingCharacters(in: .whitespacesAndNewlines)

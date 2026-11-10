@@ -23,9 +23,7 @@ struct ConversationView: View {
 
     @State private var loader: MessageHistoryLoader?
     @State private var readTracker: ReadTracker?
-    @State private var isSlowToLoad = false
 
-    private static let spinnerDelay = Duration.milliseconds(350)
     private static let minimumMeasuredSize: CGFloat = 200
 
     /// The conversation's own measurement once there is one; until then, its column's,
@@ -45,15 +43,7 @@ struct ConversationView: View {
                     .id(ObjectIdentifier(loader))
                     .environment(\.jumpsFromSideBar, hasScreenToItself && sideBarEdge != nil)
             } else {
-                // Most conversations are drawn within a few frames. A spinner shown for
-                // those few frames flashed on every switch, so it waits to be needed.
-                ProgressView()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .opacity(isSlowToLoad ? 1 : 0)
-                    .task {
-                        try? await Task.sleep(for: Self.spinnerDelay)
-                        isSlowToLoad = true
-                    }
+                DelayedProgressView()
             }
         }
         // Suggestions rise level with the side bar's buttons, so they stay out of the
@@ -119,15 +109,10 @@ struct ConversationView: View {
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
             isTyping = false
         }
-        .task(id: source) {
-            self.loader?.stop()
-            let loader = MessageHistoryLoader(source: source, model: model)
-            self.loader = loader
-            readTracker = ReadTracker { ids in await model.markRead(ids) }
-            // Nothing is marked read here: a conversation opens at its first unread, and
-            // the rows the reader scrolls past mark themselves.
-            await loader.start()
-        }
+        .onAppear { _ = openLoader() }
+        // Nothing is marked read here: a conversation opens at its first unread, and the
+        // rows the reader scrolls past mark themselves.
+        .task(id: source) { await openLoader().start() }
         .onDisappear {
             loader?.stop()
             Task { await readTracker?.flushNow() }
@@ -136,6 +121,18 @@ struct ConversationView: View {
         .onChange(of: scenePhase) {
             if scenePhase == .background { flushBeforeSuspending() }
         }
+    }
+
+    /// Opened from `onAppear` as well as the task, so a conversation with its history
+    /// stored is drawn in its first frame instead of one frame later.
+    private func openLoader() -> MessageHistoryLoader {
+        if let loader, loader.source == source, !loader.isStopped { return loader }
+        loader?.stop()
+        let opened = MessageHistoryLoader(source: source, model: model)
+        opened.openFromStore()
+        loader = opened
+        readTracker = ReadTracker { ids in await model.markRead(ids) }
+        return opened
     }
 
     private func flushBeforeSuspending() {

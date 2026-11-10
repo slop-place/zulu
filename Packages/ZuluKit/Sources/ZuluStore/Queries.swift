@@ -18,6 +18,12 @@ public struct ChannelSummary: Decodable, FetchableRecord, Sendable, Identifiable
     public var generalChatMentionCount: Int
     /// Where the viewer dragged it. Null until they drag anything.
     public var position: Int?
+    /// Null when the channel has no general chat topic yet.
+    public var generalChatTopic: String?
+    public var generalChatIsPromoted: Bool?
+
+    /// The topic a forum's own row opens, whether or not it exists yet.
+    public var generalChatName: String { generalChatTopic ?? GeneralChat.fallbackName }
 
     /// A channel whose recent traffic all sits in one topic is a chat room in practice,
     /// whatever the server thinks. This is the auto-detection the map fixed.
@@ -38,6 +44,12 @@ public struct TopicSummary: Decodable, FetchableRecord, Sendable, Identifiable, 
 
     public var id: String { "\(channelID)/\(name)" }
     public var date: Date? { lastTimestamp.map { Date(timeIntervalSince1970: TimeInterval($0)) } }
+}
+
+public struct ConversationRows: Sendable, Equatable {
+    public var messages: [MessageRecord]
+    /// In the order they were written, which is the order they arrived in.
+    public var reactions: [ReactionRecord]
 }
 
 public struct DMSummary: Decodable, FetchableRecord, Sendable, Identifiable, Equatable {
@@ -73,7 +85,8 @@ extension ZuluStore {
                        (SELECT COUNT(*) FROM unread u
                          WHERE u.channelID = c.id AND u.isMention = 1
                            AND \(GeneralChat.unreadIsGeneralChat)) AS generalChatMentionCount,
-                       c.position
+                       c.position,
+                       \(GeneralChat.columns)
                   FROM channel c
                  WHERE \(ChannelVisibility.clause)
                  ORDER BY c.pinned DESC, c.position IS NULL, c.position, name COLLATE NOCASE
@@ -126,17 +139,6 @@ extension ZuluStore {
         }
     }
 
-    public func observeMessages(channelID: Int, topic: String)
-        -> ValueObservation<ValueReducers.Fetch<[MessageRecord]>>
-    {
-        ValueObservation.tracking { db in
-            try MessageRecord
-                .filter(Column("channelID") == channelID && Column("topic") == topic)
-                .order(Column("id"))
-                .fetchAll(db)
-        }
-    }
-
     /// How many stored messages a conversation with nothing unread needs before it opens
     /// on them. It opens on its newest message, and what the server adds goes above the
     /// oldest stored one; with fewer than a screen's worth stored, that change would be on
@@ -172,12 +174,41 @@ extension ZuluStore {
         }
     }
 
-    public func observeMessages(dmKey: String) -> ValueObservation<ValueReducers.Fetch<[MessageRecord]>> {
+    /// A conversation's messages and their reactions, read together so a row never shows
+    /// without the chips it has.
+    public func observeConversation(channelID: Int, topic: String)
+        -> ValueObservation<ValueReducers.Fetch<ConversationRows>>
+    {
         ValueObservation.tracking { db in
-            try MessageRecord
-                .filter(Column("dmKey") == dmKey)
-                .order(Column("id"))
-                .fetchAll(db)
+            ConversationRows(
+                messages: try MessageRecord
+                    .filter(Column("channelID") == channelID && Column("topic") == topic)
+                    .order(Column("id"))
+                    .fetchAll(db),
+                reactions: try ReactionRecord.fetchAll(db, sql: """
+                    SELECT r.* FROM reaction r
+                      JOIN message m ON m.id = r.messageID
+                     WHERE m.channelID = ? AND m.topic = ?
+                     ORDER BY r.rowid
+                    """, arguments: [channelID, topic])
+            )
+        }
+    }
+
+    public func observeConversation(dmKey: String) -> ValueObservation<ValueReducers.Fetch<ConversationRows>> {
+        ValueObservation.tracking { db in
+            ConversationRows(
+                messages: try MessageRecord
+                    .filter(Column("dmKey") == dmKey)
+                    .order(Column("id"))
+                    .fetchAll(db),
+                reactions: try ReactionRecord.fetchAll(db, sql: """
+                    SELECT r.* FROM reaction r
+                      JOIN message m ON m.id = r.messageID
+                     WHERE m.dmKey = ?
+                     ORDER BY r.rowid
+                    """, arguments: [dmKey])
+            )
         }
     }
 
@@ -297,15 +328,18 @@ enum GeneralChat {
 
     static let unreadIsGeneralChat =
         "u.topic = COALESCE(\(topicName(inChannel: "u.channelID")), '\(fallbackName)')"
+
+    /// `ChannelSummary`'s general chat columns, for a query over `channel c`.
+    static let columns = """
+        \(topicName(inChannel: "c.id")) AS generalChatTopic,
+        EXISTS (SELECT 1 FROM promotedTopic gp
+                 WHERE gp.channelID = c.id
+                   AND gp.topic = COALESCE(\(topicName(inChannel: "c.id")), '\(fallbackName)'))
+            AS generalChatIsPromoted
+        """
 }
 
 extension ZuluStore {
-    public func generalChatTopicName(inChannel id: Int) throws -> String? {
-        try writer.read { db in
-            try String.fetchOne(db, sql: "SELECT \(GeneralChat.topicName(inChannel: "?"))", arguments: [id])
-        }
-    }
-
     /// The most recently active topics across every channel, so the sidebar can show a
     /// channel's live conversations without a query per channel. An unread topic is
     /// always included, however old, because a forum's own row no longer lights for it.

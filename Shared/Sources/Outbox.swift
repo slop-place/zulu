@@ -116,7 +116,7 @@ extension AppModel {
             shown: Set(loaded.map(\.id)),
             after: loaded.last.map { .init(senderID: $0.senderID, date: $0.date) },
             selfUserID: selfUserID,
-            groupingWindow: TimeInterval(MessageHistoryLoader.groupingWindow)
+            groupingWindow: TimeInterval(ConversationSnapshot.groupingWindow)
         )
     }
 }
