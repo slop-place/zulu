@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.22.2](https://github.com/slop-place/zulu/compare/zulu-v1.22.1...zulu-v1.22.2) (2026-11-10)
+
+
+### Performance Improvements
+
+* cut idle CPU and main-thread work when loading, switching and scrolling ([#69](https://github.com/slop-place/zulu/issues/69)) ([ab75e1c](https://github.com/slop-place/zulu/commit/ab75e1cef9c6462694fe053dbef4c2b28e56c65f))
+
 ## [1.22.1](https://github.com/slop-place/zulu/compare/zulu-v1.22.0...zulu-v1.22.1) (2026-11-09)
 
 
