@@ -146,14 +146,16 @@ final class MessageHistoryLoader {
         updateHasMoreOlder()
     }
 
-    /// The divider marks the conversation's first unread, which can sit before the window.
-    private func seedFirstUnread() {
+    /// The divider marks the conversation's first unread, which can sit before the window,
+    /// or in fetched history that is not stored.
+    private func seedFirstUnread(fetched: [MessageRecord] = []) {
         guard let store = model.storeForReading else { return }
-        let first = switch source {
+        let stored = switch source {
         case .topic(let channelID, let name, _): try? store.firstUnreadID(channelID: channelID, topic: name)
         case .dm(let key): try? store.firstUnreadID(dmKey: key)
         }
-        firstUnread.seed(first)
+        let fetchedUnread = fetched.first { !$0.isRead }?.id
+        firstUnread.seed([stored, fetchedUnread].compactMap { $0 }.min())
     }
 
     private func updateHasMoreOlder() {
@@ -319,8 +321,8 @@ final class MessageHistoryLoader {
 
     private func showDetached() {
         guard let selfUserID = model.selfUserID else { return }
-        seedFirstUnread()
         let messages = detached.map { MessageRecord(from: $0, selfUserID: selfUserID) }
+        seedFirstUnread(fetched: messages)
         let reactions = detached.flatMap { message in
             message.reactions.map { ReactionRecord(messageID: message.id, reaction: $0) }
         }
