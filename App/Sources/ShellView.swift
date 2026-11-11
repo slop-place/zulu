@@ -39,6 +39,8 @@ struct ShellView: View {
     @State private var barsRunDownTheSide = false
     /// Where the page's navigation bar ends, from the top of the screen.
     @State private var pageBarBottom: CGFloat = 0
+    /// When a swipe last moved the drawer.
+    @State private var lastDrawerSwipe: ContinuousClock.Instant?
 
     private let railW: CGFloat = 68
     private let listW: CGFloat = 262
@@ -129,6 +131,8 @@ struct ShellView: View {
     }
 
     private static let slide = Animation.snappy(duration: 0.24, extraBounce: 0)
+    /// How long after the drawer last moved a row's tap is taken as the end of the swipe.
+    private static let swipeEndsTap = Duration.milliseconds(300)
 
     private func setOpen(_ value: Bool) {
         if value {
@@ -225,6 +229,7 @@ struct ShellView: View {
                     dismissKeyboard()
                 }
                 drag = value.translation.width
+                lastDrawerSwipe = .now
             }
             .onEnded { value in
                 let projected = offset + value.predictedEndTranslation.width * 0.4
@@ -466,6 +471,9 @@ struct ShellView: View {
 
     /// Opening anything from the drawer slides it shut on what was opened.
     private func openFromDrawer(_ destination: AppModel.Destination) {
+        // The swipe runs alongside the rows' own taps, so a swipe that ends on the row it
+        // started on would open that row as well as closing the drawer.
+        if let lastDrawerSwipe, ContinuousClock.now - lastDrawerSwipe < Self.swipeEndsTap { return }
         model.destination = destination
         path = []
         setOpen(false)
