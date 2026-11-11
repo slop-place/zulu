@@ -414,7 +414,7 @@ final class MacConversationTableCoordinator: NSObject, NSTableViewDataSource, NS
         self.scroll = scroll
         self.loader = loader
         self.readTracker = readTracker
-        follow = ConversationFollow(opensAt: loader.firstUnreadID)
+        follow = ConversationFollow(opensAt: loader.openingID)
         super.init()
         scroll.coordinator = self
     }
@@ -456,6 +456,7 @@ final class MacConversationTableCoordinator: NSObject, NSTableViewDataSource, NS
     // MARK: rows
 
     func apply(rows newRows: [MacConversationRow]) {
+        follow.reachesNewest = !loader.hasMoreNewer
         guard let tableView else {
             rows = newRows
             return

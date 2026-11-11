@@ -24,6 +24,7 @@ struct MacConversationView: View {
         Group {
             if let loader, loader.isReady {
                 MacConversationHistory(source: source, loader: loader, readTracker: readTracker, title: title)
+                    .id(ObjectIdentifier(loader))
             } else {
                 DelayedProgressView()
             }
@@ -138,6 +139,12 @@ struct MacConversationView: View {
         // Nothing is marked read here: a conversation opens at its first unread, and the
         // rows the reader scrolls past mark themselves.
         .task(id: source) { await openLoader().start() }
+        // A link to a message in the conversation already open.
+        .onChange(of: model.pendingTarget) {
+            guard let target = model.takeTarget(in: source) else { return }
+            let reopened = replaceLoader(at: target)
+            Task { await reopened.start() }
+        }
         .task(id: model.reactionHistoryVersion) {
             // The quick row's emoji are the viewer's habits, looked up once per
             // conversation and again after each reaction, not once per message.
@@ -156,8 +163,13 @@ struct MacConversationView: View {
     /// stored is drawn in its first frame instead of one frame later.
     private func openLoader() -> MessageHistoryLoader {
         if let loader, loader.source == source, !loader.isStopped { return loader }
+        return replaceLoader(at: model.takeTarget(in: source))
+    }
+
+    private func replaceLoader(at target: Int?) -> MessageHistoryLoader {
         loader?.stop()
-        let opened = MessageHistoryLoader(source: source, model: model)
+        if let readTracker { Task { await readTracker.flushNow() } }
+        let opened = MessageHistoryLoader(source: source, model: model, targetID: target)
         opened.openFromStore()
         loader = opened
         readTracker = ReadTracker { ids in await model.markRead(ids) }
