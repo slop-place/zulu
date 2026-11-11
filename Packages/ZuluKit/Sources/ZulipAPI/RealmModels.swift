@@ -86,3 +86,40 @@ public enum GroupSetting: Decodable, Sendable, Equatable {
         )
     }
 }
+
+/// One choice in `gif_rating_policy_options`, keyed in the map by its rating, such as
+/// `pg-13`, or by `disabled`.
+public struct GIFRatingPolicyOption: Decodable, Sendable, Equatable {
+    public let id: Int
+    public let name: String
+
+    public init(id: Int, name: String) {
+        self.id = id
+        self.name = name
+    }
+}
+
+/// What the server says about GIFs. The keys are not secrets: Zulip hands them to every
+/// client, since the providers expect them to ship in apps anyway.
+public struct RealmGIFSettings: Sendable, Equatable {
+    /// Empty when the server has no key for that provider.
+    public let giphyAPIKey: String
+    public let klipyAPIKey: String
+    public let ratingPolicy: Int?
+    public let ratingPolicyOptions: [String: GIFRatingPolicyOption]
+
+    public init(
+        giphyAPIKey: String, klipyAPIKey: String,
+        ratingPolicy: Int?, ratingPolicyOptions: [String: GIFRatingPolicyOption]
+    ) {
+        self.giphyAPIKey = giphyAPIKey
+        self.klipyAPIKey = klipyAPIKey
+        self.ratingPolicy = ratingPolicy
+        self.ratingPolicyOptions = ratingPolicyOptions
+    }
+
+    /// The name of the realm's policy, such as `g` or `disabled`.
+    public var ratingPolicyName: String? {
+        ratingPolicyOptions.first { $0.value.id == ratingPolicy }?.key
+    }
+}

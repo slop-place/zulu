@@ -13,45 +13,14 @@ struct EmojiPicker: View {
     /// the realm's own emoji first, which is the whole point of a custom emoji.
     let insert: (String) -> Void
 
-    @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
     @State private var query = ""
-    @State private var results: [Emoji] = []
-
-    private let columns = [GridItem(.adaptive(minimum: 44), spacing: 8)]
-
-    private var catalogue: EmojiCatalogue { EmojiCatalogueLoader.shared.catalogue }
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                LazyVGrid(columns: columns, spacing: 8) {
-                    ForEach(results) { emoji in
-                        Button {
-                            insert(emoji.insertion)
-                            dismiss()
-                        } label: {
-                            EmojiGlyph(emoji: emoji)
-                                .frame(width: 44, height: 44)
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel(emoji.name)
-                    }
-                }
-                .padding(.horizontal, 16)
-
-                if results.isEmpty {
-                    ContentUnavailableView(
-                        query.isEmpty ? "No emoji yet" : "No emoji named that",
-                        systemImage: "face.dashed",
-                        description: Text(
-                            query.isEmpty && !catalogue.hasUnicodeTable
-                                ? "The server's emoji are still loading."
-                                : "Try another name."
-                        )
-                    )
-                    .padding(.top, 40)
-                }
+            EmojiGrid(query: query) { shortcode in
+                insert(shortcode)
+                dismiss()
             }
             .navigationTitle("Emoji")
             .inlineNavigationTitle()
@@ -60,14 +29,64 @@ struct EmojiPicker: View {
                 ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
             }
         }
-        .presentationDetents([.medium, .large])
-        .keepsSheetFullWidth()
-        .presentationDragIndicator(.visible)
+        .pickerSheetPresentation()
+    }
+}
+
+/// Every emoji matching `query`, in the order the `:` autocomplete would offer them.
+struct EmojiGrid: View {
+    let query: String
+    let pick: (String) -> Void
+
+    @Environment(AppModel.self) private var model
+    @State private var results: [Emoji] = []
+
+    private let columns = [GridItem(.adaptive(minimum: 44), spacing: 8)]
+
+    private var catalogue: EmojiCatalogue { EmojiCatalogueLoader.shared.catalogue }
+
+    var body: some View {
+        ScrollView {
+            LazyVGrid(columns: columns, spacing: 8) {
+                ForEach(results) { emoji in
+                    Button {
+                        pick(emoji.insertion)
+                    } label: {
+                        EmojiGlyph(emoji: emoji)
+                            .frame(width: 44, height: 44)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(emoji.name)
+                }
+            }
+            .padding(.horizontal, 16)
+
+            if results.isEmpty {
+                ContentUnavailableView(
+                    query.isEmpty ? "No emoji yet" : "No emoji named that",
+                    systemImage: "face.dashed",
+                    description: Text(
+                        query.isEmpty && !catalogue.hasUnicodeTable
+                            ? "The server's emoji are still loading."
+                            : "Try another name."
+                    )
+                )
+                .padding(.top, 40)
+            }
+        }
         .task { EmojiCatalogueLoader.shared.start(store: model.storeForReading) }
         // Ranking the whole catalogue is cheap, but not cheap enough to redo on every
         // view update, so it happens when the query or the catalogue actually changes.
         .task(id: query) { results = catalogue.search(query) }
         .task(id: catalogue.candidates.count) { results = catalogue.search(query) }
+    }
+}
+
+extension View {
+    func pickerSheetPresentation() -> some View {
+        presentationDetents([.medium, .large])
+            .keepsSheetFullWidth()
+            .presentationDragIndicator(.visible)
     }
 }
 

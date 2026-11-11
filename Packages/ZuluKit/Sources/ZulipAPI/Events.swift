@@ -17,6 +17,19 @@ public struct RegisterResponse: Decodable, Sendable {
     public let realm_user_groups: [RealmUserGroup]?
     public let user_topics: [UserTopic]?
     public let recent_private_conversations: [RecentDirectConversation]?
+    public let giphy_api_key: String?
+    public let klipy_api_key: String?
+    public let realm_gif_rating_policy: Int?
+    public let gif_rating_policy_options: [String: GIFRatingPolicyOption]?
+
+    public var gifSettings: RealmGIFSettings {
+        RealmGIFSettings(
+            giphyAPIKey: giphy_api_key ?? "",
+            klipyAPIKey: klipy_api_key ?? "",
+            ratingPolicy: realm_gif_rating_policy,
+            ratingPolicyOptions: gif_rating_policy_options ?? [:]
+        )
+    }
 }
 
 /// A DM conversation the server knows about, whether or not any of its messages have
@@ -266,6 +279,8 @@ extension ZulipClient {
             "fetch_event_types": Self.json([
                 "subscription", "realm_user", "realm", "message", "update_message_flags",
                 "realm_emoji", "realm_user_groups", "user_topic", "recent_private_conversations",
+                // Each GIF provider's key is a fetch type of its own, not part of `realm`.
+                "giphy", "klipy",
             ]),
             // Subscriber lists are what let the `@` box put the people in this channel
             // first, which is the ranking rule both official clients agree on.

@@ -134,7 +134,9 @@ struct ComposerBar: View {
         .onChange(of: replyingTo) { saveDraft() }
         .onDisappear { typingSender?.stop() }
         .onChange(of: ComposerInbox.shared.deliveries) { takeDelivery() }
-        .sheet(isPresented: $showEmoji) { EmojiPicker { insert($0) } }
+        .sheet(isPresented: $showEmoji) {
+            ComposerPicker(insertEmoji: { insert($0) }, insertGIF: { insertOnOwnLine($0.markdown) })
+        }
         .photosPicker(
             isPresented: binding(for: .photos), selection: $pickedPhotos,
             maxSelectionCount: 5, matching: .any(of: [.images, .videos])
@@ -284,6 +286,12 @@ struct ComposerBar: View {
     private func insert(_ shortcode: String) {
         if let last = draft.last, last != " ", last != "\n" { draft += " " }
         draft += shortcode
+    }
+
+    /// Where Zulip's web app puts a GIF.
+    private func insertOnOwnLine(_ markdown: String) {
+        if let last = draft.last, last != "\n" { draft += "\n" }
+        draft += markdown
     }
 
     /// While editing, the draft on disk stays whatever was being typed before.

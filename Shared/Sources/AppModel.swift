@@ -5,6 +5,7 @@ import Observation
 import SwiftUI
 import ZulipAPI
 import ZuluCompose
+import ZuluGIFs
 import ZuluMarkup
 import ZuluStore
 import ZuluSync
@@ -52,6 +53,10 @@ final class AppModel {
     /// Bumped whenever the viewer reacts, so quick-reaction rows rebuild from the history.
     var reactionHistoryVersion = 0
     private(set) var users: [Int: UserRecord] = [:]
+    /// `nil` hides the GIF picker: the realm turned GIFs off, or there is no key to use.
+    private(set) var gifs: GIFConfiguration?
+
+    private static let bundledKLIPYKey = Bundle.main.object(forInfoDictionaryKey: "ZuluKLIPYAPIKey") as? String
 
     var destination: Destination? {
         didSet { rememberDestination() }
@@ -134,6 +139,11 @@ final class AppModel {
             }
             await sync.onTyping { [weak self] event in
                 Task { @MainActor in self?.apply(event) }
+            }
+            await sync.onGIFSettings { [weak self] settings in
+                Task { @MainActor in
+                    self?.gifs = GIFConfiguration(realm: settings, bundledKLIPYKey: Self.bundledKLIPYKey)
+                }
             }
             await sync.start()
         } catch {
@@ -237,6 +247,7 @@ final class AppModel {
         sidebarObserversStarted = false
         dms = []
         users = [:]
+        gifs = nil
         unsentReads = []
         liveEdge.clear()
         destination = nil

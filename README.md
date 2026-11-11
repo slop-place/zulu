@@ -41,6 +41,10 @@ cd App && xcodegen generate && open Zulu.xcodeproj
 Pick the `Zulu` scheme for iOS or `ZuluMac` for the Mac. Then sign in with your Zulip organization's address. Password and SSO both work; SSO opens
 a browser and comes back through the `zulip://` callback the server hardcodes.
 
+GIFs use the server's KLIPY or GIPHY key, else Zulu's own KLIPY key. Release builds get
+that from the `KLIPY_API_KEY` Actions secret. For local builds, put
+`KLIPY_API_KEY = <key>` in `App/Secrets.xcconfig`, which git ignores.
+
 release-please cuts releases for the app (to TestFlight) and the notification service
 (to GHCR) separately. See [`docs/RELEASING.md`](docs/RELEASING.md) for how that works
 and the one-time Apple setup it needs.
