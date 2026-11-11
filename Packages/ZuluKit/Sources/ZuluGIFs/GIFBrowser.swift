@@ -24,6 +24,7 @@ public final class GIFBrowser {
     public private(set) var query = ""
 
     @ObservationIgnored private var paging = Paging.exhausted
+    @ObservationIgnored private var request: Task<Void, Never>?
     private let source: any GIFSource
 
     /// How long typing has to pause before a search goes out.
@@ -36,9 +37,29 @@ public final class GIFBrowser {
     }
 
     /// Replaces what is shown with what matches `query`, or with what the provider
-    /// features when it is empty. Meant for `.task(id:)`, so a newer query cancels this one.
+    /// features when it is empty. Each call cancels the one before it, so a slow answer to
+    /// an old search never lands over a newer one, whoever started either.
     public func show(_ query: String) async {
-        let query = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        request?.cancel()
+        let request = Task { await load(Self.normalized(query)) }
+        self.request = request
+        await withTaskCancellationHandler {
+            await request.value
+        } onCancel: {
+            request.cancel()
+        }
+    }
+
+    /// Whether what is shown is the finished answer to `query`.
+    public func hasResults(for query: String) -> Bool {
+        phase == .loaded && self.query == Self.normalized(query)
+    }
+
+    private static func normalized(_ query: String) -> String {
+        query.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func load(_ query: String) async {
         // Coming back to the picker asks again for what it already shows.
         if query == self.query, phase == .loaded || phase == .empty { return }
         if !query.isEmpty {

@@ -16,10 +16,15 @@ enum ComposerPickerTab: CaseIterable, Hashable {
 
 extension GIFConfiguration {
     /// Names the provider, which both GIPHY and KLIPY ask apps to do.
-    var searchPrompt: String {
+    var searchPrompt: String { "Search \(providerName)" }
+
+    /// The prompt goes once something is typed, so the grid carries this as well.
+    var attribution: String { "Powered by \(providerName)" }
+
+    private var providerName: String {
         switch provider {
-        case .klipy: "Search KLIPY"
-        case .giphy: "Search GIPHY"
+        case .klipy: "KLIPY"
+        case .giphy: "GIPHY"
         }
     }
 }
@@ -28,6 +33,7 @@ extension GIFConfiguration {
 struct GIFGrid: View {
     let browser: GIFBrowser
     let query: String
+    let attribution: String
     var columns = 2
     var spacing: CGFloat = 6
     var horizontalPadding: CGFloat = 16
@@ -52,6 +58,13 @@ struct GIFGrid: View {
         }
         // A new search starts at the top rather than wherever the last one was scrolled to.
         .id(browser.query)
+        .safeAreaInset(edge: .top, spacing: spacing) {
+            Text(attribution)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(TextTone.secondary)
+                .frame(maxWidth: .infinity, alignment: .trailing)
+                .padding(.horizontal, horizontalPadding)
+        }
         .overlay { status }
         .task(id: query) { await browser.show(query) }
     }
@@ -131,6 +144,9 @@ struct GIFThumbnail: View {
               )
         else { return }
         DecodedImages.store(decoded, at: path)
+        // The decode outlives the task, so a cell scrolled away meanwhile would otherwise
+        // take its frames back after `onDisappear` let them go.
+        guard !Task.isCancelled else { return }
         animation = decoded
     }
 }

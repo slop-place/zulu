@@ -9,6 +9,9 @@ public struct GIPHYSource: GIFSource {
 
     static let baseURL = URL(string: "https://api.giphy.com/v1/gifs")!
     static let pageSize = 30
+    /// The deepest `offset` each endpoint accepts, past whatever `total_count` claims.
+    static let trendingMaxOffset = 499
+    static let searchMaxOffset = 4999
 
     public init(apiKey: String, rating: GIFRating, locale: Locale = .current, session: URLSession = .shared) {
         self.apiKey = apiKey
@@ -21,7 +24,7 @@ public struct GIPHYSource: GIFSource {
         let response = try await GIFFetch.decode(
             Response.self, from: url(matching: query, after: cursor), session: session
         )
-        return response.page
+        return response.page(maxOffset: query.isEmpty ? Self.trendingMaxOffset : Self.searchMaxOffset)
     }
 
     func url(matching query: String, after cursor: String?) -> URL {
@@ -69,7 +72,7 @@ public struct GIPHYSource: GIFSource {
         let data: [Item]
         let pagination: Pagination
 
-        var page: GIFPage {
+        func page(maxOffset: Int) -> GIFPage {
             let gifs = data.compactMap { item -> GIF? in
                 guard let preview = item.images.fixed_height, let send = item.images.downsized_medium else {
                     return nil
@@ -83,7 +86,7 @@ public struct GIPHYSource: GIFSource {
                 )
             }
             let end = pagination.offset + pagination.count
-            let hasMore = pagination.count > 0 && end < pagination.total_count
+            let hasMore = pagination.count > 0 && end < pagination.total_count && end <= maxOffset
             return GIFPage(gifs: gifs, next: hasMore ? String(end) : nil)
         }
 

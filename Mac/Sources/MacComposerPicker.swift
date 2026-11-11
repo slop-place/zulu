@@ -23,7 +23,7 @@ struct MacComposerPicker: View {
             }
 
             if tab == .gifs, let gifs = model.gifs, let browser {
-                MacGIFPicker(browser: browser, prompt: gifs.searchPrompt, insert: insertGIF)
+                MacGIFPicker(browser: browser, configuration: gifs, insert: insertGIF)
             } else {
                 MacEmojiPicker(insert: insertEmoji)
             }
@@ -37,7 +37,7 @@ struct MacComposerPicker: View {
 /// A search field over the GIF grid. Return sends the first result.
 struct MacGIFPicker: View {
     let browser: GIFBrowser
-    let prompt: String
+    let configuration: GIFConfiguration
     let insert: (GIF) -> Void
 
     @Environment(\.dismiss) private var dismiss
@@ -46,11 +46,12 @@ struct MacGIFPicker: View {
 
     var body: some View {
         VStack(spacing: 8) {
-            TextField(prompt, text: $query)
+            TextField(configuration.searchPrompt, text: $query)
                 .textFieldStyle(.roundedBorder)
                 .focused($searching)
                 .onSubmit {
-                    guard let first = browser.gifs.first else { return }
+                    // Until the new search lands, the grid still shows the last one's GIFs.
+                    guard browser.hasResults(for: query), let first = browser.gifs.first else { return }
                     pick(first)
                 }
                 .onKeyPress(.escape) {
@@ -58,7 +59,10 @@ struct MacGIFPicker: View {
                     return .handled
                 }
 
-            GIFGrid(browser: browser, query: query, spacing: 4, horizontalPadding: 0, pick: pick)
+            GIFGrid(
+                browser: browser, query: query, attribution: configuration.attribution,
+                spacing: 4, horizontalPadding: 0, pick: pick
+            )
         }
         .padding(12)
         .frame(width: 340, height: 360)

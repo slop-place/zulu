@@ -15,15 +15,20 @@ private actor FakeSource: GIFSource {
     struct Failure: Error {}
 
     private let pages: [String: GIFPage]
+    private let delays: [String: Duration]
     private(set) var asked: [String] = []
 
-    init(_ pages: [String: GIFPage]) { self.pages = pages }
+    init(_ pages: [String: GIFPage], delays: [String: Duration] = [:]) {
+        self.pages = pages
+        self.delays = delays
+    }
 
     static func key(_ query: String, _ cursor: String?) -> String { "\(query)|\(cursor ?? "")" }
 
     func page(matching query: String, after cursor: String?) async throws -> GIFPage {
         let key = Self.key(query, cursor)
         asked.append(key)
+        if let delay = delays[key] { try await Task.sleep(for: delay) }
         guard let page = pages[key] else { throw Failure() }
         return page
     }
@@ -110,6 +115,30 @@ struct GIFBrowserTests {
         await browser.loadMore(after: gif("a"))
         #expect(await source.asked.count == 3)
         #expect(browser.phase == .loaded)
+    }
+
+    @Test func aSlowEarlierRequestNeverReplacesANewerSearch() async {
+        let source = FakeSource(
+            [
+                FakeSource.key("", nil): GIFPage(gifs: [gif("featured")], next: nil),
+                FakeSource.key("dog", nil): GIFPage(gifs: [gif("dog")], next: nil),
+            ],
+            delays: [FakeSource.key("", nil): .seconds(2)]
+        )
+        let browser = GIFBrowser(source: source)
+        let retry = Task { await browser.show("") }
+        await Task.yield()
+        await browser.show("dog")
+        await retry.value
+        #expect(browser.gifs.map(\.id) == ["dog"])
+    }
+
+    @Test func resultsCountOnlyForTheQueryTheyAnswer() async {
+        let source = FakeSource([FakeSource.key("cat", nil): GIFPage(gifs: [gif("c")], next: nil)])
+        let browser = GIFBrowser(source: source)
+        await browser.show("cat")
+        #expect(browser.hasResults(for: " cat"))
+        #expect(!browser.hasResults(for: "dog"))
     }
 
     @Test func eachGIFGoesUnderTheShortestColumn() {

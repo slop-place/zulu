@@ -19,8 +19,8 @@ struct ComposerPicker: View {
     var body: some View {
         NavigationStack {
             Group {
-                if showsGIFs, let browser {
-                    GIFGrid(browser: browser, query: gifQuery) { gif in
+                if tab == .gifs, let gifs = model.gifs, let browser {
+                    GIFGrid(browser: browser, query: gifQuery, attribution: gifs.attribution) { gif in
                         insertGIF(gif)
                         dismiss()
                     }

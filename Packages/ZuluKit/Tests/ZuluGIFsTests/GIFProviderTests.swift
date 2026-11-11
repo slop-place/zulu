@@ -93,7 +93,7 @@ struct GIPHYSourceTests {
             "downsized_medium": {"url": "https://g/d.gif"}
         }}], "pagination": {"total_count": 100, "count": 30, "offset": 30}}
         """
-        let page = try JSONDecoder().decode(GIPHYSource.Response.self, from: Data(json.utf8)).page
+        let page = try JSONDecoder().decode(GIPHYSource.Response.self, from: Data(json.utf8)).page(maxOffset: GIPHYSource.searchMaxOffset)
         #expect(page.next == "60")
         #expect(page.gifs.first?.aspectRatio == 1.5)
         #expect(page.gifs.first?.sendURL == URL(string: "https://g/d.gif"))
@@ -101,8 +101,16 @@ struct GIPHYSourceTests {
 
     @Test func theLastPageHasNoCursor() throws {
         let json = #"{"data": [], "pagination": {"total_count": 40, "count": 10, "offset": 30}}"#
-        let page = try JSONDecoder().decode(GIPHYSource.Response.self, from: Data(json.utf8)).page
+        let page = try JSONDecoder().decode(GIPHYSource.Response.self, from: Data(json.utf8)).page(maxOffset: GIPHYSource.searchMaxOffset)
         #expect(page.next == nil)
+    }
+
+    /// Trending reports thousands of results but refuses any offset past 499.
+    @Test func pagingStopsAtTheDeepestOffsetTheEndpointTakes() throws {
+        let json = #"{"data": [], "pagination": {"total_count": 9000, "count": 30, "offset": 480}}"#
+        let response = try JSONDecoder().decode(GIPHYSource.Response.self, from: Data(json.utf8))
+        #expect(response.page(maxOffset: GIPHYSource.trendingMaxOffset).next == nil)
+        #expect(response.page(maxOffset: GIPHYSource.searchMaxOffset).next == "510")
     }
 }
 
