@@ -64,6 +64,16 @@ struct ConversationWindowTests {
         #expect(try windowStart(store, openingAt: target) == target - Self.context)
     }
 
+    @Test func theFirstUnreadIsFoundBeforeTheWindow() throws {
+        let store = try store()
+        let firstUnread = Self.firstID + 10
+        try markUnread(store, firstUnread)
+        try markUnread(store, Self.lastID)
+        let start = try #require(try windowStart(store, openingAt: Self.lastID))
+        #expect(start > firstUnread)
+        #expect(try store.firstUnreadID(channelID: 7, topic: "deploys") == firstUnread)
+    }
+
     @Test func nothingStoredHasNoWindow() throws {
         let store = try store()
         #expect(try store.windowStart(dmKey: "2", openingAt: nil, newest: Self.newest, context: Self.context) == nil)

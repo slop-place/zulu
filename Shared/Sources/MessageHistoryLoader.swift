@@ -51,6 +51,9 @@ final class MessageHistoryLoader {
     /// The oldest stored message shown. Every row shown is measured before the list draws,
     /// so a long history is shown a page at a time as the reader scrolls back through it.
     @ObservationIgnored private var windowStart: Int?
+    /// Apart from `hasMoreOlder`: once the server has nothing older, stored messages
+    /// before the window are still there to show.
+    @ObservationIgnored private var serverHasMoreOlder = true
 
     /// Matches the page `AppModel.loadHistory` fetches the newest messages in.
     private static let detachedPageSize = 100
@@ -124,6 +127,7 @@ final class MessageHistoryLoader {
         guard observation == nil, !isStopped, let writer = model.databaseWriter, let store = model.storeForReading
         else { return }
         if windowStart == nil { windowStart = openingWindowStart(in: store) }
+        seedFirstUnread()
         let rows = switch source {
         case .topic(let channelID, let name, _):
             store.observeConversation(channelID: channelID, topic: name, from: windowStart)
@@ -139,6 +143,28 @@ final class MessageHistoryLoader {
             .start(in: writer, scheduling: .immediate, onError: { _ in }) { [weak self] snapshot in
                 MainActor.assumeIsolated { self?.apply(snapshot) }
             }
+        updateHasMoreOlder()
+    }
+
+    /// The divider marks the conversation's first unread, which can sit before the window.
+    private func seedFirstUnread() {
+        guard let store = model.storeForReading else { return }
+        let first = switch source {
+        case .topic(let channelID, let name, _): try? store.firstUnreadID(channelID: channelID, topic: name)
+        case .dm(let key): try? store.firstUnreadID(dmKey: key)
+        }
+        firstUnread.seed(first)
+    }
+
+    private func updateHasMoreOlder() {
+        let storedBefore = !hasMoreNewer && windowStart.flatMap { storedPageStart(before: $0, count: 1) } != nil
+        let more = serverHasMoreOlder || storedBefore
+        if hasMoreOlder != more { hasMoreOlder = more }
+    }
+
+    private func reachedServerStart() {
+        serverHasMoreOlder = false
+        updateHasMoreOlder()
     }
 
     private func apply(_ snapshot: ConversationSnapshot) {
@@ -186,13 +212,17 @@ final class MessageHistoryLoader {
             return
         }
         if showStoredPage(before: oldest) { return }
+        guard serverHasMoreOlder else {
+            updateHasMoreOlder()
+            return
+        }
         let result = switch source {
         case .topic(let channelID, let name, _):
             await model.loadOlder(channelID: channelID, topic: name, before: oldest)
         case .dm(let key):
             await model.loadOlder(dmKey: key, before: oldest)
         }
-        if result == .reachedStart { hasMoreOlder = false }
+        if result == .reachedStart { reachedServerStart() }
         showStoredPage(before: oldest)
     }
 
@@ -213,19 +243,22 @@ final class MessageHistoryLoader {
     /// Widens what is shown to the stored page before `oldest`, if there is one.
     @discardableResult
     private func showStoredPage(before oldest: Int) -> Bool {
-        guard let store = model.storeForReading else { return false }
-        let start = switch source {
-        case .topic(let channelID, let name, _):
-            try? store.pageStart(channelID: channelID, topic: name, before: oldest, count: Self.olderPageSize)
-        case .dm(let key):
-            try? store.pageStart(dmKey: key, before: oldest, count: Self.olderPageSize)
-        }
-        guard let start, !isStopped else { return false }
+        guard let start = storedPageStart(before: oldest, count: Self.olderPageSize), !isStopped else { return false }
         windowStart = start
         observation?.cancel()
         observation = nil
         observe()
         return true
+    }
+
+    private func storedPageStart(before id: Int, count: Int) -> Int? {
+        guard let store = model.storeForReading else { return nil }
+        return switch source {
+        case .topic(let channelID, let name, _):
+            try? store.pageStart(channelID: channelID, topic: name, before: id, count: count)
+        case .dm(let key):
+            try? store.pageStart(dmKey: key, before: id, count: count)
+        }
     }
 
     // MARK: opening at an older message
@@ -238,7 +271,7 @@ final class MessageHistoryLoader {
             in: source, anchor: .id(targetID),
             before: Self.detachedPageSize, after: Self.detachedPageSize, includeAnchor: true
         ), !isStopped else { return }
-        if page.found_oldest || (page.history_limited ?? false) { hasMoreOlder = false }
+        if page.found_oldest || (page.history_limited ?? false) { reachedServerStart() }
         detached = page.messages
         if !joinIfReached(page) {
             hasMoreNewer = true
@@ -262,7 +295,7 @@ final class MessageHistoryLoader {
         guard let page = await model.fetchMessages(
             in: source, anchor: .id(oldest), before: Self.detachedPageSize, after: 0, includeAnchor: false
         ) else { return }
-        if page.found_oldest || (page.history_limited ?? false) { hasMoreOlder = false }
+        if page.found_oldest || (page.history_limited ?? false) { reachedServerStart() }
         // Reached the stored history while this was in flight: what it fetched sits
         // right before the stored messages now, so it is stored with them.
         guard hasMoreNewer else {
@@ -286,6 +319,7 @@ final class MessageHistoryLoader {
 
     private func showDetached() {
         guard let selfUserID = model.selfUserID else { return }
+        seedFirstUnread()
         let messages = detached.map { MessageRecord(from: $0, selfUserID: selfUserID) }
         let reactions = detached.flatMap { message in
             message.reactions.map { ReactionRecord(messageID: message.id, reaction: $0) }
@@ -372,6 +406,13 @@ struct ConversationSnapshot: Equatable, Sendable {
 /// The first unread message as the conversation first loaded, kept for as long as it is open.
 private final class FirstUnreadSnapshot: Sendable {
     private let value = Mutex<Int??>(nil)
+
+    /// Taken unless one was already settled.
+    func seed(_ id: Int?) {
+        value.withLock { stored in
+            if stored == nil { stored = .some(id) }
+        }
+    }
 
     func resolve(in messages: [MessageRecord]) -> Int? {
         value.withLock { stored in

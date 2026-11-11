@@ -223,12 +223,25 @@ extension ZuluStore {
         try writer.read { db in try Self.oldestID(in: db, of: Self.dmMessages(dmKey), count: count, before: id) }
     }
 
+    /// The oldest stored message not yet read, wherever it is in the conversation.
+    public func firstUnreadID(channelID: Int, topic: String) throws -> Int? {
+        try writer.read { db in try Self.firstUnreadID(in: db, of: Self.topicMessages(channelID, topic)) }
+    }
+
+    public func firstUnreadID(dmKey: String) throws -> Int? {
+        try writer.read { db in try Self.firstUnreadID(in: db, of: Self.dmMessages(dmKey)) }
+    }
+
+    private static func firstUnreadID(in db: Database, of conversation: SQL) throws -> Int? {
+        try SQLRequest<Int?>(literal: """
+            SELECT MIN(m.id) FROM message m WHERE \(conversation) AND NOT m.isRead
+            """).fetchOne(db) ?? nil
+    }
+
     private func windowStart(of conversation: SQL, openingAt target: Int?, newest: Int, context: Int) throws -> Int? {
         try writer.read { db in
             let newestStart = try Self.oldestID(in: db, of: conversation, count: newest, before: nil)
-            let opening = try target ?? SQLRequest<Int?>(literal: """
-                SELECT MIN(m.id) FROM message m WHERE \(conversation) AND NOT m.isRead
-                """).fetchOne(db) ?? nil
+            let opening = try target ?? Self.firstUnreadID(in: db, of: conversation)
             guard let opening else { return newestStart }
             let contextStart = try Self.oldestID(in: db, of: conversation, count: context, before: opening) ?? opening
             return newestStart.map { min($0, contextStart) } ?? contextStart
