@@ -3,20 +3,22 @@ import SwiftUI
 import ZuluStore
 
 /// A channel renders as a topic list or as flat chat, decided by how its traffic is
-/// actually spread. A channel whose messages all sit in one topic is a chat room.
+/// actually spread, or by the reader's choice. A chat room opens on the topic its
+/// traffic is in, as on the Mac.
 struct ChannelView: View {
     let channel: ChannelSummary
     @Environment(AppModel.self) private var model
 
+    /// Newest first.
     @State private var topics: [TopicSummary] = []
 
     var body: some View {
         Group {
-            if channel.rendersAsForum || topics.count > 1 {
+            if channel.rendersAsForum {
                 topicList
-            } else if let only = topics.first {
+            } else if let newest = topics.first {
                 let source = ConversationView.Source.topic(
-                    channelID: channel.id, name: only.name, channelName: channel.name
+                    channelID: channel.id, name: newest.name, channelName: channel.name
                 )
                 ConversationView(source: source).id(source)
             } else {
@@ -41,9 +43,10 @@ struct ChannelView: View {
                                 .font(.body.weight(topic.unreadCount > 0 ? .semibold : .regular))
                                 .foregroundStyle(topic.unreadCount > 0 ? SidebarTone.unread : Color.primary)
                                 .lineLimit(2)
-                            if let sender = topic.lastSender {
-                                Text(sender).font(.footnote).foregroundStyle(TextTone.secondary).lineLimit(1)
-                            }
+                            // Held open while the sender is fetched, so the row does not
+                            // grow under a finger about to tap the one below.
+                            Text(topic.lastSender ?? " ")
+                                .font(.footnote).foregroundStyle(TextTone.secondary).lineLimit(1)
                         }
                         Spacer(minLength: 4)
                         VStack(alignment: .trailing, spacing: 4) {
@@ -60,6 +63,9 @@ struct ChannelView: View {
                     }
                     .padding(.vertical, 4)
                 }
+                .requestsNewestMessage(of: topic.date == nil ? .topic(
+                    channelID: channel.id, name: topic.name, channelName: channel.name
+                ) : nil)
                 .contextMenu {
                     OpenInNewWindowButton(source: .topic(
                         channelID: channel.id, name: topic.name, channelName: channel.name

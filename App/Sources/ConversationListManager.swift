@@ -5,9 +5,10 @@ import ZuluScroll
 /// Carries out what `ConversationFollow` decides on a conversation's `TiledView`.
 ///
 /// The list cannot scroll to a message, only to its ends. A conversation opening at its
-/// first unread therefore starts out holding back everything older, so the unread message
-/// is the first row and the list opens on it. Once the list has been laid out the older
-/// messages go in above it, and the list keeps the unread row where it is.
+/// first unread, or at a message it was asked for, therefore starts out holding back
+/// everything older, so that message is the first row and the list opens on it. Once the
+/// list has been laid out the older messages go in above it, and the list keeps the
+/// opening row where it is.
 @MainActor
 @Observable
 final class ConversationListManager {
@@ -15,7 +16,7 @@ final class ConversationListManager {
     var scrollPosition: TiledScrollPosition
     private(set) var showsJumpToNewest = false
     private(set) var isAtNewest = false
-    /// True while messages older than the first unread are held back.
+    /// True while messages older than the opening message are held back.
     private(set) var isHoldingHistory: Bool
 
     /// Unobserved on purpose. It takes in the scroll geometry on every frame, and a view
@@ -23,16 +24,17 @@ final class ConversationListManager {
     /// which re-renders the list.
     @ObservationIgnored private var follow: ConversationFollow
     @ObservationIgnored private var layout: ConversationLayout?
-    @ObservationIgnored private let firstUnreadID: Int?
+    @ObservationIgnored private let openingID: Int?
     @ObservationIgnored private weak var scrollView: UIScrollView?
     @ObservationIgnored private var insetObservation: NSKeyValueObservation?
     @ObservationIgnored private var offsetObservation: NSKeyValueObservation?
 
-    init(opensAt firstUnread: Int?) {
-        follow = ConversationFollow(opensAt: firstUnread)
-        firstUnreadID = firstUnread
-        isHoldingHistory = firstUnread != nil
-        let opensOnNewest = firstUnread == nil
+    init(opensAt opening: Int?, reachesNewest: Bool) {
+        follow = ConversationFollow(opensAt: opening)
+        follow.reachesNewest = reachesNewest
+        openingID = opening
+        isHoldingHistory = opening != nil
+        let opensOnNewest = opening == nil
         scrollPosition = TiledScrollPosition(
             autoScrollsToBottomOnAppend: opensOnNewest,
             scrollsToBottomOnReplace: opensOnNewest
@@ -40,10 +42,17 @@ final class ConversationListManager {
     }
 
     func shown(_ messages: [GroupedMessage]) -> ArraySlice<GroupedMessage> {
-        guard isHoldingHistory, let firstUnreadID,
-              let start = messages.firstIndex(where: { $0.id == firstUnreadID })
+        guard isHoldingHistory, let openingID,
+              let start = messages.firstIndex(where: { $0.id == openingID })
         else { return messages[...] }
         return messages[start...]
+    }
+
+    /// Older history shown apart from the newest messages has caught up with them.
+    func reachesNewest(_ reaches: Bool) {
+        guard follow.reachesNewest != reaches else { return }
+        follow.reachesNewest = reaches
+        publish()
     }
 
     /// The list's rows find the scroll view, so nothing is decided before a row exists.
@@ -110,7 +119,7 @@ final class ConversationListManager {
         case .toBottom:
             scrollPosition.scrollTo(edge: .bottom, animated: true)
         case .toMessage:
-            // Already there: the held-back list opened on the unread message.
+            // Already there: the held-back list opened on that message.
             break
         case nil:
             break
@@ -119,7 +128,7 @@ final class ConversationListManager {
 
     private func publish() {
         if showsJumpToNewest != follow.showsJumpToNewest { showsJumpToNewest = follow.showsJumpToNewest }
-        let isNearBottom = layout.map { $0.isMeasured && $0.isNearBottom } ?? false
+        let isNearBottom = follow.reachesNewest && (layout.map { $0.isMeasured && $0.isNearBottom } ?? false)
         if isAtNewest != isNearBottom { isAtNewest = isNearBottom }
         if scrollPosition.autoScrollsToBottomOnAppend != follow.isPinned {
             scrollPosition.autoScrollsToBottomOnAppend = follow.isPinned

@@ -23,7 +23,14 @@ struct MacConversationView: View {
     var body: some View {
         Group {
             if let loader, loader.isReady {
-                MacConversationHistory(source: source, loader: loader, readTracker: readTracker, title: title)
+                MacConversationHistory(
+                    source: source, loader: loader, readTracker: readTracker, title: title,
+                    returnToNewest: {
+                        let reopened = replaceLoader(at: nil, opensAtNewest: true)
+                        Task { await reopened.start() }
+                    }
+                )
+                    .id(ObjectIdentifier(loader))
             } else {
                 DelayedProgressView()
             }
@@ -138,6 +145,12 @@ struct MacConversationView: View {
         // Nothing is marked read here: a conversation opens at its first unread, and the
         // rows the reader scrolls past mark themselves.
         .task(id: source) { await openLoader().start() }
+        // A link to a message in the conversation already open.
+        .onChange(of: model.pendingTarget) {
+            guard let target = model.takeTarget(in: source) else { return }
+            let reopened = replaceLoader(at: target)
+            Task { await reopened.start() }
+        }
         .task(id: model.reactionHistoryVersion) {
             // The quick row's emoji are the viewer's habits, looked up once per
             // conversation and again after each reaction, not once per message.
@@ -156,8 +169,15 @@ struct MacConversationView: View {
     /// stored is drawn in its first frame instead of one frame later.
     private func openLoader() -> MessageHistoryLoader {
         if let loader, loader.source == source, !loader.isStopped { return loader }
+        return replaceLoader(at: model.takeTarget(in: source))
+    }
+
+    private func replaceLoader(at target: Int?, opensAtNewest: Bool = false) -> MessageHistoryLoader {
         loader?.stop()
-        let opened = MessageHistoryLoader(source: source, model: model)
+        if let readTracker { Task { await readTracker.flushNow() } }
+        let opened = MessageHistoryLoader(
+            source: source, model: model, targetID: target, opensAtNewest: opensAtNewest
+        )
         opened.openFromStore()
         loader = opened
         readTracker = ReadTracker { ids in await model.markRead(ids) }
@@ -267,6 +287,8 @@ private struct MacConversationHistory: View {
     let loader: MessageHistoryLoader
     let readTracker: ReadTracker?
     let title: String
+    /// Leaves older history shown apart from the newest messages for the newest ones.
+    let returnToNewest: () -> Void
 
     @Environment(AppModel.self) private var model
     @Environment(MacUIState.self) private var ui
@@ -287,8 +309,10 @@ private struct MacConversationHistory: View {
             loader: loader,
             readTracker: readTracker
         )
-        .onChange(of: scroll.isNearBottom, initial: true) { _, isNearBottom in
-            if isNearBottom {
+        // The bottom of older history shown apart from the newest messages is not the
+        // live edge: below it are messages the reader has not seen.
+        .onChange(of: scroll.isNearBottom && !loader.hasMoreNewer, initial: true) { _, isAtLiveEdge in
+            if isAtLiveEdge {
                 model.liveEdgeReached(in: source)
                 Task { await model.markConversationRead(source) }
             } else {
@@ -300,7 +324,7 @@ private struct MacConversationHistory: View {
             Group {
                 if scroll.showsJumpToNewest {
                     Button {
-                        scroll.jumpToNewest()
+                        jumpToNewest()
                     } label: {
                         Image(systemName: "arrow.down")
                             .font(.body.weight(.semibold))
@@ -320,8 +344,12 @@ private struct MacConversationHistory: View {
         }
         .onChange(of: model.outbox.count(in: source)) { old, new in
             guard new > old else { return }
-            scroll.didSend()
+            if loader.hasMoreNewer { returnToNewest() } else { scroll.didSend() }
         }
+    }
+
+    private func jumpToNewest() {
+        if loader.hasMoreNewer { returnToNewest() } else { scroll.jumpToNewest() }
     }
 
     private var rows: [MacConversationRow] {

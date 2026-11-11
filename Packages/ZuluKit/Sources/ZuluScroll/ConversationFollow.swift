@@ -67,10 +67,16 @@ public struct ConversationFollow: Equatable, Sendable {
         mode = firstUnread.map { .opening(atUnread: $0) } ?? .pinned
     }
 
+    /// False while the list holds a stretch of older history that stops short of the
+    /// newest message. Its bottom is then somewhere in the past, and never followed.
+    public var reachesNewest = true
+
     public var isPinned: Bool { mode == .pinned }
 
-    /// Only for a reader who has actually left the bottom.
-    public var showsJumpToNewest: Bool { mode != .pinned && layout?.isNearBottom == false }
+    /// Only for a reader who has actually left the bottom, or whose bottom is not the newest.
+    public var showsJumpToNewest: Bool {
+        mode != .pinned && (!reachesNewest || layout?.isNearBottom == false)
+    }
 
     public mutating func userBeganScrolling() {
         isUserScrolling = true
@@ -86,7 +92,7 @@ public struct ConversationFollow: Equatable, Sendable {
         guard isUserScrolling else { return false }
         isUserScrolling = false
         guard let layout else { return true }
-        mode = layout.isNearBottom ? .pinned : .reading
+        mode = layout.isNearBottom && reachesNewest ? .pinned : .reading
         return true
     }
 
@@ -102,7 +108,7 @@ public struct ConversationFollow: Equatable, Sendable {
         case .landing:
             // So little below the unread message that the list is already at the bottom:
             // there is nothing left to read down to, so follow from here.
-            if new.isSettledAtBottom { return pin() }
+            if new.isSettledAtBottom, reachesNewest { return pin() }
             mode = .reading
             return nil
         case .pinned, .reading:

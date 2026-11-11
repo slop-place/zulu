@@ -38,7 +38,7 @@ struct ConversationView: View {
                 // changes on every sync, and in the same view each change rebuilt the list.
                 ConversationList(
                     source: source, title: title, loader: loader, readTracker: readTracker,
-                    sideInsets: sideInsets
+                    sideInsets: sideInsets, returnToNewest: { reopen(at: nil, opensAtNewest: true) }
                 )
                     .id(ObjectIdentifier(loader))
                     .environment(\.jumpsFromSideBar, hasScreenToItself && sideBarEdge != nil)
@@ -113,6 +113,10 @@ struct ConversationView: View {
         // Nothing is marked read here: a conversation opens at its first unread, and the
         // rows the reader scrolls past mark themselves.
         .task(id: source) { await openLoader().start() }
+        // Asked to open at a message while already open, say from search.
+        .onChange(of: model.pendingTarget) {
+            if let target = model.takeTarget(in: source) { reopen(at: target) }
+        }
         .onDisappear {
             loader?.stop()
             Task { await readTracker?.flushNow() }
@@ -127,12 +131,22 @@ struct ConversationView: View {
     /// stored is drawn in its first frame instead of one frame later.
     private func openLoader() -> MessageHistoryLoader {
         if let loader, loader.source == source, !loader.isStopped { return loader }
+        return replaceLoader(at: model.takeTarget(in: source))
+    }
+
+    private func replaceLoader(at target: Int?, opensAtNewest: Bool = false) -> MessageHistoryLoader {
         loader?.stop()
-        let opened = MessageHistoryLoader(source: source, model: model)
+        if let readTracker { Task { await readTracker.flushNow() } }
+        let opened = MessageHistoryLoader(source: source, model: model, targetID: target, opensAtNewest: opensAtNewest)
         opened.openFromStore()
         loader = opened
         readTracker = ReadTracker { ids in await model.markRead(ids) }
         return opened
+    }
+
+    private func reopen(at target: Int?, opensAtNewest: Bool = false) {
+        let reopened = replaceLoader(at: target, opensAtNewest: opensAtNewest)
+        Task { await reopened.start() }
     }
 
     private func flushBeforeSuspending() {

@@ -119,6 +119,7 @@ struct MacMessageSearch: View {
 
     private func open(_ hit: SearchHit) {
         ui.section = MacShellView.section(for: hit.destination, model: model)
+        model.target(hit.id, in: hit.destination)
         model.destination = hit.destination
         dismiss()
     }

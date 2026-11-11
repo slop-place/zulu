@@ -18,11 +18,15 @@ struct RecentEntry: Identifiable, Equatable {
     let avatarUserID: Int?
     var unreadCount: Int
     var mentionCount: Int
+    /// The conversation whose newest message this row is waiting on, if any.
+    let missingNewest: ConversationSource?
 
     @MainActor
     init(row: RecentConversation, model: AppModel) {
         id = row.id
         date = row.date
+        missingNewest = row.lastTimestamp != nil ? nil : row.dmKey.map { .dm(key: $0) }
+            ?? .topic(channelID: row.channelID ?? 0, name: row.topic ?? "", channelName: row.channelName ?? "")
         isRestricted = row.isRestricted ?? false
         unreadCount = row.unreadCount
         mentionCount = row.mentionCount

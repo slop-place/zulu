@@ -30,6 +30,8 @@ struct ConversationList: View {
     let title: String
     let loader: MessageHistoryLoader
     let readTracker: ReadTracker?
+    /// Leaves older history shown apart from the newest messages for the newest ones.
+    let returnToNewest: () -> Void
 
     @Environment(AppModel.self) private var model
     @Environment(AttachmentPreviewer.self) private var previewer
@@ -53,7 +55,7 @@ struct ConversationList: View {
 
     init(
         source: ConversationSource, title: String, loader: MessageHistoryLoader, readTracker: ReadTracker?,
-        sideInsets: HorizontalInsets
+        sideInsets: HorizontalInsets, returnToNewest: @escaping () -> Void
     ) {
         // Known from the first row on, so no row is measured at one width and drawn at
         // another.
@@ -63,7 +65,10 @@ struct ConversationList: View {
         self.title = title
         self.loader = loader
         self.readTracker = readTracker
-        _manager = State(initialValue: ConversationListManager(opensAt: loader.firstUnreadID))
+        self.returnToNewest = returnToNewest
+        _manager = State(initialValue: ConversationListManager(
+            opensAt: loader.openingID, reachesNewest: !loader.hasMoreNewer
+        ))
     }
 
     var body: some View {
@@ -82,7 +87,7 @@ struct ConversationList: View {
             Group {
                 if manager.showsJumpToNewest, !jumpsFromSideBar {
                     Button {
-                        manager.followNewest()
+                        jumpToNewest()
                     } label: {
                         Image(systemName: "chevron.down")
                             .font(.body.weight(.semibold))
@@ -105,7 +110,7 @@ struct ConversationList: View {
                 // A circle of its own, apart from the channel's buttons above it.
                 ToolbarSpacer(.fixed, placement: .topBarTrailing)
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Jump to Newest", systemImage: "chevron.down") { manager.followNewest() }
+                    Button("Jump to Newest", systemImage: "chevron.down") { jumpToNewest() }
                 }
                 .sideBarItem()
             }
@@ -128,8 +133,13 @@ struct ConversationList: View {
         // Sending always shows what was sent, even from partway up the history.
         .onChange(of: model.outbox.count(in: source)) { old, new in
             guard new > old else { return }
-            manager.followNewest()
+            jumpToNewest()
         }
+        .onChange(of: loader.hasMoreNewer) { _, hasMore in manager.reachesNewest(!hasMore) }
+    }
+
+    private func jumpToNewest() {
+        if loader.hasMoreNewer { returnToNewest() } else { manager.followNewest() }
     }
 
     private func list(bars: EdgeInsets?) -> some View {
@@ -140,11 +150,12 @@ struct ConversationList: View {
             openURL: openURL,
             presenter: presenter,
             manager: manager,
+            loader: loader,
             source: source,
             readTracker: readTracker,
             sideInsets: sideInsets
         )
-        // The loader and the header are attached for good and only change what they show.
+        // The loaders and the header are attached for good and only change what they show.
         // Attaching or detaching one is a batch update of the collection view, and the
         // list asserts when that lands in the same update as a change to the rows, which
         // is exactly when the held-back history goes in.
@@ -157,6 +168,15 @@ struct ConversationList: View {
                 Task { await loader.loadOlder() }
             },
             isProcessing: loader.isLoadingOlder
+        ) {
+            ProgressView().frame(maxWidth: .infinity).frame(height: Self.loaderHeight)
+        })
+        .appendLoader(Loader.loader(
+            perform: { [loader] in
+                guard loader.hasMoreNewer else { return }
+                Task { await loader.loadNewer() }
+            },
+            isProcessing: loader.isLoadingNewer
         ) {
             ProgressView().frame(maxWidth: .infinity).frame(height: Self.loaderHeight)
         })
@@ -200,6 +220,7 @@ private struct ConversationCellHost {
     let openURL: OpenURLAction
     let presenter: MessagePresenter
     let manager: ConversationListManager
+    let loader: MessageHistoryLoader
     let source: ConversationSource
     let readTracker: ReadTracker?
     let sideInsets: SideInsets
@@ -270,6 +291,7 @@ private struct ConversationCell: @MainActor TiledCellContent {
                     UnreadDivider().padding(.top, Self.unreadSpacing)
                 }
                 MessageRow(message: entry.message, startsGroup: entry.startsGroup, reactions: reactions)
+                    .background { TargetHighlight(loader: host.loader, messageID: entry.message.id) }
                     .padding(.top, spacing(startsGroup: entry.startsGroup))
                     .swipeToReply { [source = host.source] in
                         ComposerInbox.shared.deliver(

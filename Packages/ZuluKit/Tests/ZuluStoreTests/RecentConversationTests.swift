@@ -31,6 +31,11 @@ struct RecentConversationTests {
                        (20, NULL, NULL, '2', 2, 'Ana', '<p>hi</p>', 2000),
                        (30, 7, 'lunch', NULL, 3, 'Bo', '<p>tacos</p>', 3000)
                 """)
+            try db.execute(sql: """
+                INSERT INTO conversationTip
+                    (channelID, topic, dmKey, messageID, senderID, senderName, renderedContent, timestamp)
+                SELECT channelID, topic, dmKey, id, senderID, senderName, renderedContent, timestamp FROM message
+                """)
             try db.execute(sql: "INSERT INTO dmConversation (dmKey, maxMessageID) VALUES ('2', 20)")
             try db.execute(
                 sql: "INSERT INTO unread (messageID, channelID, topic, isMention) VALUES (30, 7, 'lunch', 1)"

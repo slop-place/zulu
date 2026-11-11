@@ -181,9 +181,9 @@ struct MacTopicListView: View {
                         Text(topic.name.isEmpty ? "general chat" : topic.name)
                             .font(.body.weight(topic.unreadCount > 0 ? .semibold : .regular))
                             .lineLimit(1)
-                        if let sender = topic.lastSender {
-                            Text(sender).font(.caption).foregroundStyle(TextTone.secondary).lineLimit(1)
-                        }
+                        // Held open while the sender is fetched, so rows keep their height.
+                        Text(topic.lastSender ?? " ")
+                            .font(.caption).foregroundStyle(TextTone.secondary).lineLimit(1)
                     }
                     Spacer(minLength: 8)
                     VStack(alignment: .trailing, spacing: 3) {
@@ -203,6 +203,9 @@ struct MacTopicListView: View {
                 .contentShape(.rect)
             }
             .buttonStyle(.plain)
+            .requestsNewestMessage(of: topic.date == nil ? .topic(
+                channelID: channel.id, name: topic.name, channelName: channel.name
+            ) : nil)
             .contextMenu {
                 Button("Mark as Read") {
                     Task {
