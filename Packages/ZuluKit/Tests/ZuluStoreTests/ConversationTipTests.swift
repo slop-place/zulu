@@ -116,4 +116,18 @@ struct ConversationTipTests {
         #expect(row.lastSender == "Ana")
         #expect(row.lastContent == "<p>first</p>")
     }
+
+    @Test func deletingTheNewestFallsBackBeforeTheTopicListIsRefreshed() async throws {
+        let store = try store()
+        try store.save(
+            messages: [message(10, from: "Ana", saying: "first"), message(20, from: "Bo", saying: "second")],
+            selfUserID: me
+        )
+
+        try store.deleteMessages(ids: [20])
+
+        let row = try #require(try await topicRow(store))
+        #expect(row.maxMessageID == 10)
+        #expect(row.lastSender == "Ana")
+    }
 }

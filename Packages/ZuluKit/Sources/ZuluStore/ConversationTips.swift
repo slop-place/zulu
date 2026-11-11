@@ -101,11 +101,23 @@ extension ZuluStore {
     /// A conversation whose tip was deleted falls back to the newest message in its history.
     static func forgetDeletedTips(_ ids: [Int], in db: Database) throws {
         guard !ids.isEmpty else { return }
+        let deleted = databaseQuestionMarks(count: ids.count)
         try db.execute(
-            sql: "DELETE FROM conversationTip WHERE messageID IN (\(databaseQuestionMarks(count: ids.count)))",
+            sql: "DELETE FROM conversationTip WHERE messageID IN (\(deleted))",
             arguments: StatementArguments(ids)
         )
         try fillMissingTipsFromHistory(in: db)
+        // The topic's newest message is gone, so its fallback tip is now its newest.
+        try db.execute(sql: """
+            UPDATE topic
+               SET maxMessageID = (SELECT tip.messageID FROM conversationTip tip
+                                    WHERE tip.dmKey IS NULL AND tip.channelID = topic.channelID
+                                      AND tip.topic = topic.name)
+             WHERE maxMessageID IN (\(deleted))
+               AND EXISTS (SELECT 1 FROM conversationTip tip
+                            WHERE tip.dmKey IS NULL AND tip.channelID = topic.channelID
+                              AND tip.topic = topic.name)
+            """, arguments: StatementArguments(ids))
     }
 
     private static func fillMissingTipsFromHistory(in db: Database) throws {
