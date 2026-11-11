@@ -60,6 +60,10 @@ struct SectionList: View {
     @State private var aliasDraft = ""
     @State private var mutedTopicsChannel: ChannelSummary?
     @State private var newTopicChannel: ChannelSummary?
+    /// One scroll view lists every section, so each section's place is kept here and put
+    /// back when it is shown again, the way a tab keeps its own.
+    @State private var scroll = ScrollPosition(edge: .top)
+    @State private var scrolledTo: [ShellSection: CGFloat] = [:]
 
     var body: some View {
         ScrollView {
@@ -107,6 +111,13 @@ struct SectionList: View {
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 8)
+        }
+        .scrollPosition($scroll)
+        .onScrollGeometryChange(for: CGFloat.self) { $0.contentOffset.y + $0.contentInsets.top } action: { _, offset in
+            scrolledTo[section] = offset
+        }
+        .onChange(of: section) {
+            if let offset = scrolledTo[section] { scroll.scrollTo(y: offset) } else { scroll.scrollTo(edge: .top) }
         }
         .refreshable { await model.refreshTopics() }
         // Observed by the list, which both shells keep mounted: one observing only while
