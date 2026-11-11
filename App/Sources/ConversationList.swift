@@ -49,6 +49,9 @@ struct ConversationList: View {
     /// The jump button in the side bar, changed in an animation so it grows in like the
     /// floating one rather than appearing between two frames.
     @State private var showsJumpInBar = false
+    /// Rows go to the list only after its first layout. Rows given before it are measured
+    /// at zero width, then all measured again at the real one.
+    @State private var isLaidOut = false
 
     private static let listPadding: CGFloat = 12
     private static let loaderHeight: CGFloat = 44
@@ -159,7 +162,7 @@ struct ConversationList: View {
         // Attaching or detaching one is a batch update of the collection view, and the
         // list asserts when that lands in the same update as a change to the rows, which
         // is exactly when the held-back history goes in.
-        return TiledView(items: entries, scrollPosition: $manager.scrollPosition) { entry in
+        return TiledView(items: isLaidOut ? entries : [], scrollPosition: $manager.scrollPosition) { entry in
             ConversationCell(item: entry, host: host)
         }
         .prependLoader(Loader.loader(
@@ -195,6 +198,11 @@ struct ConversationList: View {
         // frame drew every row a sidebar's width to the right. It also keeps the side
         // insets out of the list's own scrolling, which let a conversation slide sideways.
         .ignoresSafeArea(.container, edges: .horizontal)
+        // A turn later: the width arrives during the update that lays the list out.
+        .onGeometryChange(for: Bool.self) { $0.size.width > 0 } action: { hasWidth in
+            guard hasWidth, !isLaidOut else { return }
+            Task { isLaidOut = true }
+        }
     }
 
     private var entries: [ConversationEntry] {
