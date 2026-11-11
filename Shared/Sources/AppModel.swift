@@ -54,8 +54,14 @@ final class AppModel {
     private(set) var users: [Int: UserRecord] = [:]
 
     var destination: Destination? {
-        didSet { rememberDestination() }
+        didSet {
+            rememberDestination()
+            if pendingTarget?.conversation != destination?.conversation { pendingTarget = nil }
+        }
     }
+    /// The message the conversation being opened should open at. Taken by that
+    /// conversation as it opens, so it applies to that one opening only.
+    private(set) var pendingTarget: MessageTarget?
     var signInError: String?
     /// Set when a freshly made group should open its editor straight away.
     var pendingGroupToEdit: String?
@@ -413,6 +419,68 @@ extension AppModel {
     func search(_ query: String, in scope: SearchScope, olderThan oldestShown: Int?) async throws -> MessagesPage {
         guard let client else { throw ZulipError(kind: .badResponse, message: "Not signed in.") }
         return try await client.search(query, in: scope, olderThan: oldestShown)
+    }
+}
+
+// MARK: - Opening at a message
+
+/// A message to open a conversation at, rather than at its first unread.
+struct MessageTarget: Equatable {
+    let conversation: ConversationSource
+    let messageID: Int
+}
+
+extension AppModel {
+    func open(_ destination: Destination, at messageID: Int?) {
+        if let messageID { target(messageID, in: destination) } else { pendingTarget = nil }
+        self.destination = destination
+    }
+
+    /// For a shell that opens `destination` its own way: called first, the conversation
+    /// opens at `messageID`.
+    func target(_ messageID: Int, in destination: Destination) {
+        pendingTarget = destination.conversation.map { MessageTarget(conversation: $0, messageID: messageID) }
+    }
+
+    /// The message `source` was asked to open at, if any. Taking it clears it.
+    func takeTarget(in source: ConversationSource) -> Int? {
+        guard let target = pendingTarget, target.conversation == source else { return nil }
+        pendingTarget = nil
+        return target.messageID
+    }
+
+    /// Fetched without saving. A stretch from far back in a conversation, saved, would
+    /// leave a gap between it and the stored history.
+    func fetchMessages(
+        in source: ConversationSource, anchor: ZulipClient.Anchor, before: Int, after: Int, includeAnchor: Bool
+    ) async -> MessagesPage? {
+        guard let client else { return nil }
+        return try? await client.messages(
+            narrow: Self.narrow(of: source), anchor: anchor, before: before, after: after, includeAnchor: includeAnchor
+        )
+    }
+
+    /// Only for messages known to join on to what is stored.
+    func save(_ messages: [ZulipMessage]) {
+        guard let store, let account else { return }
+        try? store.save(messages: messages, selfUserID: account.userID)
+    }
+
+    func isStored(_ messageID: Int) -> Bool {
+        guard let store else { return false }
+        return (try? store.writer.read { db in try MessageRecord.exists(db, key: messageID) }) ?? false
+    }
+
+    func storesAny(of messageIDs: [Int]) -> Bool {
+        guard let store, !messageIDs.isEmpty else { return false }
+        return (try? store.writer.read { db in try MessageRecord.filter(keys: messageIDs).fetchCount(db) > 0 }) ?? false
+    }
+
+    private static func narrow(of source: ConversationSource) -> [NarrowFilter] {
+        switch source {
+        case .topic(let channelID, let name, _): [.channel(channelID), .topic(name)]
+        case .dm(let key): [.dm(key.split(separator: ",").compactMap { Int($0) })]
+        }
     }
 }
 

@@ -7,12 +7,14 @@ struct MessageSearchView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var search: MessageSearch
     @FocusState private var fieldFocused: Bool
+    private let model: AppModel
     private let open: (AppModel.Destination) -> Void
 
     init(model: AppModel, from destination: AppModel.Destination?, open: @escaping (AppModel.Destination) -> Void) {
         _search = State(initialValue: MessageSearch(
             model: model, options: MessageSearch.options(for: destination, model: model)
         ))
+        self.model = model
         self.open = open
     }
 
@@ -60,6 +62,7 @@ struct MessageSearchView: View {
 
     private func choose(_ hit: SearchHit) {
         dismiss()
+        model.target(hit.id, in: hit.destination)
         open(hit.destination)
     }
 }

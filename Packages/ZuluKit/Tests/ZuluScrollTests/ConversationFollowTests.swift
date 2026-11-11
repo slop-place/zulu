@@ -139,3 +139,34 @@ struct OpeningAtUnreadTests {
         #expect(follow.isPinned)
     }
 }
+
+/// Opened at an old message, the list holds a stretch of history whose bottom is not
+/// the newest message.
+struct OpeningInThePastTests {
+
+    @Test func landingAtTheBottomOfOldHistoryKeepsReading() {
+        var follow = ConversationFollow(opensAt: 58)
+        follow.reachesNewest = false
+        _ = follow.layoutChanged(to: layout(distance: 0))
+        #expect(follow.layoutChanged(to: layout(distance: 0)) == nil)
+        #expect(follow.mode == .reading)
+    }
+
+    @Test func lettingGoAtTheBottomOfOldHistoryKeepsReading() {
+        var follow = ConversationFollow(opensAt: 58)
+        follow.reachesNewest = false
+        _ = follow.layoutChanged(to: layout(distance: 640))
+        follow.userBeganScrolling()
+        _ = follow.layoutChanged(to: layout(distance: 0))
+        follow.userFinishedScrolling()
+        #expect(follow.mode == .reading)
+    }
+
+    @Test func theWayToTheNewestStaysOfferedAtTheBottomOfOldHistory() {
+        var follow = ConversationFollow(opensAt: 58)
+        follow.reachesNewest = false
+        _ = follow.layoutChanged(to: layout(distance: 0))
+        _ = follow.layoutChanged(to: layout(distance: 0))
+        #expect(follow.showsJumpToNewest)
+    }
+}
