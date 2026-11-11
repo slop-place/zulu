@@ -38,7 +38,7 @@ struct ConversationView: View {
                 // changes on every sync, and in the same view each change rebuilt the list.
                 ConversationList(
                     source: source, title: title, loader: loader, readTracker: readTracker,
-                    sideInsets: sideInsets, returnToNewest: { reopen(at: nil) }
+                    sideInsets: sideInsets, returnToNewest: { reopen(at: nil, opensAtNewest: true) }
                 )
                     .id(ObjectIdentifier(loader))
                     .environment(\.jumpsFromSideBar, hasScreenToItself && sideBarEdge != nil)
@@ -134,18 +134,18 @@ struct ConversationView: View {
         return replaceLoader(at: model.takeTarget(in: source))
     }
 
-    private func replaceLoader(at target: Int?) -> MessageHistoryLoader {
+    private func replaceLoader(at target: Int?, opensAtNewest: Bool = false) -> MessageHistoryLoader {
         loader?.stop()
         if let readTracker { Task { await readTracker.flushNow() } }
-        let opened = MessageHistoryLoader(source: source, model: model, targetID: target)
+        let opened = MessageHistoryLoader(source: source, model: model, targetID: target, opensAtNewest: opensAtNewest)
         opened.openFromStore()
         loader = opened
         readTracker = ReadTracker { ids in await model.markRead(ids) }
         return opened
     }
 
-    private func reopen(at target: Int?) {
-        let reopened = replaceLoader(at: target)
+    private func reopen(at target: Int?, opensAtNewest: Bool = false) {
+        let reopened = replaceLoader(at: target, opensAtNewest: opensAtNewest)
         Task { await reopened.start() }
     }
 

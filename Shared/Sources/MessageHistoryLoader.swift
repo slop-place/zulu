@@ -38,6 +38,8 @@ final class MessageHistoryLoader {
     let source: ConversationSource
     /// The message to open at instead of the first unread.
     let targetID: Int?
+    /// Opens on the newest message even with something unread above it.
+    private let opensAtNewest: Bool
     private let model: AppModel
     private var scrollPhase: ScrollPhase = .idle
     @ObservationIgnored private var observation: AnyDatabaseCancellable?
@@ -51,10 +53,11 @@ final class MessageHistoryLoader {
     private static let detachedPageSize = 100
     private static let highlightDuration = Duration.seconds(2)
 
-    init(source: ConversationSource, model: AppModel, targetID: Int? = nil) {
+    init(source: ConversationSource, model: AppModel, targetID: Int? = nil, opensAtNewest: Bool = false) {
         self.source = source
         self.model = model
         self.targetID = targetID
+        self.opensAtNewest = opensAtNewest
     }
 
     /// Called when the conversation closes. `deinit` cannot touch main-actor state, and
@@ -133,7 +136,7 @@ final class MessageHistoryLoader {
             firstUnreadID = snapshot.firstUnreadID
             // A deleted target opens at whatever came after it.
             let target = targetID.flatMap { id in snapshot.messages.first { $0.id >= id }?.id }
-            openingID = target ?? snapshot.firstUnreadID
+            openingID = target ?? (opensAtNewest ? nil : snapshot.firstUnreadID)
             if let target { highlight(target) }
             isReady = true
             // Read on the spot, the first value was not parsed ahead of the rows.
