@@ -160,6 +160,7 @@ public final class ZuluStore: Sendable {
         registerChannelNotificationMigration(&migrator)
         registerReactionHistoryMigration(&migrator)
         registerDirectConversationMigration(&migrator)
+        registerConversationTipMigration(&migrator)
 
         return migrator
     }
@@ -235,7 +236,8 @@ public final class ZuluStore: Sendable {
     }
 
     static func write(_ message: ZulipMessage, selfUserID: Int, in db: Database) throws {
-        try MessageRecord(from: message, selfUserID: selfUserID).save(db)
+        let record = MessageRecord(from: message, selfUserID: selfUserID)
+        try record.save(db)
         try ReactionRecord
             .filter(Column("messageID") == message.id)
             .deleteAll(db)
@@ -259,20 +261,7 @@ public final class ZuluStore: Sendable {
                 avatarURL: message.avatar_url
             ).save(db)
         }
-        if message.isChannelMessage, let channelID = message.stream_id {
-            let existing = try TopicRecord
-                .filter(Column("channelID") == channelID && Column("name") == message.subject)
-                .fetchOne(db)
-            if existing == nil || existing!.maxMessageID < message.id {
-                try TopicRecord(channelID: channelID, name: message.subject, maxMessageID: message.id).save(db)
-            }
-        } else {
-            try noteDirectConversation(
-                MessageRecord.dmKey(for: message.dmParticipants.map(\.id), selfUserID: selfUserID),
-                messageID: message.id,
-                in: db
-            )
-        }
+        try noteNewest(record, in: db)
     }
 
     public func syncState() throws -> SyncStateRecord? {
@@ -289,7 +278,8 @@ public final class ZuluStore: Sendable {
         try writer.write { db in
             for table in [
                 "promotedTopic", "channelGroupMember", "channelGroup",
-                "submessage", "reaction", "message", "topic", "dmConversation", "channel", "user", "syncState", "unread",
+                "submessage", "reaction", "message", "conversationTip", "topic", "dmConversation", "channel", "user",
+                "syncState", "unread",
                 "realmEmoji", "serverEmojiData", "userGroup", "channelSubscriber", "mutedTopic", "topicPolicy",
             ] {
                 try db.execute(sql: "DELETE FROM \(table)")

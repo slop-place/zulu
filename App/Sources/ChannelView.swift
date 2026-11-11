@@ -43,9 +43,10 @@ struct ChannelView: View {
                                 .font(.body.weight(topic.unreadCount > 0 ? .semibold : .regular))
                                 .foregroundStyle(topic.unreadCount > 0 ? SidebarTone.unread : Color.primary)
                                 .lineLimit(2)
-                            if let sender = topic.lastSender {
-                                Text(sender).font(.footnote).foregroundStyle(TextTone.secondary).lineLimit(1)
-                            }
+                            // Held open while the sender is fetched, so the row does not
+                            // grow under a finger about to tap the one below.
+                            Text(topic.lastSender ?? " ")
+                                .font(.footnote).foregroundStyle(TextTone.secondary).lineLimit(1)
                         }
                         Spacer(minLength: 4)
                         VStack(alignment: .trailing, spacing: 4) {
@@ -62,6 +63,9 @@ struct ChannelView: View {
                     }
                     .padding(.vertical, 4)
                 }
+                .requestsNewestMessage(of: topic.date == nil ? .topic(
+                    channelID: channel.id, name: topic.name, channelName: channel.name
+                ) : nil)
                 .contextMenu {
                     OpenInNewWindowButton(source: .topic(
                         channelID: channel.id, name: topic.name, channelName: channel.name

@@ -100,13 +100,10 @@ extension ZuluStore {
                 SELECT t.channelID, t.name, t.maxMessageID,
                        (SELECT COUNT(*) FROM unread u
                          WHERE u.channelID = t.channelID AND u.topic = t.name) AS unreadCount,
-                       (SELECT m.senderName FROM message m
-                         WHERE m.channelID = t.channelID AND m.topic = t.name
-                         ORDER BY m.id DESC LIMIT 1) AS lastSender,
-                       (SELECT m.timestamp FROM message m
-                         WHERE m.channelID = t.channelID AND m.topic = t.name
-                         ORDER BY m.id DESC LIMIT 1) AS lastTimestamp
+                       tip.senderName AS lastSender,
+                       tip.timestamp AS lastTimestamp
                   FROM topic t
+                  \(Self.topicTipJoin)
                  WHERE t.channelID = ?
                    -- A promoted topic sits at channel level instead; listing it in
                    -- both places would duplicate it and count its unread twice.
@@ -125,15 +122,12 @@ extension ZuluStore {
                 SELECT d.dmKey,
                        (SELECT COUNT(*) FROM unread u WHERE u.dmKey = d.dmKey) AS unreadCount,
                        d.maxMessageID AS lastMessageID,
-                       (SELECT s.senderName FROM message s WHERE s.dmKey = d.dmKey
-                         ORDER BY s.id DESC LIMIT 1) AS lastSender,
-                       (SELECT s.senderID FROM message s WHERE s.dmKey = d.dmKey
-                         ORDER BY s.id DESC LIMIT 1) AS lastSenderID,
-                       (SELECT s.renderedContent FROM message s WHERE s.dmKey = d.dmKey
-                         ORDER BY s.id DESC LIMIT 1) AS lastContent,
-                       (SELECT s.timestamp FROM message s WHERE s.dmKey = d.dmKey
-                         ORDER BY s.id DESC LIMIT 1) AS lastTimestamp
+                       tip.senderName AS lastSender,
+                       tip.senderID AS lastSenderID,
+                       tip.renderedContent AS lastContent,
+                       tip.timestamp AS lastTimestamp
                   FROM dmConversation d
+                  \(Self.dmTipJoin)
                  ORDER BY lastMessageID DESC
                 """)
         }
@@ -243,6 +237,7 @@ extension ZuluStore {
         try writer.write { db in
             try MessageRecord.filter(ids.contains(Column("id"))).deleteAll(db)
             try Self.forgetDeletedDirectMessages(ids, in: db)
+            try Self.forgetDeletedTips(ids, in: db)
         }
     }
 
@@ -261,6 +256,7 @@ extension ZuluStore {
             try MessageRecord
                 .filter(Column("id") == id)
                 .updateAll(db, assignments)
+            try Self.updateTipContent(messageID: id, html: html, in: db)
         }
     }
 
@@ -351,13 +347,10 @@ extension ZuluStore {
                 SELECT t.channelID, t.name, t.maxMessageID,
                        (SELECT COUNT(*) FROM unread u
                          WHERE u.channelID = t.channelID AND u.topic = t.name) AS unreadCount,
-                       (SELECT m.senderName FROM message m
-                         WHERE m.channelID = t.channelID AND m.topic = t.name
-                         ORDER BY m.id DESC LIMIT 1) AS lastSender,
-                       (SELECT m.timestamp FROM message m
-                         WHERE m.channelID = t.channelID AND m.topic = t.name
-                         ORDER BY m.id DESC LIMIT 1) AS lastTimestamp
+                       tip.senderName AS lastSender,
+                       tip.timestamp AS lastTimestamp
                   FROM topic t
+                  \(Self.topicTipJoin)
                  WHERE t.name NOT IN (
                            SELECT topic FROM promotedTopic WHERE channelID = t.channelID
                        )
@@ -422,18 +415,10 @@ extension ZuluStore {
                            c.isRestricted AS isRestricted,
                            NULL AS dmKey,
                            t.maxMessageID AS lastMessageID,
-                           (SELECT m.senderID FROM message m
-                             WHERE m.channelID = t.channelID AND m.topic = t.name
-                             ORDER BY m.id DESC LIMIT 1) AS lastSenderID,
-                           (SELECT m.senderName FROM message m
-                             WHERE m.channelID = t.channelID AND m.topic = t.name
-                             ORDER BY m.id DESC LIMIT 1) AS lastSender,
-                           (SELECT m.renderedContent FROM message m
-                             WHERE m.channelID = t.channelID AND m.topic = t.name
-                             ORDER BY m.id DESC LIMIT 1) AS lastContent,
-                           (SELECT m.timestamp FROM message m
-                             WHERE m.channelID = t.channelID AND m.topic = t.name
-                             ORDER BY m.id DESC LIMIT 1) AS lastTimestamp,
+                           tip.senderID AS lastSenderID,
+                           tip.senderName AS lastSender,
+                           tip.renderedContent AS lastContent,
+                           tip.timestamp AS lastTimestamp,
                            (SELECT COUNT(*) FROM unread u
                              WHERE u.channelID = t.channelID AND u.topic = t.name) AS unreadCount,
                            (SELECT COUNT(*) FROM unread u
@@ -441,6 +426,7 @@ extension ZuluStore {
                                AND u.isMention = 1) AS mentionCount
                       FROM topic t
                       JOIN channel c ON c.id = t.channelID
+                      \(Self.topicTipJoin)
                      WHERE c.hidden = 0
                        AND c.isMuted = 0
                        AND \(TopicMuting.isNotMuted(channel: "t.channelID", topic: "t.name"))
@@ -448,17 +434,11 @@ extension ZuluStore {
                     SELECT NULL, NULL, NULL, NULL, NULL,
                            d.dmKey,
                            d.maxMessageID AS lastMessageID,
-                           (SELECT s.senderID FROM message s WHERE s.dmKey = d.dmKey
-                             ORDER BY s.id DESC LIMIT 1),
-                           (SELECT s.senderName FROM message s WHERE s.dmKey = d.dmKey
-                             ORDER BY s.id DESC LIMIT 1),
-                           (SELECT s.renderedContent FROM message s WHERE s.dmKey = d.dmKey
-                             ORDER BY s.id DESC LIMIT 1),
-                           (SELECT s.timestamp FROM message s WHERE s.dmKey = d.dmKey
-                             ORDER BY s.id DESC LIMIT 1),
+                           tip.senderID, tip.senderName, tip.renderedContent, tip.timestamp,
                            (SELECT COUNT(*) FROM unread u WHERE u.dmKey = d.dmKey),
                            (SELECT COUNT(*) FROM unread u WHERE u.dmKey = d.dmKey AND u.isMention = 1)
                       FROM dmConversation d
+                      \(Self.dmTipJoin)
                 )
                 ORDER BY lastMessageID DESC
                 LIMIT ?

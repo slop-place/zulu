@@ -456,6 +456,7 @@ struct SectionList: View {
                 .equatable()
         }
         .buttonStyle(.plain)
+        .requestsNewestMessage(of: entry.missingNewest)
         .contextMenu {
             if let conversation = entry.destination.conversation {
                 OpenInNewWindowButton(source: conversation)
@@ -516,6 +517,7 @@ struct SectionList: View {
             )
         }
         .buttonStyle(.plain)
+        .requestsNewestMessage(of: dm.date == nil ? .dm(key: dm.dmKey) : nil)
         .contextMenu {
             OpenInNewWindowButton(source: .dm(key: dm.dmKey))
             Button("Mark as read", systemImage: "checkmark.circle") {

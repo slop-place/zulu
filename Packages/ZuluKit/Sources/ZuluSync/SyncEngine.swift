@@ -68,6 +68,10 @@ public actor SyncEngine {
 
     private var typingHandler: (@Sendable (TypingEvent) -> Void)?
 
+    private var askedForNewest: Set<ListedConversation> = []
+    private var newestQueue: [ListedConversation] = []
+    private var newestWorker: Task<Void, Never>?
+
     /// Typing is never stored: it is only true for the next few seconds.
     public func onTyping(_ handler: @escaping @Sendable (TypingEvent) -> Void) {
         typingHandler = handler
@@ -184,6 +188,9 @@ public actor SyncEngine {
         let emojiDataURL = registration.server_emoji_data_url
         Task { [weak self] in await self?.loadServerEmojiData(from: emojiDataURL) }
 
+        // Events missed while the queue was down may have moved any conversation.
+        askedForNewest.removeAll()
+        await loadRecentTips()
         await refreshTopics()
         await loadRecentDirectMessages()
     }
@@ -314,5 +321,48 @@ extension SyncEngine {
             narrow: [.directMessages], anchor: .newest, before: limit
         ) else { return }
         try? store.save(messages: page.messages, selfUserID: selfUserID)
+    }
+
+    /// What moved while the queue was down, in one request rather than one per row. Each
+    /// conversation's newest message among these is its newest anywhere.
+    private func loadRecentTips(limit: Int = recentTipsFetched) async {
+        guard let page = try? await client.messages(anchor: .newest, before: limit) else { return }
+        try? store.saveTips(page.messages, selfUserID: selfUserID)
+    }
+
+    /// Enough to cover what the Recent list shows on most realms after a night away.
+    private static let recentTipsFetched = 500
+
+    /// A row with nothing current to show asks for its conversation's newest message.
+    /// Asked one at a time, and once per registration, so scrolling a long list does not
+    /// flood the server.
+    public func loadNewestMessage(of conversation: ListedConversation) {
+        guard askedForNewest.insert(conversation).inserted else { return }
+        newestQueue.append(conversation)
+        guard newestWorker == nil else { return }
+        newestWorker = Task { await drainNewestQueue() }
+    }
+
+    private func drainNewestQueue() async {
+        while !newestQueue.isEmpty {
+            let conversation = newestQueue.removeFirst()
+            if let page = try? await client.messages(narrow: conversation.narrow, anchor: .newest, before: 1) {
+                try? store.saveTips(page.messages, selfUserID: selfUserID)
+            }
+        }
+        newestWorker = nil
+    }
+}
+
+/// A conversation as a list row names it.
+public enum ListedConversation: Hashable, Sendable {
+    case topic(channelID: Int, name: String)
+    case dm(key: String)
+
+    var narrow: [NarrowFilter] {
+        switch self {
+        case .topic(let channelID, let name): [.channel(channelID), .topic(name)]
+        case .dm(let key): [.dm(key.split(separator: ",").compactMap { Int($0) })]
+        }
     }
 }

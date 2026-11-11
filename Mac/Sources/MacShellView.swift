@@ -351,6 +351,7 @@ struct MacShellView: View {
                 // A row whose entry has not changed is not laid out again.
                 MacRecentRow(entry: entry, scale: textScale)
                     .equatable()
+                    .requestsNewestMessage(of: entry.missingNewest)
                     .tag(entry.destination)
                     .contextMenu {
                         Button("Mark as Read") { Task { await model.markRead(entry) } }
@@ -739,6 +740,7 @@ struct MacDMRow: View {
             Badge(count: dm.unreadCount, mention: true)
         }
         .padding(.vertical, 2)
+        .requestsNewestMessage(of: dm.date == nil ? .dm(key: dm.dmKey) : nil)
     }
 }
 

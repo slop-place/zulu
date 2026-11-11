@@ -289,6 +289,15 @@ final class AppModel {
 
     func refreshTopics() async { await sync?.refreshTopics() }
 
+    func loadNewestMessage(of conversation: ConversationSource) async {
+        switch conversation {
+        case .topic(let channelID, let name, _):
+            await sync?.loadNewestMessage(of: .topic(channelID: channelID, name: name))
+        case .dm(let key):
+            await sync?.loadNewestMessage(of: .dm(key: key))
+        }
+    }
+
     /// Back from a suspension or a sleep, the queue is polled again at once rather than
     /// when the poll left behind gives up.
     func wakeSync() async { await sync?.wake() }
