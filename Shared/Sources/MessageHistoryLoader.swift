@@ -48,9 +48,16 @@ final class MessageHistoryLoader {
     /// What was fetched around the target while it does not reach the stored history.
     /// Kept out of the store until it does, so the stored history never has a gap.
     @ObservationIgnored private var detached: [ZulipMessage] = []
+    /// The oldest stored message shown. Every row shown is measured before the list draws,
+    /// so a long history is shown a page at a time as the reader scrolls back through it.
+    @ObservationIgnored private var windowStart: Int?
 
     /// Matches the page `AppModel.loadHistory` fetches the newest messages in.
     private static let detachedPageSize = 100
+    private static let openingWindow = 50
+    private static let shownBeforeOpening = 20
+    /// Matches the page `AppModel.loadOlder` fetches.
+    private static let olderPageSize = 50
     private static let highlightDuration = Duration.seconds(2)
 
     init(source: ConversationSource, model: AppModel, targetID: Int? = nil, opensAtNewest: Bool = false) {
@@ -116,9 +123,12 @@ final class MessageHistoryLoader {
     private func observe() {
         guard observation == nil, !isStopped, let writer = model.databaseWriter, let store = model.storeForReading
         else { return }
+        if windowStart == nil { windowStart = openingWindowStart(in: store) }
         let rows = switch source {
-        case .topic(let channelID, let name, _): store.observeConversation(channelID: channelID, topic: name)
-        case .dm(let key): store.observeConversation(dmKey: key)
+        case .topic(let channelID, let name, _):
+            store.observeConversation(channelID: channelID, topic: name, from: windowStart)
+        case .dm(let key):
+            store.observeConversation(dmKey: key, from: windowStart)
         }
         let firstUnread = firstUnread
         let selfUserID = model.selfUserID
@@ -175,6 +185,7 @@ final class MessageHistoryLoader {
             await loadOlderDetached(before: oldest)
             return
         }
+        if showStoredPage(before: oldest) { return }
         let result = switch source {
         case .topic(let channelID, let name, _):
             await model.loadOlder(channelID: channelID, topic: name, before: oldest)
@@ -182,6 +193,39 @@ final class MessageHistoryLoader {
             await model.loadOlder(dmKey: key, before: oldest)
         }
         if result == .reachedStart { hasMoreOlder = false }
+        showStoredPage(before: oldest)
+    }
+
+    private func openingWindowStart(in store: ZuluStore) -> Int? {
+        switch source {
+        case .topic(let channelID, let name, _):
+            try? store.windowStart(
+                channelID: channelID, topic: name, openingAt: targetID,
+                newest: Self.openingWindow, context: Self.shownBeforeOpening
+            )
+        case .dm(let key):
+            try? store.windowStart(
+                dmKey: key, openingAt: targetID, newest: Self.openingWindow, context: Self.shownBeforeOpening
+            )
+        }
+    }
+
+    /// Widens what is shown to the stored page before `oldest`, if there is one.
+    @discardableResult
+    private func showStoredPage(before oldest: Int) -> Bool {
+        guard let store = model.storeForReading else { return false }
+        let start = switch source {
+        case .topic(let channelID, let name, _):
+            try? store.pageStart(channelID: channelID, topic: name, before: oldest, count: Self.olderPageSize)
+        case .dm(let key):
+            try? store.pageStart(dmKey: key, before: oldest, count: Self.olderPageSize)
+        }
+        guard let start, !isStopped else { return false }
+        windowStart = start
+        observation?.cancel()
+        observation = nil
+        observe()
+        return true
     }
 
     // MARK: opening at an older message

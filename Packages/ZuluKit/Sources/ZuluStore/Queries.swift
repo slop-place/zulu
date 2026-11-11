@@ -168,42 +168,87 @@ extension ZuluStore {
         }
     }
 
-    /// A conversation's messages and their reactions, read together so a row never shows
-    /// without the chips it has.
-    public func observeConversation(channelID: Int, topic: String)
+    /// A conversation's messages from `firstID` on, and their reactions, read together so a
+    /// row never shows without the chips it has.
+    public func observeConversation(channelID: Int, topic: String, from firstID: Int? = nil)
         -> ValueObservation<ValueReducers.Fetch<ConversationRows>>
     {
-        ValueObservation.tracking { db in
+        observeConversation(where: Self.topicMessages(channelID, topic), from: firstID)
+    }
+
+    public func observeConversation(dmKey: String, from firstID: Int? = nil)
+        -> ValueObservation<ValueReducers.Fetch<ConversationRows>>
+    {
+        observeConversation(where: Self.dmMessages(dmKey), from: firstID)
+    }
+
+    private func observeConversation(where conversation: SQL, from firstID: Int?)
+        -> ValueObservation<ValueReducers.Fetch<ConversationRows>>
+    {
+        let window: SQL = firstID.map { "AND m.id >= \($0)" } ?? ""
+        return ValueObservation.tracking { db in
             ConversationRows(
-                messages: try MessageRecord
-                    .filter(Column("channelID") == channelID && Column("topic") == topic)
-                    .order(Column("id"))
-                    .fetchAll(db),
-                reactions: try ReactionRecord.fetchAll(db, sql: """
+                messages: try SQLRequest<MessageRecord>(literal: """
+                    SELECT m.* FROM message m WHERE \(conversation) \(window) ORDER BY m.id
+                    """).fetchAll(db),
+                reactions: try SQLRequest<ReactionRecord>(literal: """
                     SELECT r.* FROM reaction r
                       JOIN message m ON m.id = r.messageID
-                     WHERE m.channelID = ? AND m.topic = ?
+                     WHERE \(conversation) \(window)
                      ORDER BY r.rowid
-                    """, arguments: [channelID, topic])
+                    """).fetchAll(db)
             )
         }
     }
 
-    public func observeConversation(dmKey: String) -> ValueObservation<ValueReducers.Fetch<ConversationRows>> {
-        ValueObservation.tracking { db in
-            ConversationRows(
-                messages: try MessageRecord
-                    .filter(Column("dmKey") == dmKey)
-                    .order(Column("id"))
-                    .fetchAll(db),
-                reactions: try ReactionRecord.fetchAll(db, sql: """
-                    SELECT r.* FROM reaction r
-                      JOIN message m ON m.id = r.messageID
-                     WHERE m.dmKey = ?
-                     ORDER BY r.rowid
-                    """, arguments: [dmKey])
-            )
+    /// The first message a conversation opening at `target`, or else at its first unread,
+    /// shows: its newest `newest` messages, and `context` more before where it opens.
+    /// `nil` when nothing is stored.
+    public func windowStart(channelID: Int, topic: String, openingAt target: Int?, newest: Int, context: Int)
+        throws -> Int?
+    {
+        try windowStart(of: Self.topicMessages(channelID, topic), openingAt: target, newest: newest, context: context)
+    }
+
+    public func windowStart(dmKey: String, openingAt target: Int?, newest: Int, context: Int) throws -> Int? {
+        try windowStart(of: Self.dmMessages(dmKey), openingAt: target, newest: newest, context: context)
+    }
+
+    /// The oldest of the `count` stored messages before `id`, or `nil` when none are.
+    public func pageStart(channelID: Int, topic: String, before id: Int, count: Int) throws -> Int? {
+        try writer.read { db in try Self.oldestID(in: db, of: Self.topicMessages(channelID, topic), count: count, before: id) }
+    }
+
+    public func pageStart(dmKey: String, before id: Int, count: Int) throws -> Int? {
+        try writer.read { db in try Self.oldestID(in: db, of: Self.dmMessages(dmKey), count: count, before: id) }
+    }
+
+    private func windowStart(of conversation: SQL, openingAt target: Int?, newest: Int, context: Int) throws -> Int? {
+        try writer.read { db in
+            let newestStart = try Self.oldestID(in: db, of: conversation, count: newest, before: nil)
+            let opening = try target ?? SQLRequest<Int?>(literal: """
+                SELECT MIN(m.id) FROM message m WHERE \(conversation) AND NOT m.isRead
+                """).fetchOne(db) ?? nil
+            guard let opening else { return newestStart }
+            let contextStart = try Self.oldestID(in: db, of: conversation, count: context, before: opening) ?? opening
+            return newestStart.map { min($0, contextStart) } ?? contextStart
         }
+    }
+
+    private static func oldestID(in db: Database, of conversation: SQL, count: Int, before id: Int?) throws -> Int? {
+        let before: SQL = id.map { "AND m.id < \($0)" } ?? ""
+        return try SQLRequest<Int?>(literal: """
+            SELECT MIN(id) FROM (
+                SELECT m.id FROM message m WHERE \(conversation) \(before) ORDER BY m.id DESC LIMIT \(count))
+            """).fetchOne(db) ?? nil
+    }
+
+    private static func topicMessages(_ channelID: Int, _ topic: String) -> SQL {
+        "m.channelID = \(channelID) AND m.topic = \(topic)"
+    }
+
+    private static func dmMessages(_ dmKey: String) -> SQL {
+        "m.dmKey = \(dmKey)"
     }
 
     public func observeUsers() -> ValueObservation<ValueReducers.Fetch<[UserRecord]>> {
