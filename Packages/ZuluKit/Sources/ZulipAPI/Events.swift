@@ -49,6 +49,8 @@ public enum ZulipEvent: Sendable {
     case realmEmojiChanged([String: RealmEmoji])
     case userGroupsChanged
     case userTopic(UserTopic)
+    case userAdded(ZulipUser)
+    case userChanged(UserChange)
     case typing(TypingEvent)
     case heartbeat
     case other(String)
@@ -65,6 +67,7 @@ public enum ZulipEvent: Sendable {
         case .realmEmojiChanged: "realm_emoji"
         case .userGroupsChanged: "user_group"
         case .userTopic: "user_topic"
+        case .userAdded, .userChanged: "realm_user"
         case .typing: "typing"
         case .heartbeat: "heartbeat"
         case .other(let name): name
@@ -103,6 +106,7 @@ struct EventEnvelope: Decodable {
     let recipients: [TypingUser]?
     let topic: String?
     let local_message_id: LenientString?
+    let person: RealmUserPerson?
 
     func decoded() -> ZulipEvent {
         switch type {
@@ -164,12 +168,66 @@ struct EventEnvelope: Decodable {
                     recipientIDs: recipients?.map(\.user_id) ?? []
                 ))
             }
+        case "realm_user":
+            guard let person else { break }
+            switch op.flatMap(RealmUserOp.init(rawValue:)) {
+            case .add:
+                if let user = person.user { return .userAdded(user) }
+            case .update:
+                if let change = person.change { return .userChanged(change) }
+            case nil:
+                break
+            }
         case "heartbeat":
             return .heartbeat
         default:
             break
         }
         return .other(type)
+    }
+}
+
+enum RealmUserOp: String {
+    case add
+    case update
+}
+
+/// Someone's new name or picture. A field left `nil` did not change.
+public struct UserChange: Sendable, Equatable {
+    public let userID: Int
+    public let fullName: String?
+    public let avatarURL: String?
+
+    public init(userID: Int, fullName: String? = nil, avatarURL: String? = nil) {
+        self.userID = userID
+        self.fullName = fullName
+        self.avatarURL = avatarURL
+    }
+}
+
+/// An add sends the whole user, an update only the fields that changed, so every field
+/// but the id is optional here.
+struct RealmUserPerson: Decodable {
+    let user_id: Int
+    let full_name: String?
+    let email: String?
+    let avatar_url: String?
+    let is_bot: Bool?
+    let is_active: Bool?
+    let role: Int?
+
+    var user: ZulipUser? {
+        guard let full_name else { return nil }
+        return ZulipUser(
+            user_id: user_id, full_name: full_name, email: email, avatar_url: avatar_url,
+            is_bot: is_bot, is_active: is_active, role: role
+        )
+    }
+
+    /// `nil` for an update to something Zulu does not show, such as a role or timezone.
+    var change: UserChange? {
+        guard full_name != nil || avatar_url != nil else { return nil }
+        return UserChange(userID: user_id, fullName: full_name, avatarURL: avatar_url)
     }
 }
 
