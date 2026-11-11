@@ -266,6 +266,12 @@ public actor SyncEngine {
         case .userTopic(let userTopic):
             try store.apply(userTopic)
 
+        case .userAdded(let user):
+            try store.saveUsers([user])
+
+        case .userChanged(let change):
+            try store.apply(change)
+
         case .typing(let typing):
             typingHandler?(typing)
 

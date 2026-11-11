@@ -19,16 +19,10 @@ struct AnimatedEmojiAttribute: TextAttribute {
     let position: Int
 }
 
-/// The frames of a message's moving emoji, and the moment to draw them at. Only the
-/// drawing changes from one moment to the next, so the text is not built or measured
-/// again for each frame.
-struct InlineEmojiPlayback {
-    var frames: [String: EmojiFrames] = [:]
-    var time: TimeInterval = 0
-}
-
 extension EnvironmentValues {
-    @Entry var inlineEmojiPlayback = InlineEmojiPlayback()
+    /// A message's moving emoji by URL. Core Animation plays each over the spot the text
+    /// left for it, so the text is drawn once rather than again for every frame.
+    @Entry var inlineEmojiAnimations: [String: FrameAnimation] = [:]
 }
 
 extension View {
@@ -47,7 +41,11 @@ private final class InlineFrames: @unchecked Sendable {
         didSet { if links != oldValue { onLinksChange?(links) } }
     }
     var emoji: [EmojiFrame] = []
+    var moving: [MovingEmojiFrame] = [] {
+        didSet { if moving != oldValue { onMovingChange?(moving) } }
+    }
     var onLinksChange: (([LinkFrame]) -> Void)?
+    var onMovingChange: (([MovingEmojiFrame]) -> Void)?
 }
 
 struct LinkFrame: Equatable {
@@ -60,15 +58,22 @@ struct EmojiFrame: Equatable {
     let emoji: EmojiNameAttribute
 }
 
-/// Draws the text, with each moving emoji at its frame for the moment, noting where each
-/// link and emoji landed along the way.
+struct MovingEmojiFrame: Equatable {
+    let rect: CGRect
+    let url: String
+}
+
+/// Draws the text, noting where each link and emoji landed along the way. A moving
+/// emoji is left out: its player draws every frame, the first included, and the still
+/// drawn under it would show through the frames' transparent parts.
 private struct InlineFrameRecorder: TextRenderer {
     let frames: InlineFrames
-    let playback: InlineEmojiPlayback
+    let playing: Set<String>
 
     func draw(layout: Text.Layout, in context: inout GraphicsContext) {
         var links: [LinkFrame] = []
         var emoji: [EmojiFrame] = []
+        var moving: [MovingEmojiFrame] = []
         for line in layout {
             for run in line {
                 let rect = run.typographicBounds.rect
@@ -76,8 +81,8 @@ private struct InlineFrameRecorder: TextRenderer {
                 if let attribute = run[EmojiNameAttribute.self] {
                     emoji.append(EmojiFrame(rect: rect, emoji: attribute))
                 }
-                if let animated = run[AnimatedEmojiAttribute.self], let moving = playback.frames[animated.url] {
-                    context.draw(moving.frame(at: playback.time), in: rect)
+                if let animated = run[AnimatedEmojiAttribute.self], playing.contains(animated.url) {
+                    moving.append(MovingEmojiFrame(rect: rect, url: animated.url))
                 } else {
                     context.draw(run)
                 }
@@ -85,6 +90,26 @@ private struct InlineFrameRecorder: TextRenderer {
         }
         frames.links = links
         frames.emoji = emoji
+        frames.moving = moving
+    }
+}
+
+/// Plays each moving emoji where the text left room for it.
+private struct MovingEmojiPlayers: View {
+    let frames: [MovingEmojiFrame]
+    let animations: [String: FrameAnimation]
+
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            ForEach(Array(frames.enumerated()), id: \.offset) { _, frame in
+                if let animation = animations[frame.url] {
+                    FrameAnimationView(animation: animation)
+                        .frame(width: frame.rect.width, height: frame.rect.height)
+                        .offset(x: frame.rect.minX, y: frame.rect.minY)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 }
 
@@ -167,14 +192,27 @@ private struct LinkTargets: View {
 private struct InlineHover: ViewModifier {
     @State private var frames = InlineFrames()
     @State private var emojiName = EmojiNameState()
-    @Environment(\.inlineEmojiPlayback) private var playback
+    @State private var moving: [MovingEmojiFrame] = []
+    @Environment(\.inlineEmojiAnimations) private var animations
     #if os(macOS)
     @State private var links: [LinkFrame] = []
     #endif
 
     func body(content: Content) -> some View {
         content
-            .textRenderer(InlineFrameRecorder(frames: frames, playback: playback))
+            .textRenderer(InlineFrameRecorder(frames: frames, playing: Set(animations.keys)))
+            .overlay(alignment: .topLeading) {
+                if !moving.isEmpty { MovingEmojiPlayers(frames: moving, animations: animations) }
+            }
+            .onAppear {
+                moving = frames.moving
+                let destination = $moving
+                // Drawing must not change state directly, so the new frames land on the next turn.
+                frames.onMovingChange = { changed in
+                    Task { @MainActor in destination.wrappedValue = changed }
+                }
+            }
+            .onDisappear { frames.onMovingChange = nil }
             #if os(macOS)
             .overlay { LinkTargets(links: links) }
             .onAppear {

@@ -217,6 +217,15 @@ public final class ZuluStore: Sendable {
         }
     }
 
+    public func apply(_ change: UserChange) throws {
+        try writer.write { db in
+            guard var user = try UserRecord.fetchOne(db, key: change.userID) else { return }
+            user.fullName = change.fullName ?? user.fullName
+            user.avatarURL = change.avatarURL ?? user.avatarURL
+            try user.update(db)
+        }
+    }
+
     public func save(messages: [ZulipMessage], selfUserID: Int) throws {
         try writer.write { db in
             for message in messages {

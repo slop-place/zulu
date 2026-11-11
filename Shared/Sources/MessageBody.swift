@@ -18,10 +18,6 @@ struct MessageBody: View {
 
     static let blockSpacing: CGFloat = 4
 
-    /// Fast enough that nothing looks like a slideshow, slow enough that a message full
-    /// of emoji is not redrawn at display rate.
-    private static let tick: TimeInterval = 1.0 / 15
-
     init(html: String) {
         self.init(blocks: ParsedMessages.blocks(from: html), contentKey: html)
     }
@@ -41,22 +37,10 @@ struct MessageBody: View {
     }
 
     var body: some View {
-        Group {
-            // Redrawing on a clock is only worth it when something in here moves. The
-            // text holds each moving emoji's first frame, and only its drawing changes
-            // with the clock.
-            if emoji.values.contains(where: \.isAnimated) {
-                TimelineView(.periodic(from: .now, by: Self.tick)) { context in
-                    stack.environment(\.inlineEmojiPlayback, InlineEmojiPlayback(
-                        frames: emoji, time: context.date.timeIntervalSinceReferenceDate
-                    ))
-                }
-            } else {
-                stack
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .task(id: contentKey) { await loadEmoji() }
+        stack
+            .environment(\.inlineEmojiAnimations, emoji.compactMapValues(\.animation).filter(\.value.isAnimated))
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .task(id: contentKey) { await loadEmoji() }
     }
 
     private var stack: some View {
@@ -190,8 +174,8 @@ struct TextRunView: View, Equatable {
 }
 
 /// Turns spans into `Text`, with each custom emoji's first frame in its place. A moving
-/// emoji is marked so the renderer can draw its other frames over that one. Shared by
-/// the block and the run renderers.
+/// emoji is marked so the renderer can leave its spot to a player. Shared by the block
+/// and the run renderers.
 @MainActor
 struct InlineStyler {
     let emoji: [String: EmojiFrames]
