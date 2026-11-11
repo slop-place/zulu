@@ -82,6 +82,8 @@ struct ShellView: View {
     private static let minimumHeaderHeight: CGFloat = 44
     private static let fallbackHeaderHeight: CGFloat = 52
     private static let railButtonSize: CGFloat = 46
+    /// How far the unread pill sits in from the rail's leading edge.
+    private static let railPillInset: CGFloat = 2
     /// How much of the page stays in view beside an open drawer, to tap it closed. Narrow
     /// enough that the page's own toolbar buttons are not left half on screen.
     private static let pagePeek: CGFloat = 20
@@ -370,7 +372,7 @@ struct ShellView: View {
     ) -> some View {
         Button(action: action) {
             label()
-                .frame(width: 46, height: 46)
+                .frame(width: Self.railButtonSize, height: Self.railButtonSize)
                 .overlay(alignment: .bottomTrailing) {
                     if mentions > 0 {
                         Text(mentions > 99 ? "99+" : "\(mentions)")
@@ -391,7 +393,7 @@ struct ShellView: View {
                     Capsule()
                         .fill(.primary)
                         .frame(width: 4, height: active ? 26 : (unread ? 10 : 0))
-                        .offset(x: -15)
+                        .offset(x: Self.railPillInset - (railW - Self.railButtonSize) / 2)
                 }
         }
         .buttonStyle(.plain)
