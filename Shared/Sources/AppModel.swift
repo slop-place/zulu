@@ -436,6 +436,45 @@ extension AppModel {
         self.destination = destination
     }
 
+    /// Opens a link to a place in this realm. False when the link is somewhere the app
+    /// cannot go, so the caller can hand it on.
+    func open(_ link: NarrowLink) async -> Bool {
+        switch link.place {
+        case .channel(let id):
+            open(.channel(id), at: nil)
+        case .topic(let channelID, let name):
+            open(.topic(channelID: channelID, name: name, channelName: channel(channelID)?.name ?? ""), at: link.messageID)
+        case .dm(let userIDs):
+            guard let selfUserID else { return false }
+            open(.dm(MessageRecord.dmKey(for: userIDs, selfUserID: selfUserID)), at: link.messageID)
+        case nil:
+            guard let messageID = link.messageID, let destination = await destination(ofMessage: messageID) else {
+                return false
+            }
+            open(destination, at: messageID)
+        }
+        return true
+    }
+
+    /// Where a message lives, from the store or else from the server.
+    private func destination(ofMessage id: Int) async -> Destination? {
+        guard let store, let account else { return nil }
+        let stored = try? await store.writer.read { db in try MessageRecord.fetchOne(db, key: id) }
+        let record = if let stored {
+            stored
+        } else if let page = try? await client?.messages(anchor: .id(id), before: 0, after: 0),
+                  let message = page.messages.first(where: { $0.id == id }) {
+            MessageRecord(from: message, selfUserID: account.userID)
+        } else {
+            nil as MessageRecord?
+        }
+        guard let record else { return nil }
+        if let channelID = record.channelID, let topic = record.topic {
+            return .topic(channelID: channelID, name: topic, channelName: channel(channelID)?.name ?? "")
+        }
+        return record.dmKey.map { .dm($0) }
+    }
+
     /// For a shell that opens `destination` its own way: called first, the conversation
     /// opens at `messageID`.
     func target(_ messageID: Int, in destination: Destination) {

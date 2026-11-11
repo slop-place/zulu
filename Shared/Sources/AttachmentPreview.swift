@@ -2,6 +2,7 @@ import ImageIO
 import QuickLook
 import SwiftUI
 import UniformTypeIdentifiers
+import ZulipAPI
 #if os(macOS)
 import AppKit
 #endif
@@ -173,6 +174,13 @@ private struct AttachmentPreviews: ViewModifier {
         content
             .environment(previewer)
             .environment(\.openURL, OpenURLAction { url in
+                if let realm = RealmContext.realmURL, let link = NarrowLink(url, realm: realm) {
+                    Task {
+                        // Somewhere the app cannot go, such as a search, is the browser's.
+                        if await !model.open(link) { openURL(url.absoluteURL) }
+                    }
+                    return .handled
+                }
                 guard let path = AttachmentPreviewer.uploadPath(of: url) else { return .systemAction }
                 previewer.preview([path], model: model) { openURL(url) }
                 return .handled
