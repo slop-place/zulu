@@ -17,3 +17,6 @@ xcuserdata/
 # go
 /bin/
 *.db
+
+# keys kept out of the repo; see App/Config.xcconfig
+App/Secrets.xcconfig

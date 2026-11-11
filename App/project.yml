@@ -5,6 +5,9 @@ options:
     iOS: "27.0"
     macOS: "27.0"
   createIntermediateGroups: true
+configFiles:
+  Debug: Config.xcconfig
+  Release: Config.xcconfig
 packages:
   ZuluKit:
     path: ../Packages/ZuluKit
@@ -37,6 +40,8 @@ targets:
         product: ZuluPolls
       - package: ZuluKit
         product: ZuluScroll
+      - package: ZuluKit
+        product: ZuluGIFs
       - package: MessagingUI
         product: MessagingUI
     info:
@@ -49,6 +54,8 @@ targets:
         # human answers the export questionnaire in App Store Connect. Zulu only
         # speaks HTTPS to a Zulip server, which is exempt.
         ITSAppUsesNonExemptEncryption: false
+        # Used for GIFs when the server has no GIF key of its own.
+        ZuluKLIPYAPIKey: $(KLIPY_API_KEY)
         # An iPhone app's own animations are held to 60 Hz on ProMotion screens without it.
         CADisableMinimumFrameDurationOnPhone: true
         UILaunchScreen: {}
@@ -137,6 +144,8 @@ targets:
         product: ZuluPolls
       - package: ZuluKit
         product: ZuluScroll
+      - package: ZuluKit
+        product: ZuluGIFs
       - package: Sparkle
         product: Sparkle
     info:
@@ -146,6 +155,8 @@ targets:
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         ITSAppUsesNonExemptEncryption: false
+        # Used for GIFs when the server has no GIF key of its own.
+        ZuluKLIPYAPIKey: $(KLIPY_API_KEY)
         SUFeedURL: https://slop-place.github.io/zulu/appcast.xml
         # The private half is the SPARKLE_PRIVATE_KEY secret. See docs/RELEASING.md.
         SUPublicEDKey: hmDc4jCsURo9q2eVlwM0HLyn2BXuf8ndF+3r5WvVj3I=

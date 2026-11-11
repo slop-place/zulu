@@ -57,5 +57,7 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>ZuluKLIPYAPIKey</key>
+	<string>$(KLIPY_API_KEY)</string>
 </dict>
 </plist>

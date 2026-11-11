@@ -1,0 +1,4 @@
+// Release builds get KLIPY_API_KEY from CI. Locally, put it in Secrets.xcconfig beside
+// this file; without one the GIF picker shows only when the server has its own key.
+KLIPY_API_KEY =
+#include? "Secrets.xcconfig"

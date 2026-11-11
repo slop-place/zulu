@@ -8,6 +8,7 @@ let package = Package(
         .library(name: "ZulipAPI", targets: ["ZulipAPI"]),
         .library(name: "ZuluCompose", targets: ["ZuluCompose"]),
         .library(name: "ZuluEmoji", targets: ["ZuluEmoji"]),
+        .library(name: "ZuluGIFs", targets: ["ZuluGIFs"]),
         .library(name: "ZuluMarkup", targets: ["ZuluMarkup"]),
         .library(name: "ZuluPolls", targets: ["ZuluPolls"]),
         .library(name: "ZuluScroll", targets: ["ZuluScroll"]),
@@ -20,6 +21,7 @@ let package = Package(
     targets: [
         .target(name: "ZulipAPI"),
         .target(name: "ZuluEmoji"),
+        .target(name: "ZuluGIFs", dependencies: ["ZulipAPI"]),
         .target(name: "ZuluCompose", dependencies: ["ZuluEmoji"]),
         .target(name: "ZuluMarkup", dependencies: ["ZuluEmoji"]),
         .target(name: "ZuluPolls"),
@@ -34,6 +36,7 @@ let package = Package(
         // back out, rather than against a transcription of what that parser expects.
         .testTarget(name: "ZuluComposeTests", dependencies: ["ZuluCompose", "ZuluMarkup"]),
         .testTarget(name: "ZuluEmojiTests", dependencies: ["ZuluEmoji"]),
+        .testTarget(name: "ZuluGIFsTests", dependencies: ["ZuluGIFs", "ZulipAPI"]),
         .testTarget(name: "ZulipAPITests", dependencies: ["ZulipAPI"]),
         .testTarget(name: "ZuluStoreTests", dependencies: ["ZuluStore", "ZulipAPI", "ZuluEmoji"]),
         .testTarget(name: "ZuluMarkupTests", dependencies: ["ZuluMarkup"]),

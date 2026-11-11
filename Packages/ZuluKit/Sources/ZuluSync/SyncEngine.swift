@@ -73,6 +73,13 @@ public actor SyncEngine {
         typingHandler = handler
     }
 
+    private var gifSettingsHandler: (@Sendable (RealmGIFSettings) -> Void)?
+
+    /// Called with each registration's GIF settings. Not stored: a new queue brings them again.
+    public func onGIFSettings(_ handler: @escaping @Sendable (RealmGIFSettings) -> Void) {
+        gifSettingsHandler = handler
+    }
+
     private func setStatus(_ new: SyncStatus) {
         guard status != new else { return }
         status = new
@@ -180,6 +187,7 @@ public actor SyncEngine {
         }
         try store.saveSyncState(queueID: queueID, lastEventID: lastEventID)
         setStatus(.live)
+        gifSettingsHandler?(registration.gifSettings)
 
         let emojiDataURL = registration.server_emoji_data_url
         Task { [weak self] in await self?.loadServerEmojiData(from: emojiDataURL) }

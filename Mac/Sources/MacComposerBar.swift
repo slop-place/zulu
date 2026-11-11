@@ -158,7 +158,7 @@ struct MacComposerBar: View {
             .padding(.trailing, 4)
             .padding(.bottom, 3)
             .popover(isPresented: $showingEmoji, arrowEdge: .top) {
-                MacEmojiPicker { insert($0) }
+                MacComposerPicker(insertEmoji: { insert($0) }, insertGIF: { insertOnOwnLine($0.markdown) })
             }
         }
     }
@@ -288,12 +288,23 @@ struct MacComposerBar: View {
     /// resolves the name against the realm's own emoji when it renders. It lands at the
     /// cursor, with a space before it so it does not run into the word before it.
     private func insert(_ shortcode: String) {
+        insert(shortcode, separatedBy: " ", unlessAfter: \.isWhitespace)
+    }
+
+    /// Where Zulip's web app puts a GIF.
+    private func insertOnOwnLine(_ markdown: String) {
+        insert(markdown, separatedBy: "\n", unlessAfter: \.isNewline)
+    }
+
+    private func insert(
+        _ text: String, separatedBy separator: String, unlessAfter isSeparator: (Character) -> Bool
+    ) {
         let offset = max(0, min(cursor, draft.utf16.count))
         let index = String.Index(utf16Offset: offset, in: draft)
-        var insertion = shortcode
+        var insertion = text
         if index > draft.startIndex, let previous = draft[draft.index(before: index)...].first,
-           !previous.isWhitespace {
-            insertion = " " + insertion
+           !isSeparator(previous) {
+            insertion = separator + insertion
         }
         cursor = offset + insertion.utf16.count
         draft.insert(contentsOf: insertion, at: index)
