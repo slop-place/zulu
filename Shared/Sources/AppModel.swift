@@ -441,7 +441,11 @@ extension AppModel {
     func open(_ link: NarrowLink) async -> Bool {
         switch link.place {
         case .channel(let id):
-            open(.channel(id), at: nil)
+            if let messageID = link.messageID, let destination = await destination(ofMessage: messageID) {
+                open(destination, at: messageID)
+            } else {
+                open(.channel(id), at: nil)
+            }
         case .topic(let channelID, let name):
             open(.topic(channelID: channelID, name: name, channelName: channel(channelID)?.name ?? ""), at: link.messageID)
         case .dm(let userIDs):
