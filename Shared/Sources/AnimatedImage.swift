@@ -84,35 +84,13 @@ enum FrameDecoding {
 /// Realm custom emoji are frequently animated GIFs or WebPs, decoded here into the frames
 /// a caller can play.
 ///
-/// An emoji inline in a paragraph has to be a `Text`, which holds one still image, so the
-/// paragraph's renderer draws the frame for the moment over it. Anywhere else the emoji
-/// is its own view, and Core Animation plays `animation` instead.
+/// The first frame stands in wherever the emoji cannot move, and Core Animation plays
+/// `animation` everywhere else, inline in a paragraph included.
 struct EmojiFrames: Equatable {
     let frames: [Image]
-    /// When each frame stops showing, measured from the start of the loop. Frames in one
-    /// file can each have their own delay, so they cannot be spread evenly over the loop.
-    let frameEnds: [Double]
     let animation: FrameAnimation?
 
     var isAnimated: Bool { frames.count > 1 }
-    var duration: Double { frameEnds.last ?? 0 }
-
-    init(frames: [Image], delays: [Double], animation: FrameAnimation? = nil) {
-        self.frames = frames
-        self.animation = animation
-        var elapsed: Double = 0
-        frameEnds = delays.map { delay in
-            elapsed += delay
-            return elapsed
-        }
-    }
-
-    func frame(at time: TimeInterval) -> Image {
-        guard isAnimated, duration > 0 else { return frames[0] }
-        let position = time.truncatingRemainder(dividingBy: duration)
-        let index = frameEnds.firstIndex { $0 > position } ?? frames.count - 1
-        return frames[index]
-    }
 
     /// Decoded off the main thread, into bitmaps no larger than the emoji is shown
     /// (twice its height, for a Retina screen). The source was left at full size before
@@ -129,11 +107,9 @@ struct EmojiFrames: Equatable {
             }
         }.value
         guard !decoded.isEmpty else { return nil }
-        let delays = decoded.map(\.delay)
         return EmojiFrames(
             frames: decoded.map { Image(decorative: $0.image, scale: CGFloat($0.image.height) / height) },
-            delays: delays,
-            animation: FrameAnimation(frames: decoded.map(\.image), delays: delays)
+            animation: FrameAnimation(frames: decoded.map(\.image), delays: decoded.map(\.delay))
         )
     }
 }
