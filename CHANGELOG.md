@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.23.1](https://github.com/slop-place/zulu/compare/zulu-v1.23.0...zulu-v1.23.1) (2026-11-12)
+
+
+### Bug Fixes
+
+* track gaps in stored history so scrolling back never skips unfetched messages ([#77](https://github.com/slop-place/zulu/issues/77)) ([49454c8](https://github.com/slop-place/zulu/commit/49454c8c722633e1f2302700b3ac3d9c3d35f5a9))
+
 ## [1.23.0](https://github.com/slop-place/zulu/compare/zulu-v1.22.2...zulu-v1.23.0) (2026-11-12)
 
 
