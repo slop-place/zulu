@@ -1,5 +1,24 @@
 # Changelog
 
+## [1.23.0](https://github.com/slop-place/zulu/compare/zulu-v1.22.2...zulu-v1.23.0) (2026-11-12)
+
+
+### Features
+
+* add a GIF picker beside emoji in the composer ([#73](https://github.com/slop-place/zulu/issues/73)) ([7cef3ce](https://github.com/slop-place/zulu/commit/7cef3ce4d71ff6db582a68c51d61d5d4026180b9))
+
+
+### Bug Fixes
+
+* keep the caret on the trailing empty line when clicking it in the Mac composer ([#76](https://github.com/slop-place/zulu/issues/76)) ([2c955ff](https://github.com/slop-place/zulu/commit/2c955ff23ed36a8216b75423d956541a07810a5f))
+* six bugs found exploring the iOS app ([#74](https://github.com/slop-place/zulu/issues/74)) ([8516bf4](https://github.com/slop-place/zulu/commit/8516bf4dca8de17eb3c87801ea0122e036e53c58))
+* update profile pictures and names live when users change them ([#71](https://github.com/slop-place/zulu/issues/71)) ([bdcde0d](https://github.com/slop-place/zulu/commit/bdcde0dce45fc3600fcadfa84146e97042b33ec9))
+
+
+### Performance Improvements
+
+* open conversations on their newest page instead of their whole stored history ([#75](https://github.com/slop-place/zulu/issues/75)) ([5386215](https://github.com/slop-place/zulu/commit/53862154077d140a11a870dccaec7ddc4b943a2b))
+
 ## [1.22.2](https://github.com/slop-place/zulu/compare/zulu-v1.22.1...zulu-v1.22.2) (2026-11-10)
 
 
