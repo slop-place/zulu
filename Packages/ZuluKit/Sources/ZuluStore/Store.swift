@@ -161,6 +161,7 @@ public final class ZuluStore: Sendable {
         registerReactionHistoryMigration(&migrator)
         registerDirectConversationMigration(&migrator)
         registerConversationTipMigration(&migrator)
+        registerHistoryContinuityMigration(&migrator)
 
         return migrator
     }
@@ -227,7 +228,8 @@ public final class ZuluStore: Sendable {
         }
     }
 
-    public func save(messages: [ZulipMessage], selfUserID: Int) throws {
+    /// With nothing to say how they join what is stored. Saving history goes through `save(_: HistoryStretch)`.
+    func save(messages: [ZulipMessage], selfUserID: Int) throws {
         try writer.write { db in
             for message in messages {
                 try Self.write(message, selfUserID: selfUserID, in: db)
@@ -279,7 +281,7 @@ public final class ZuluStore: Sendable {
             for table in [
                 "promotedTopic", "channelGroupMember", "channelGroup",
                 "submessage", "reaction", "message", "conversationTip", "topic", "dmConversation", "channel", "user",
-                "syncState", "unread",
+                "syncState", "unread", "historyGap", "liveHistory",
                 "realmEmoji", "serverEmojiData", "userGroup", "channelSubscriber", "mutedTopic", "topicPolicy",
             ] {
                 try db.execute(sql: "DELETE FROM \(table)")
