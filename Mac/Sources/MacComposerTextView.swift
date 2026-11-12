@@ -33,7 +33,8 @@ struct MacComposerTextView: NSViewRepresentable {
     static let maxLines = 8
 
     func makeNSView(context: Context) -> NSScrollView {
-        let textView = ComposerTextView()
+        // TextKit 1 moves a click on the empty line after a trailing newline back up a line.
+        let textView = ComposerTextView(usingTextLayoutManager: true)
         textView.delegate = context.coordinator
         let font = Self.font(scale: context.environment.textScale)
         textView.font = font
