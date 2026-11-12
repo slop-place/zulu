@@ -55,12 +55,10 @@ final class MessageHistoryLoader {
     /// before the window are still there to show.
     @ObservationIgnored private var serverHasMoreOlder = true
 
-    /// Matches the page `AppModel.loadHistory` fetches the newest messages in.
-    private static let detachedPageSize = 100
+    private static let detachedPageSize = AppModel.newestPageSize
     private static let openingWindow = 50
     private static let shownBeforeOpening = 20
-    /// Matches the page `AppModel.loadOlder` fetches.
-    private static let olderPageSize = 50
+    private static let olderPageSize = AppModel.olderPageSize
     private static let highlightDuration = Duration.seconds(2)
 
     init(source: ConversationSource, model: AppModel, targetID: Int? = nil, opensAtNewest: Bool = false) {
@@ -95,14 +93,14 @@ final class MessageHistoryLoader {
     func start() async {
         openFromStore()
         await loadInitialHistory()
-        if observation == nil, let targetID, !model.isStored(targetID) {
+        if observation == nil, let targetID, !model.holdsInHistory(targetID) {
             await openDetached(around: targetID)
         }
         if !hasMoreNewer { observe() }
     }
 
     private var canOpenFromStore: Bool {
-        if let targetID { return model.isStored(targetID) }
+        if let targetID { return model.holdsInHistory(targetID) }
         guard let store = model.storeForReading else { return false }
         return switch source {
         case .topic(let channelID, let name, _):
@@ -265,17 +263,17 @@ final class MessageHistoryLoader {
 
     // MARK: opening at an older message
 
-    /// The target is older than anything stored. If what comes back around it reaches
+    /// The target is not in the stored history. If what comes back around it reaches
     /// the stored history it is saved and shown from the store like any other opening;
     /// otherwise it is shown from here, apart from the store.
     private func openDetached(around targetID: Int) async {
-        guard let page = await model.fetchMessages(
+        guard let (page, queueID) = await model.fetchMessages(
             in: source, anchor: .id(targetID),
             before: Self.detachedPageSize, after: Self.detachedPageSize, includeAnchor: true
         ), !isStopped else { return }
         if page.found_oldest || (page.history_limited ?? false) { reachedServerStart() }
         detached = page.messages
-        if !joinIfReached(page) {
+        if await !joinIfReached(page, queueID: queueID) {
             hasMoreNewer = true
             showDetached()
         }
@@ -286,33 +284,39 @@ final class MessageHistoryLoader {
         isLoadingNewer = true
         defer { isLoadingNewer = false }
 
-        guard let page = await model.fetchMessages(
+        guard let (page, queueID) = await model.fetchMessages(
             in: source, anchor: .id(newest), before: 0, after: Self.detachedPageSize, includeAnchor: false
         ), hasMoreNewer else { return }
         detached += page.messages
-        if !joinIfReached(page) { showDetached() }
+        if await !joinIfReached(page, queueID: queueID) { showDetached() }
     }
 
     private func loadOlderDetached(before oldest: Int) async {
-        guard let page = await model.fetchMessages(
+        guard let (page, _) = await model.fetchMessages(
             in: source, anchor: .id(oldest), before: Self.detachedPageSize, after: 0, includeAnchor: false
         ) else { return }
         if page.found_oldest || (page.history_limited ?? false) { reachedServerStart() }
         // Reached the stored history while this was in flight: what it fetched sits
         // right before the stored messages now, so it is stored with them.
         guard hasMoreNewer else {
-            model.save(page.messages)
+            await model.save(HistoryStretch(before: oldest, page: page, in: source.stored))
             return
         }
         detached = page.messages + detached
         showDetached()
     }
 
-    /// A page that reaches the newest message, or overlaps what is stored, closes the
-    /// gap: everything fetched is saved, and the store takes over.
-    private func joinIfReached(_ page: MessagesPage) -> Bool {
-        guard page.found_newest || model.storesAny(of: page.messages.map(\.id)) else { return false }
-        model.save(detached)
+    /// A page that reaches the newest message, or overlaps the stored history, joins
+    /// everything fetched on to it, and the store takes over.
+    private func joinIfReached(_ page: MessagesPage, queueID: String?) async -> Bool {
+        guard page.found_newest || model.holdsAnyInHistory(page.messages.map(\.id)) else { return false }
+        if let first = detached.first?.id, let last = detached.last?.id {
+            await model.save(HistoryStretch(
+                conversation: source.stored, messages: detached,
+                from: serverHasMoreOlder ? first : nil,
+                through: page.found_newest ? .newest(queueID: queueID) : .message(last)
+            ))
+        }
         detached = []
         hasMoreNewer = false
         observe()

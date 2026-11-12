@@ -237,7 +237,7 @@ public actor SyncEngine {
         case .message(let message, let localID):
             let readOnArrival = ZuluStore.startsUnread(message, selfUserID: selfUserID)
                 && (isReadOnArrival?(message) ?? false)
-            try store.save(messages: [message], selfUserID: selfUserID)
+            try store.saveArrival(message, selfUserID: selfUserID)
             if !readOnArrival {
                 try store.noteArrival(of: message, selfUserID: selfUserID)
             }
@@ -325,17 +325,25 @@ extension SyncEngine {
     /// The register snapshot lists DM conversations but not their messages, so this gives
     /// the newest of them a preview line.
     public func loadRecentDirectMessages(limit: Int = 300) async {
+        let queueID = queueID
         guard let page = try? await client.messages(
             narrow: [.directMessages], anchor: .newest, before: limit
         ) else { return }
-        try? store.save(messages: page.messages, selfUserID: selfUserID)
+        try? store.save(HistoryStretch.newest(across: page, queueID: queueID, selfUserID: selfUserID), selfUserID: selfUserID)
     }
 
     /// What moved while the queue was down, in one request rather than one per row. Each
     /// conversation's newest message among these is its newest anywhere.
+    ///
+    /// A conversation whose stored history reaches into the page is brought up to date
+    /// with it, so live messages join on to that history rather than start after a gap.
     private func loadRecentTips(limit: Int = recentTipsFetched) async {
+        let queueID = queueID
         guard let page = try? await client.messages(anchor: .newest, before: limit) else { return }
         try? store.saveTips(page.messages, selfUserID: selfUserID)
+        try? store.extendHistory(
+            with: HistoryStretch.newest(across: page, queueID: queueID, selfUserID: selfUserID), selfUserID: selfUserID
+        )
     }
 
     /// Enough to cover what the Recent list shows on most realms after a night away.

@@ -145,26 +145,24 @@ extension ZuluStore {
     /// arrives goes above it. With nothing unread, enough has to be stored to fill the
     /// screen.
     public func canOpenFromStore(channelID: Int, topic: String) throws -> Bool {
-        try writer.read { db in
-            try Bool.fetchOne(db, sql: """
-                SELECT COALESCE(
-                    (SELECT EXISTS (SELECT 1 FROM message m WHERE m.id = u.messageID)
-                       FROM unread u WHERE u.channelID = ? AND u.topic = ?
-                      ORDER BY u.messageID LIMIT 1),
-                    (SELECT COUNT(*) FROM message WHERE channelID = ? AND topic = ?) >= ?)
-                """, arguments: [channelID, topic, channelID, topic, Self.storedMessagesToOpenOn]) ?? false
-        }
+        try canOpenFromStore(
+            Self.topicMessages(channelID, topic), unread: "u.channelID = \(channelID) AND u.topic = \(topic)"
+        )
     }
 
     public func canOpenFromStore(dmKey: String) throws -> Bool {
+        try canOpenFromStore(Self.dmMessages(dmKey), unread: "u.dmKey = \(dmKey)")
+    }
+
+    private func canOpenFromStore(_ conversation: SQL, unread: SQL) throws -> Bool {
         try writer.read { db in
-            try Bool.fetchOne(db, sql: """
+            try SQLRequest<Bool>(literal: """
                 SELECT COALESCE(
-                    (SELECT EXISTS (SELECT 1 FROM message m WHERE m.id = u.messageID)
-                       FROM unread u WHERE u.dmKey = ?
+                    (SELECT EXISTS (SELECT 1 FROM message m WHERE m.id = u.messageID AND \(conversation))
+                       FROM unread u WHERE \(unread)
                       ORDER BY u.messageID LIMIT 1),
-                    (SELECT COUNT(*) FROM message WHERE dmKey = ?) >= ?)
-                """, arguments: [dmKey, dmKey, Self.storedMessagesToOpenOn]) ?? false
+                    (SELECT COUNT(*) FROM message m WHERE \(conversation)) >= \(Self.storedMessagesToOpenOn))
+                """).fetchOne(db) ?? false
         }
     }
 
@@ -257,11 +255,11 @@ extension ZuluStore {
     }
 
     private static func topicMessages(_ channelID: Int, _ topic: String) -> SQL {
-        "m.channelID = \(channelID) AND m.topic = \(topic)"
+        "m.channelID = \(channelID) AND m.topic = \(topic) AND m.id >= \(historyFloor(.topic(channelID: channelID, name: topic)))"
     }
 
     private static func dmMessages(_ dmKey: String) -> SQL {
-        "m.dmKey = \(dmKey)"
+        "m.dmKey = \(dmKey) AND m.id >= \(historyFloor(.dm(key: dmKey)))"
     }
 
     public func observeUsers() -> ValueObservation<ValueReducers.Fetch<[UserRecord]>> {

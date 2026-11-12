@@ -289,19 +289,22 @@ final class AppModel {
     /// Backfills a conversation that the event queue alone would not have filled, since
     /// the queue only carries what arrives after registration.
     func loadHistory(channelID: Int, topic: String) async {
-        guard let client, let store, let account else { return }
-        let narrow = [NarrowFilter.channel(channelID), .topic(topic)]
-        if let page = try? await client.messages(narrow: narrow, anchor: .newest, before: 100) {
-            try? store.save(messages: page.messages, selfUserID: account.userID)
-        }
+        await loadNewest(of: .topic(channelID: channelID, name: topic), narrow: [.channel(channelID), .topic(topic)])
     }
 
     func loadHistory(dmKey: String) async {
-        guard let client, let store, let account else { return }
         let ids = dmKey.split(separator: ",").compactMap { Int($0) }
-        if let page = try? await client.messages(narrow: [.dm(ids)], anchor: .newest, before: 100) {
-            try? store.save(messages: page.messages, selfUserID: account.userID)
-        }
+        await loadNewest(of: .dm(key: dmKey), narrow: [.dm(ids)])
+    }
+
+    static let newestPageSize = 100
+
+    private func loadNewest(of conversation: StoredConversation, narrow: [NarrowFilter]) async {
+        guard let client, let store else { return }
+        let queueID = try? store.syncState()?.queueID
+        guard let page = try? await client.messages(narrow: narrow, anchor: .newest, before: Self.newestPageSize)
+        else { return }
+        await save(HistoryStretch(newest: page, in: conversation, queueID: queueID))
     }
 
     func refreshTopics() async { await sync?.refreshTopics() }
@@ -503,31 +506,35 @@ extension AppModel {
         return target.messageID
     }
 
-    /// Fetched without saving. A stretch from far back in a conversation, saved, would
-    /// leave a gap between it and the stored history.
+    /// Fetched without saving. A stretch from far back in a conversation is kept apart until
+    /// it reaches the stored history. `queueID` is the event queue current when the fetch
+    /// started, which a page reaching the newest message is saved against.
     func fetchMessages(
         in source: ConversationSource, anchor: ZulipClient.Anchor, before: Int, after: Int, includeAnchor: Bool
-    ) async -> MessagesPage? {
+    ) async -> (page: MessagesPage, queueID: String?)? {
         guard let client else { return nil }
-        return try? await client.messages(
+        let queueID = try? store?.syncState()?.queueID
+        guard let page = try? await client.messages(
             narrow: Self.narrow(of: source), anchor: anchor, before: before, after: after, includeAnchor: includeAnchor
-        )
+        ) else { return nil }
+        return (page, queueID)
     }
 
-    /// Only for messages known to join on to what is stored.
-    func save(_ messages: [ZulipMessage]) {
+    /// Off the main thread: a page is a hundred messages and their reactions.
+    func save(_ stretch: HistoryStretch) async {
         guard let store, let account else { return }
-        try? store.save(messages: messages, selfUserID: account.userID)
+        let selfUserID = account.userID
+        await Task.detached(priority: .userInitiated) {
+            try? store.save(stretch, selfUserID: selfUserID)
+        }.value
     }
 
-    func isStored(_ messageID: Int) -> Bool {
-        guard let store else { return false }
-        return (try? store.writer.read { db in try MessageRecord.exists(db, key: messageID) }) ?? false
+    func holdsInHistory(_ messageID: Int) -> Bool {
+        (try? store?.holdsInHistory(messageID)) ?? false
     }
 
-    func storesAny(of messageIDs: [Int]) -> Bool {
-        guard let store, !messageIDs.isEmpty else { return false }
-        return (try? store.writer.read { db in try MessageRecord.filter(keys: messageIDs).fetchCount(db) > 0 }) ?? false
+    func holdsAnyInHistory(_ messageIDs: [Int]) -> Bool {
+        (try? store?.holdsAnyInHistory(messageIDs)) ?? false
     }
 
     private static func narrow(of source: ConversationSource) -> [NarrowFilter] {
@@ -826,21 +833,28 @@ extension AppModel {
     /// returns zero messages and both flags true, which is a different thing entirely.
     /// `history_limited` is its own answer — more once existed, but retention removed it.
     func loadOlder(channelID: Int, topic: String, before oldestHeld: Int) async -> OlderHistory {
-        await loadOlder(narrow: [.channel(channelID), .topic(topic)], before: oldestHeld)
+        await loadOlder(
+            of: .topic(channelID: channelID, name: topic), narrow: [.channel(channelID), .topic(topic)],
+            before: oldestHeld
+        )
     }
 
     func loadOlder(dmKey: String, before oldestHeld: Int) async -> OlderHistory {
         let ids = dmKey.split(separator: ",").compactMap { Int($0) }
-        return await loadOlder(narrow: [.dm(ids)], before: oldestHeld)
+        return await loadOlder(of: .dm(key: dmKey), narrow: [.dm(ids)], before: oldestHeld)
     }
 
-    private func loadOlder(narrow: [NarrowFilter], before oldestHeld: Int) async -> OlderHistory {
-        guard let client, let store, let account else { return .unavailable }
+    static let olderPageSize = 50
+
+    private func loadOlder(of conversation: StoredConversation, narrow: [NarrowFilter], before oldestHeld: Int) async
+        -> OlderHistory
+    {
+        guard let client else { return .unavailable }
         guard let page = try? await client.messages(
-            narrow: narrow, anchor: .id(oldestHeld), before: 50, after: 0, includeAnchor: false
+            narrow: narrow, anchor: .id(oldestHeld), before: Self.olderPageSize, after: 0, includeAnchor: false
         ) else { return .unavailable }
 
-        try? store.save(messages: page.messages, selfUserID: account.userID)
+        await save(HistoryStretch(before: oldestHeld, page: page, in: conversation))
         return page.found_oldest || (page.history_limited ?? false) ? .reachedStart : .more
     }
 }

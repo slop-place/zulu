@@ -9,6 +9,13 @@ import ZuluStore
 enum ConversationSource: Equatable, Hashable, Codable {
     case topic(channelID: Int, name: String, channelName: String)
     case dm(key: String)
+
+    var stored: StoredConversation {
+        switch self {
+        case .topic(let channelID, let name, _): .topic(channelID: channelID, name: name)
+        case .dm(let key): .dm(key: key)
+        }
+    }
 }
 
 extension AppModel.Destination {
