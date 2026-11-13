@@ -107,7 +107,10 @@ extension ZuluStore {
     static func registerHistoryContinuityMigration(_ migrator: inout DatabaseMigrator) {
         migrator.registerMigration("v19-history-gaps") { db in
             // Stored messages before this marked no gaps, and some have them. History is
-            // refetched as conversations open.
+            // refetched as conversations open. Migrations run with foreign keys off, so
+            // the rows hanging off each message do not cascade and go first.
+            try db.execute(sql: "DELETE FROM reaction")
+            try db.execute(sql: "DELETE FROM submessage")
             try db.execute(sql: "DELETE FROM message")
             try db.create(table: "historyGap") { t in
                 t.primaryKey("messageID", .integer)
