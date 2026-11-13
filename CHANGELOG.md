@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.23.2](https://github.com/slop-place/zulu/compare/zulu-v1.23.1...zulu-v1.23.2) (2026-11-13)
+
+
+### Bug Fixes
+
+* clear reactions and polls with stored history so upgrading to 1.23.1 no longer signs out ([#79](https://github.com/slop-place/zulu/issues/79)) ([af2c86a](https://github.com/slop-place/zulu/commit/af2c86af21156fb63a5fcc25d0c11a39c19b67fd))
+
 ## [1.23.1](https://github.com/slop-place/zulu/compare/zulu-v1.23.0...zulu-v1.23.1) (2026-11-12)
 
 
