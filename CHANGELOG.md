@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.23.3](https://github.com/slop-place/zulu/compare/zulu-v1.23.2...zulu-v1.23.3) (2026-11-13)
+
+
+### Bug Fixes
+
+* hide the Mac composer placeholder once typing starts ([#81](https://github.com/slop-place/zulu/issues/81)) ([818037d](https://github.com/slop-place/zulu/commit/818037d3c449967692734c0e2eccc618c54dc3b4))
+
 ## [1.23.2](https://github.com/slop-place/zulu/compare/zulu-v1.23.1...zulu-v1.23.2) (2026-11-13)
 
 
