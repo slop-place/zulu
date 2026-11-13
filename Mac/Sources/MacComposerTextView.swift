@@ -232,6 +232,12 @@ final class ComposerTextView: NSTextView {
         super.keyDown(with: event)
     }
 
+    /// TextKit 2 draws text in its own layers, so typing never redraws the placeholder away.
+    override func didChangeText() {
+        super.didChangeText()
+        needsDisplay = true
+    }
+
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
         guard string.isEmpty, !placeholder.isEmpty else { return }
