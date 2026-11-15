@@ -74,6 +74,11 @@ struct FrameAnimation: @unchecked Sendable, Equatable {
         }
         animation.keyTimes = keyTimes
         animation.duration = total
+        // Left to choose, the system may step a discrete animation slower than its shortest frame.
+        if let shortest = delays.min(), shortest > 0 {
+            let rate = Float(1 / shortest)
+            animation.preferredFrameRateRange = CAFrameRateRange(minimum: rate, maximum: rate, preferred: rate)
+        }
         animation.repeatCount = .infinity
         animation.isRemovedOnCompletion = false
         return animation
