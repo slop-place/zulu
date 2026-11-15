@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.23.4](https://github.com/slop-place/zulu/compare/zulu-v1.23.3...zulu-v1.23.4) (2026-11-15)
+
+
+### Bug Fixes
+
+* play animated emoji and GIFs at their own frame rate ([#84](https://github.com/slop-place/zulu/issues/84)) ([029fd8b](https://github.com/slop-place/zulu/commit/029fd8be8dd3e136743ce5d6f2a85b9e8b274531))
+* stop the still frame showing through animated emoji and GIFs ([#83](https://github.com/slop-place/zulu/issues/83)) ([f6d9d95](https://github.com/slop-place/zulu/commit/f6d9d955134634639adc6bdd04679789bf6fd316))
+
 ## [1.23.3](https://github.com/slop-place/zulu/compare/zulu-v1.23.2...zulu-v1.23.3) (2026-11-13)
 
 
