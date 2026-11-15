@@ -110,13 +110,12 @@ struct GIFThumbnail: View {
             .fill(.quaternary)
             .aspectRatio(gif.aspectRatio, contentMode: .fit)
             .overlay {
-                if let still = still ?? DecodedImages.image(at: path) {
-                    still.resizable().scaledToFill()
-                }
-            }
-            .overlay {
-                if let animation {
-                    FrameAnimationView(animation: animation)
+                MovingPicture(animation: animation) {
+                    if let still = still ?? DecodedImages.image(at: path) {
+                        still.resizable().scaledToFill()
+                    } else {
+                        Color.clear
+                    }
                 }
             }
             .clipShape(RoundedRectangle(cornerRadius: Self.cornerRadius))
