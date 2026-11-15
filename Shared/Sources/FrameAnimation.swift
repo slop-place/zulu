@@ -96,6 +96,28 @@ struct FrameAnimationView: View {
     }
 }
 
+/// A still picture that plays `animation` in its place. The still stays to size it, hidden
+/// while playing, since it would show through the transparent parts of the frames.
+struct MovingPicture<Still: View>: View {
+    let animation: FrameAnimation?
+    var cornerRadius: CGFloat = 0
+    @ViewBuilder let still: Still
+
+    private var playing: FrameAnimation? {
+        animation.flatMap { $0.isAnimated ? $0 : nil }
+    }
+
+    var body: some View {
+        still
+            .opacity(playing == nil ? 1 : 0)
+            .overlay {
+                if let playing {
+                    FrameAnimationView(animation: playing, cornerRadius: cornerRadius)
+                }
+            }
+    }
+}
+
 /// The layer's side of it: what to play, and starting it again whenever it comes back on
 /// screen, since a layer that leaves the window can lose its animation.
 @MainActor

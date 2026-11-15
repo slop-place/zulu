@@ -43,15 +43,10 @@ struct RemoteImage: View {
     var body: some View {
         Group {
             if let image {
-                image
-                    .resizable()
-                    .scaledToFit()
-                    .overlay {
-                        if let animation {
-                            FrameAnimationView(animation: animation, cornerRadius: Self.cornerRadius)
-                        }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                MovingPicture(animation: animation, cornerRadius: Self.cornerRadius) {
+                    image.resizable().scaledToFit()
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
                     .clipShape(RoundedRectangle(cornerRadius: Self.cornerRadius))
             } else if failed {
                 Label(alt ?? "Image", systemImage: "photo")

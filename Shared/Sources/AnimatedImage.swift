@@ -119,10 +119,6 @@ struct AnimatedEmojiView: View {
     let frames: EmojiFrames
 
     var body: some View {
-        frames.frames[0].overlay {
-            if let animation = frames.animation, animation.isAnimated {
-                FrameAnimationView(animation: animation)
-            }
-        }
+        MovingPicture(animation: frames.animation) { frames.frames[0] }
     }
 }
