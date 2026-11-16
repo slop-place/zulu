@@ -93,6 +93,7 @@ final class MessageHistoryLoader {
     func start() async {
         openFromStore()
         await loadInitialHistory()
+        widenOpeningWindow()
         if observation == nil, let targetID, !model.holdsInHistory(targetID) {
             await openDetached(around: targetID)
         }
@@ -244,11 +245,24 @@ final class MessageHistoryLoader {
     @discardableResult
     private func showStoredPage(before oldest: Int) -> Bool {
         guard let start = storedPageStart(before: oldest, count: Self.olderPageSize), !isStopped else { return false }
+        reobserve(from: start)
+        return true
+    }
+
+    /// Opened from the store, the window stops at what was stored then: sometimes only the
+    /// unread messages. What the server fetched before them is shown above.
+    private func widenOpeningWindow() {
+        guard observation != nil, !isStopped, let store = model.storeForReading, let current = windowStart,
+              let start = openingWindowStart(in: store), start < current
+        else { return }
+        reobserve(from: start)
+    }
+
+    private func reobserve(from start: Int) {
         windowStart = start
         observation?.cancel()
         observation = nil
         observe()
-        return true
     }
 
     private func storedPageStart(before id: Int, count: Int) -> Int? {

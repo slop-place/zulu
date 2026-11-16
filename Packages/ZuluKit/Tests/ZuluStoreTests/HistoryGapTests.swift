@@ -113,6 +113,21 @@ struct HistoryGapTests {
         #expect(try shown(store) == [600, 601])
     }
 
+    @Test func fetchingTheNewestPageWidensAWindowOpenedOnALiveMessage() throws {
+        let store = try store(storing: 1...100)
+        try store.saveArrival(message(600), selfUserID: 1)
+        let openedOn = try store.windowStart(
+            channelID: Self.channel, topic: Self.topic, openingAt: 600, newest: Self.page, context: Self.page
+        )
+        #expect(openedOn == 600)
+        try saveNewest(501...600, to: store)
+        let widened = try #require(try store.windowStart(
+            channelID: Self.channel, topic: Self.topic, openingAt: 600, newest: Self.page, context: Self.page
+        ))
+        #expect(widened < 600)
+        #expect(try shown(store, from: widened).count == Self.page + 1)
+    }
+
     @Test func liveMessagesAfterTheNewestPageJoinIt() throws {
         let store = try store(storing: 1...100)
         try saveNewest(51...150, to: store)
