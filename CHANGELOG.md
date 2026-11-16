@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.23.5](https://github.com/slop-place/zulu/compare/zulu-v1.23.4...zulu-v1.23.5) (2026-11-16)
+
+
+### Bug Fixes
+
+* show earlier messages in a topic opened on its unread messages ([#86](https://github.com/slop-place/zulu/issues/86)) ([1a83c9b](https://github.com/slop-place/zulu/commit/1a83c9bd1bf32463b2a4e71fcdd3150045d88898))
+
 ## [1.23.4](https://github.com/slop-place/zulu/compare/zulu-v1.23.3...zulu-v1.23.4) (2026-11-15)
 
 
