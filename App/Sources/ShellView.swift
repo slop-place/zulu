@@ -3,7 +3,7 @@ import SwiftUI
 import ZuluStore
 import ZuluSync
 
-/// The drawer shell, wired to the store. Structure follows the nav-shell prototype:
+/// The drawer shell, wired to the store:
 /// a rail, a channel list, and a message page that slides off them.
 ///
 /// Where there is room for both, the open inner display of a foldable or an iPad, the
