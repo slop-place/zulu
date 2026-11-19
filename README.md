@@ -18,9 +18,6 @@ Early but usable. Sign in against any Zulip server; read and send in channels, t
 DMs; react and reply; attach files, photos and camera captures; vote in polls. A Go
 notification service lives in `service/` and builds to a container, but is not deployed.
 
-See [`.scratch/zulu-client/map.md`](.scratch/zulu-client/map.md) for the decisions already
-locked and what is still open.
-
 ## Layout
 
 | Path | What |
@@ -30,7 +27,8 @@ locked and what is still open.
 | `Shared` | SwiftUI shared by both apps: the model, messages, composer pieces |
 | `Packages/ZuluKit` | `ZulipAPI`, `ZuluStore` (GRDB), `ZuluSync`, `ZuluMarkup`, `ZuluEmoji`, `ZuluCompose`, `ZuluPolls` |
 | `service` | The Go notification service |
-| `.scratch/zulu-client/` | The wayfinder map, its decision tickets, and research notes |
+| `spec` | Notification rule cases shared by the Swift and Go tests |
+| `docs` | Release process |
 
 ## Running it
 

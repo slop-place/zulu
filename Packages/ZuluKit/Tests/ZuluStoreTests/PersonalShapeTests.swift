@@ -72,8 +72,8 @@ struct PersonalShapeTests {
         #expect(try store.alias(forChannel: 7) == nil)
     }
 
-    /// The working answer from the ticket: promoted topics leave the forum list, so they
-    /// are never shown twice and their unread is never counted twice.
+    /// Promoted topics leave the forum list, so they are never shown twice and their
+    /// unread is never counted twice.
     @Test func aPromotedTopicLeavesTheForumListBeneathItsChannel() async throws {
         let store = try makeStore()
         try store.promote(topic: "standup", inChannel: 7)

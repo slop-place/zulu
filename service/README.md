@@ -130,9 +130,9 @@ for an error this build does not recognise), and a `Retry-After` header is obeye
 
 ## Open decisions
 
-Two questions are the user's, not mine. Both tickets stay open.
+Two questions are still open.
 
-### Holding an event queue silences Zulip's own notifications (ticket 19)
+### Holding an event queue silences Zulip's own notifications
 
 Zulip's `receiver_is_off_zulip()` counts any event queue that accepts `message`
 events. The moment this service connects for a user, Zulip considers them present
@@ -167,7 +167,7 @@ about missed messages." Revisit only if the email loss turns out to matter, in
 which case the honest fix is upstream — a `client_capabilities` flag that lets a
 queue opt out of counting toward presence.
 
-### One API key, two holders (ticket 20)
+### One API key, two holders
 
 A Zulip account has exactly one API key. There is no scoping and no second
 credential; regenerating it for one holder revokes it for every other, including
