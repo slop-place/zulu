@@ -193,43 +193,29 @@ final class ComposerTextView: NSTextView {
     var onFiles: (([URL]) -> Void)?
     var onImage: ((Data, UTType) -> Void)?
 
-    private enum KeyCode {
-        static let `return`: UInt16 = 36
-        static let keypadEnter: UInt16 = 76
-        static let tab: UInt16 = 48
-        static let escape: UInt16 = 53
-        static let down: UInt16 = 125
-        static let up: UInt16 = 126
-    }
-
     /// Return sends; Shift-Return and Option-Return start a new line. That is what every
     /// Mac chat client does, and it is the one behaviour a person notices immediately if
     /// it is wrong.
-    override func keyDown(with event: NSEvent) {
-        // Arrow keys always arrive flagged as function and keypad keys, which are not
-        // modifiers anyone pressed.
-        let flags = event.modifierFlags
-            .intersection(.deviceIndependentFlagsMask)
-            .subtracting([.function, .numericPad])
-        switch event.keyCode {
-        case KeyCode.return, KeyCode.keypadEnter:
-            if flags.contains(.shift) || flags.contains(.option) {
-                insertNewline(nil)
-                return
-            }
-            if onKey?(.send) == true { return }
-        case KeyCode.up:
-            if flags.isEmpty, onKey?(.up) == true { return }
-        case KeyCode.down:
-            if flags.isEmpty, onKey?(.down) == true { return }
-        case KeyCode.tab:
-            if flags.isEmpty, onKey?(.tab) == true { return }
-        case KeyCode.escape:
-            if onKey?(.escape) == true { return }
-        default:
-            break
+    ///
+    /// Keys are caught as commands rather than in `keyDown` so an open input method, such
+    /// as the emoji picker, gets Return and the arrows first.
+    override func doCommand(by selector: Selector) {
+        if let key = composerKey(for: selector), onKey?(key) == true { return }
+        super.doCommand(by: selector)
+    }
+
+    /// Option-Return arrives as `insertNewlineIgnoringFieldEditor:`, so only Shift needs checking.
+    private func composerKey(for selector: Selector) -> ComposerKey? {
+        switch selector {
+        case #selector(insertNewline(_:)):
+            let isShifted = NSApp.currentEvent?.modifierFlags.contains(.shift) ?? false
+            return isShifted ? nil : .send
+        case #selector(moveUp(_:)): return .up
+        case #selector(moveDown(_:)): return .down
+        case #selector(insertTab(_:)): return .tab
+        case #selector(cancelOperation(_:)), #selector(complete(_:)): return .escape
+        default: return nil
         }
-        super.keyDown(with: event)
     }
 
     /// TextKit 2 draws text in its own layers, so typing never redraws the placeholder away.
