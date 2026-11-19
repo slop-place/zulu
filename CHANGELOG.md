@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.23.6](https://github.com/slop-place/zulu/compare/zulu-v1.23.5...zulu-v1.23.6) (2026-11-19)
+
+
+### Bug Fixes
+
+* let the emoji picker take Return before the composer sends ([#88](https://github.com/slop-place/zulu/issues/88)) ([d416bba](https://github.com/slop-place/zulu/commit/d416bba9984b32cf4524c6fc935aeee37d2fcb4c))
+
 ## [1.23.5](https://github.com/slop-place/zulu/compare/zulu-v1.23.4...zulu-v1.23.5) (2026-11-16)
 
 
